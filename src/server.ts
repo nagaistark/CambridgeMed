@@ -21,6 +21,7 @@ import {
 import {
    handleValiError,
    handleMongooseError,
+   handleJwtError,
    handleHttpError,
    handleEnoentError,
    handleCatchAll,
@@ -249,9 +250,10 @@ app.use('/{*splat}', (req: Request, res: Response) => {
 // ── Error handlers (order is critical → most specific first, catch-all last) ──
 app.use(handleValiError); // 1. Valibot schema failures
 app.use(handleMongooseError); // 2. Mongoose / MongoDB errors
-app.use(handleHttpError); // 3. Known HTTP errors (status/statusCode)
-app.use(handleEnoentError); // 4. Filesystem errors from sendFile
-app.use(handleCatchAll); // 5. Catch-All (must always come last)
+app.use(handleJwtError); // 3. jose JWT errors
+app.use(handleHttpError); // 4. Known HTTP errors (status/statusCode)
+app.use(handleEnoentError); // 5. Filesystem errors from sendFile
+app.use(handleCatchAll); // 6. Catch-All (must always come last)
 
 // ====================================================================================
 // 6. SERVER BOOTSTRAP
