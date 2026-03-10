@@ -2,6 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { ValiError, type IssuePathItem } from 'valibot';
 import mongoose from 'mongoose';
 import { MongoNetworkError, MongoServerError } from 'mongodb';
+import { errors as joseErrors } from 'jose';
 import logger from '@/logger.ts';
 // ====================================================================================
 // Every possible machine-readable error code. Extend this union as you add functionality
@@ -355,6 +356,47 @@ export function handleMongooseError(
    // ── Not our responsibility ──────────────────────────────────────────────
    /* This error isn't Mongoose or MongoDB related. Pass it to the next specialist in the pipeline without touching it. */
    next(err);
+}
+
+// ====================================================================================
+// The JWT specialist/handler
+// ====================================================================================
+export function handleJwtError(
+   err: unknown,
+   _req: Request,
+   res: Response,
+   next: NextFunction
+): void {
+   // If the error isn't from JOSE, pass it along.
+   if (!(err instanceof joseErrors.JOSEError)) return next(err);
+
+   const requestId = res.locals['requestId'] as string | undefined;
+
+   /* JWTExpired is a NORMAL, EXPECTED lifecycle event — the access token ran out and the client needs to hit /api/auth/refresh. */
+   if (err instanceof joseErrors.JWTExpired) {
+      return void res
+         .status(401)
+         .json(
+            createErrorResponse(
+               'UNAUTHORIZED',
+               'Token has expired.',
+               undefined,
+               requestId
+            )
+         );
+   }
+
+   /* Everything else — forged signatures, malformed tokens, invalid claims, wrong algorithm — gets a DELIBERATELY VAGUE message because a specific message would only benefit an attacker probing our system. */
+   return void res
+      .status(401)
+      .json(
+         createErrorResponse(
+            'UNAUTHORIZED',
+            'Invalid or malformed token.',
+            undefined,
+            requestId
+         )
+      );
 }
 
 // ====================================================================================
