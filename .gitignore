@@ -1,0 +1,85 @@
+# ===============================
+# OS junk
+# ===============================
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Icon?
+__MACOSX/
+
+# ===============================
+# Node.js
+# ===============================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+.pnpm-debug.log
+
+# Optional: ignore lockfiles only if you don’t care about dependency consistency
+
+# ===============================
+# Build output
+# ===============================
+dist/
+build/
+out/
+.next/
+.vercel/
+tmp/
+temp/
+.cache/
+coverage/
+*.log
+
+# ===============================
+# Environment secrets
+# ===============================
+.env
+.env.*
+!.env.example  # keep example config in Git
+
+# ===============================
+# Editor/IDE crap
+# ===============================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+
+# ===============================
+# Mac/Linux/Windows system files
+# ===============================
+*.swp
+*.swo
+*.bak
+*.tmp
+*.orig
+
+# ===============================
+# TypeScript / Babel / ESLint
+# ===============================
+*.tsbuildinfo
+*.eslintcache
+.cache/
+.jest/
+jest.config.js
+babel.config.js
+
+# ===============================
+# Miscellaneous
+# ===============================
+*.log
+*.tgz
+*.zip
+*.gz
+*.lock
+*.sqlite
+*.sqlite3
+
+# Optional: Ignore test snapshots
+__snapshots__/
+*.snap
