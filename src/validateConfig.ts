@@ -60,6 +60,12 @@ const mongoConnStrPattern = regex(
    `Connection string doesn't conform to the pattern.`
 );
 
+const resendApiKeys = pipe(
+   string(`Must be a string.`),
+   trim(),
+   regex(/^[a-zA-Z0-9\-\._]{36}$/, `String doesn't conform to the pattern.`)
+);
+
 const ConfigSchema = strictObject({
    database: strictObject({
       appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
@@ -99,6 +105,9 @@ const ConfigSchema = strictObject({
       accessTokenExpiryMinutes: stringContainingPositiveInteger,
       refreshTokenExpiryDays: stringContainingPositiveInteger,
    }),
+   apiKeys: strictObject({
+      resend: resendApiKeys,
+   }),
 });
 
 const rawConfig = {
@@ -125,6 +134,9 @@ const rawConfig = {
       publicKey: process.env.JWT_PUBLIC_KEY,
       accessTokenExpiryMinutes: process.env.JWT_ACCESS_TOKEN_EXPIRY_MIN,
       refreshTokenExpiryDays: process.env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+   },
+   apiKeys: {
+      resend: process.env.RESEND_API_KEY,
    },
 };
 

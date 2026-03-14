@@ -36,14 +36,6 @@ interface ApiErrorResponse {
    requestId?: string;
 }
 
-interface ApiSuccessResponse<T = unknown> {
-   success: true;
-   data: T;
-   requestId?: string;
-}
-
-type ApiResponse<T = unknown> = ApiSuccessResponse<T> | ApiErrorResponse;
-
 // ====================================================================================
 // FACTORY FUNCTION that produces a guaranteed-valid ApiErrorResponse
 // ====================================================================================
@@ -162,20 +154,6 @@ const statusToErrorCode = (status: number, type?: string): ErrorCode => {
 };
 
 // ====================================================================================
-// Type guard that narrows `unknown` to Node's built-in ErrnoException type.
-// ====================================================================================
-/* We check three things in sequence: 1. It must be an Error — ErrnoException extends Error. 2. It must have a `code` property that is a string — all ErrnoExceptions do. 3. That code must specifically be 'ENOENT' — our target condition.
-We deliberately do NOT check `err.path` (the filesystem path) here — that property is sensitive and belongs only in the server logs, never in the type guard or the response. */
-function isEnoentError(err: unknown): err is NodeJS.ErrnoException {
-   return (
-      err instanceof Error &&
-      'code' in err &&
-      typeof (err as NodeJS.ErrnoException).code === 'string' &&
-      (err as NodeJS.ErrnoException).code === 'ENOENT'
-   );
-}
-
-// ====================================================================================
 // OPERATIONAL ERRORS VS PROGRAMMER ERRORS
 // ====================================================================================
 /* A best-effort heuristic for distinguishing operational errors from programmer errors. We recognise known Node.js operational error classes by name, since they don't share a common base class we can use instanceof with. This list covers the most common cases — it is intentionally conservative. When in doubt, we treat an error as a programmer error (the safer assumption, because it triggers more aggressive logging and a 500 rather than a 503). */
@@ -212,6 +190,8 @@ export function handleValiError(
    // If this isn't a ValiError, it's not our job. Passing it to the next "specialist"
    if (!(err instanceof ValiError)) return next(err);
 
+   const requestId = res.locals['requestId'] as string | undefined;
+
    // We're only extracting structural information from each issue: PATH (which field failed) and MESSAGE (why it failed)
    const details = err.issues.map(issue => ({
       // IssuePathItem is Valibot's own union of all possible path item types
@@ -223,10 +203,10 @@ export function handleValiError(
       'VALIDATION_ERROR',
       'The request data failed validation.',
       details,
-      res.locals['requestId']
+      requestId
    );
 
-   res.status(422).json(response);
+   return void res.status(422).json(response);
    // NOTICE that we do NOT call `next()` here. We handled it. The pipeline stops
 }
 
@@ -355,7 +335,7 @@ export function handleMongooseError(
 
    // ── Not our responsibility ──────────────────────────────────────────────
    /* This error isn't Mongoose or MongoDB related. Pass it to the next specialist in the pipeline without touching it. */
-   next(err);
+   return next(err);
 }
 
 // ====================================================================================
@@ -417,16 +397,16 @@ export function handleHttpError(
             ? 'INVALID_JSON'
             : 'VALIDATION_ERROR';
 
-      res.status(err.status).json(
-         createErrorResponse(
-            code,
-            'The request body could not be parsed.',
-            undefined,
-            requestId
-         )
-      );
-
-      return;
+      return void res
+         .status(err.status)
+         .json(
+            createErrorResponse(
+               code,
+               'The request body could not be parsed.',
+               undefined,
+               requestId
+            )
+         );
    }
 
    // http-errors
@@ -436,16 +416,16 @@ export function handleHttpError(
             ? err.message
             : 'An unexpected server error occurred.';
 
-      res.status(err.status).json(
-         createErrorResponse(
-            statusToErrorCode(err.status),
-            message,
-            undefined,
-            requestId
-         )
-      );
-
-      return;
+      return void res
+         .status(err.status)
+         .json(
+            createErrorResponse(
+               statusToErrorCode(err.status),
+               message,
+               undefined,
+               requestId
+            )
+         );
    }
 
    // Generic status-only. Treating all 4XX as client-safe, all 5XX as opaque.
@@ -456,16 +436,16 @@ export function handleHttpError(
             ? err.message
             : 'An unexpected server error occurred.';
 
-      res.status(err.status).json(
-         createErrorResponse(
-            statusToErrorCode(err.status),
-            message,
-            undefined,
-            requestId
-         )
-      );
-
-      return;
+      return void res
+         .status(err.status)
+         .json(
+            createErrorResponse(
+               statusToErrorCode(err.status),
+               message,
+               undefined,
+               requestId
+            )
+         );
    }
 
    // Generic statusCode-only. Same logic, different property name.
@@ -476,20 +456,20 @@ export function handleHttpError(
             ? err.message
             : 'An unexpected server error occurred.';
 
-      res.status(err.statusCode).json(
-         createErrorResponse(
-            statusToErrorCode(err.statusCode),
-            message,
-            undefined,
-            requestId
-         )
-      );
-
-      return;
+      return void res
+         .status(err.statusCode)
+         .json(
+            createErrorResponse(
+               statusToErrorCode(err.statusCode),
+               message,
+               undefined,
+               requestId
+            )
+         );
    }
 
    // Not an HTTP-like error at all, not our job.
-   next(err);
+   return next(err);
 }
 
 // ====================================================================================
@@ -501,6 +481,17 @@ export function handleEnoentError(
    res: Response,
    next: NextFunction
 ): void {
+   // Type guard that narrows `unknown` to Node's built-in ErrnoException type.
+   /* We check three things in sequence: 1. It must be an Error — ErrnoException extends Error. 2. It must have a `code` property that is a string — all ErrnoExceptions do. 3. That code must specifically be 'ENOENT' — our target condition. We deliberately do NOT check `err.path` (the filesystem path) here — that property is sensitive and belongs only in the server logs, never in the type guard or the response. */
+   function isEnoentError(err: unknown): err is NodeJS.ErrnoException {
+      return (
+         err instanceof Error &&
+         'code' in err &&
+         typeof (err as NodeJS.ErrnoException).code === 'string' &&
+         (err as NodeJS.ErrnoException).code === 'ENOENT'
+      );
+   }
+
    // Passing it to the next specialist if it's not our responsibility
    if (!isEnoentError(err)) return next(err);
 
@@ -513,14 +504,16 @@ export function handleEnoentError(
    );
 
    /* 503 because this is an infrastructure failure, not a code bug. The message is deliberately generic — the client has no business knowing that index.html is missing or where we expected to find it. */
-   res.status(503).json(
-      createErrorResponse(
-         'SERVICE_UNAVAILABLE',
-         'The application is temporarily unavailable. Please try again shortly.',
-         undefined,
-         requestId
-      )
-   );
+   return void res
+      .status(503)
+      .json(
+         createErrorResponse(
+            'SERVICE_UNAVAILABLE',
+            'The application is temporarily unavailable. Please try again shortly.',
+            undefined,
+            requestId
+         )
+      );
 }
 
 // ====================================================================================
@@ -588,9 +581,9 @@ export function handleCatchAll(
             : 'An unexpected error occurred. Please contact support if this persists.'
          : error.message; // In development: the real message, unfiltered.
 
-   res.status(status).json(
-      createErrorResponse(code, message, undefined, requestId)
-   );
+   return void res
+      .status(status)
+      .json(createErrorResponse(code, message, undefined, requestId));
 
    // Notice: no next(err) here, ever (except in the headersSent guard above). This handler is the terminal station. There is nobody left to pass to.
 }
