@@ -1,4 +1,5 @@
 import 'dotenv/config';
+import { env } from 'node:process';
 import logger from '@/logger.ts';
 import {
    strictObject,
@@ -15,7 +16,14 @@ import {
    check,
    regex,
    digits,
+   number,
+   parseJson,
+   email,
+   picklist,
+   record,
 } from 'valibot';
+import { userRoles, type UserRole } from '@ssot/user.roles.ts';
+import { makePicklist } from '@/utils/arrayToValPicklist.ts';
 
 const nonEmptyReasonablyLongString = pipe(
    string('Variable is not a string'),
@@ -51,7 +59,8 @@ const pemPublicKey = pipe(
 const stringContainingPositiveInteger = pipe(
    nonEmptyReasonablyLongString,
    digits(),
-   transform(str => Number(str)),
+   transform(Number),
+   number(`Must be a numeric value`),
    check(val => val > 0 && val <= Number.MAX_SAFE_INTEGER)
 );
 
@@ -108,36 +117,49 @@ const ConfigSchema = strictObject({
    apiKeys: strictObject({
       resend: resendApiKeys,
    }),
+   whiteList: pipe(
+      string(`The Whitelist must be a string.`),
+      parseJson(),
+      record(
+         pipe(
+            string(`The key must be a string.`),
+            email(`The email is badly formatted.`),
+            transform(str => str.toLowerCase())
+         ),
+         makePicklist(userRoles)
+      )
+   ),
 });
 
 const rawConfig = {
    database: {
-      appUri: process.env.DB_APP_URI,
-      authUri: process.env.DB_AUTH_URI,
-      maxPoolSize: process.env.MAX_POOL_SIZE,
-      serverSelectionTimeoutMS: process.env.DB_SERVER_SELECTION_TIMEOUT_MS,
-      socketTimeoutMS: process.env.SOCKET_TIMEOUT_MS,
-      autoIndex: process.env.NODE_ENV === 'development',
-      maxRetries: process.env.MAX_RETRIES,
-      baseDelay: process.env.BASE_DELAY_MS,
-      gracePeriodMS: process.env.GRACE_PERIOD_MS,
+      appUri: env.DB_APP_URI,
+      authUri: env.DB_AUTH_URI,
+      maxPoolSize: env.MAX_POOL_SIZE,
+      serverSelectionTimeoutMS: env.DB_SERVER_SELECTION_TIMEOUT_MS,
+      socketTimeoutMS: env.SOCKET_TIMEOUT_MS,
+      autoIndex: env.NODE_ENV === 'development',
+      maxRetries: env.MAX_RETRIES,
+      baseDelay: env.BASE_DELAY_MS,
+      gracePeriodMS: env.GRACE_PERIOD_MS,
    },
    server: {
-      host: process.env.HOST,
-      port: process.env.PORT,
+      host: env.HOST,
+      port: env.PORT,
    },
    cors: {
-      origins: process.env.CORS_ORIGINS,
+      origins: env.CORS_ORIGINS,
    },
    jwt: {
-      privateKey: process.env.JWT_PRIVATE_KEY,
-      publicKey: process.env.JWT_PUBLIC_KEY,
-      accessTokenExpiryMinutes: process.env.JWT_ACCESS_TOKEN_EXPIRY_MIN,
-      refreshTokenExpiryDays: process.env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
+      privateKey: env.JWT_PRIVATE_KEY,
+      publicKey: env.JWT_PUBLIC_KEY,
+      accessTokenExpiryMinutes: env.JWT_ACCESS_TOKEN_EXPIRY_MIN,
+      refreshTokenExpiryDays: env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
    },
    apiKeys: {
-      resend: process.env.RESEND_API_KEY,
+      resend: env.RESEND_API_KEY,
    },
+   whiteList: env.STAFF_WHITELIST,
 };
 
 type Env = InferOutput<typeof ConfigSchema>;
@@ -152,3 +174,7 @@ function validateConfig(): Env {
 }
 
 export const myEnv: Env = validateConfig();
+export const staffWhiteList = new Map<string, UserRole>(
+   Object.entries(myEnv.whiteList)
+);
+logger.info(staffWhiteList);
