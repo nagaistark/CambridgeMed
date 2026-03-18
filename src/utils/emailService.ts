@@ -1,20 +1,40 @@
-import { Request, Response } from 'express';
 import { myEnv } from '@/validateConfig.ts';
 import { Resend } from 'resend';
+import { VERIFICATION_TOKEN_EXPIRY_MIN } from '@ssot/emailVerification.ts';
 
 const resend = new Resend(myEnv.apiKeys.resend);
+const APP_BASE_URL = myEnv.cors.origins.at(0);
 
-export const sendVerificationEmail = async (_req: Request, res: Response) => {
-   const { data, error } = await resend.emails.send({
-      from: 'Acme <onboarding@resend.dev>',
-      to: ['jascha.stark+resend@gmail.com'],
-      subject: 'Verification required.',
-      html: '<strong>Verification token...</strong>',
+interface SendVerificationEmailOptions {
+   toEmail: string;
+   username: string;
+   token: string; // The signed JWT, not a plaintext secret.
+}
+
+export async function sendVerificationEmail({
+   toEmail,
+   username,
+   token,
+}: SendVerificationEmailOptions): Promise<void> {
+   const verificationUrl = `${APP_BASE_URL}/auth/verify-email?token=${token}`;
+
+   const { error } = await resend.emails.send({
+      from: 'Cambridge Med <onboarding@resend.dev>',
+      to: [toEmail],
+      subject: 'Verify your Cambridge Med account',
+      html: `
+         <p>Hi ${username},</p>
+         <p>Please verify your email address by clicking the link below.
+            This link expires in ${VERIFICATION_TOKEN_EXPIRY_MIN} minutes.</p>
+         <p><a href="${verificationUrl}">Verify my account</a></p>
+         <p>If you did not create an account, you can safely ignore this email.</p>
+      `,
    });
 
+   /* We throw here so the controller can catch it and handle it explicitly. Resend errors are infrastructure failures, not client mistakes — the user created a valid account, the email just didn't send. The controller decides what to do about that (log it, still return 201, etc.). */
    if (error) {
-      return res.status(400).json({ error });
+      throw new Error(
+         `Resend failed to send verification email: ${error.message}`
+      );
    }
-
-   res.status(200).json({ data });
-};
+}

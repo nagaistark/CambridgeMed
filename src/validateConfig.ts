@@ -129,6 +129,7 @@ const ConfigSchema = strictObject({
          makePicklist(userRoles)
       )
    ),
+   verificationTokenExpiryMin: stringContainingPositiveInteger,
 });
 
 const rawConfig = {
@@ -160,6 +161,7 @@ const rawConfig = {
       resend: env.RESEND_API_KEY,
    },
    whiteList: env.STAFF_WHITELIST,
+   verificationTokenExpiryMin: env.VERIFICATION_TOKEN_EXPIRY_MIN,
 };
 
 type Env = InferOutput<typeof ConfigSchema>;
@@ -177,4 +179,3 @@ export const myEnv: Env = validateConfig();
 export const staffWhiteList = new Map<string, UserRole>(
    Object.entries(myEnv.whiteList)
 );
-logger.info(staffWhiteList);

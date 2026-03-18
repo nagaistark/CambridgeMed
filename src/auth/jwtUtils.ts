@@ -14,7 +14,7 @@ export async function validateJwtKeys(): Promise<void> {
    const publicKey = await importSPKI(myEnv.jwt.publicKey, 'RS256');
 
    // The second layer of the check: signing a minimal throwaway payload and setting a very short expirty because this token in never used for anything real.
-   const testToken = await new SignJWT({ sub: 'jwt-key-validation-check' })
+   const testToken = await new SignJWT({})
       .setProtectedHeader({ alg: 'RS256' })
       .setIssuedAt()
       .setExpirationTime('30s')
