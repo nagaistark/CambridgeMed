@@ -3,7 +3,7 @@ import { jwtVerify, importSPKI, errors as joseErrors } from 'jose';
 import { UserModel } from '@models/User.model.ts';
 import { myEnv } from '@/validateConfig.ts';
 import { createErrorResponse } from '@/errorHandlers.ts';
-import { EMAIL_VERIFICATION_AUDIENCE } from '@ssot/emailVerification.ts';
+import { EMAIL_VERIFICATION_AUDIENCE } from '@/_SSOT/email_verification_constants.ts';
 
 export async function verifyEmailController(
    req: Request,

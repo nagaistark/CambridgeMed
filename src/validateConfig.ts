@@ -21,8 +21,9 @@ import {
    email,
    picklist,
    record,
+   url,
 } from 'valibot';
-import { userRoles, type UserRole } from '@ssot/user.roles.ts';
+import { userRoles, type UserRole } from '@/_SSOT/user_roles_constants.ts';
 import { makePicklist } from '@/utils/arrayToValPicklist.ts';
 
 const nonEmptyReasonablyLongString = pipe(
@@ -129,7 +130,10 @@ const ConfigSchema = strictObject({
          makePicklist(userRoles)
       )
    ),
-   verificationTokenExpiryMin: stringContainingPositiveInteger,
+   appBaseUrl: pipe(
+      nonEmptyReasonablyLongString,
+      url(`The URL is badly formatted.`)
+   ),
 });
 
 const rawConfig = {
@@ -161,7 +165,7 @@ const rawConfig = {
       resend: env.RESEND_API_KEY,
    },
    whiteList: env.STAFF_WHITELIST,
-   verificationTokenExpiryMin: env.VERIFICATION_TOKEN_EXPIRY_MIN,
+   appBaseUrl: env.APP_BASE_URL,
 };
 
 type Env = InferOutput<typeof ConfigSchema>;

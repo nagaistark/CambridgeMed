@@ -1,6 +1,6 @@
 import { myEnv } from '@/validateConfig.ts';
 import { Resend } from 'resend';
-import { VERIFICATION_TOKEN_EXPIRY_MIN } from '@ssot/emailVerification.ts';
+import { HUMANIZED_EXPIRY } from '@ssot/email_verification_constants.ts';
 
 const resend = new Resend(myEnv.apiKeys.resend);
 const APP_BASE_URL = myEnv.cors.origins.at(0);
@@ -25,7 +25,7 @@ export async function sendVerificationEmail({
       html: `
          <p>Hi ${username},</p>
          <p>Please verify your email address by clicking the link below.
-            This link expires in ${VERIFICATION_TOKEN_EXPIRY_MIN} minutes.</p>
+            This link expires in ${HUMANIZED_EXPIRY}.</p>
          <p><a href="${verificationUrl}">Verify my account</a></p>
          <p>If you did not create an account, you can safely ignore this email.</p>
       `,

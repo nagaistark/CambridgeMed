@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { IUserInitial } from '@validators/user.validator.ts';
-import { userRoles, type UserRole } from '@/_SSOT/user.roles.ts';
+import { userRoles, type UserRole } from '@/_SSOT/user_roles_constants.ts';
 
 // This is what we check Mongoose Schema definition against
 type IUserDefinition = Omit<IUserInitial, 'password'> & {

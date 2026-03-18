@@ -8,9 +8,9 @@ import { myEnv, staffWhiteList } from '@/validateConfig.ts';
 import { sendVerificationEmail } from '@utils/emailService.ts';
 import { createErrorResponse } from '@/errorHandlers.ts';
 import {
-   VERIFICATION_TOKEN_EXPIRY_MIN,
+   VERIFICATION_TOKEN_EXPIRY,
    EMAIL_VERIFICATION_AUDIENCE,
-} from '@ssot/emailVerification.ts';
+} from '@/_SSOT/email_verification_constants.ts';
 
 export async function registerController(
    _req: Request,
@@ -62,7 +62,7 @@ export async function registerController(
          .setSubject(user._id.toString())
          .setAudience(EMAIL_VERIFICATION_AUDIENCE)
          .setIssuedAt()
-         .setExpirationTime(VERIFICATION_TOKEN_EXPIRY_MIN)
+         .setExpirationTime(VERIFICATION_TOKEN_EXPIRY)
          .sign(privateKey);
 
       // ── 5. Send verification email ──────────────────────────────────────
