@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from 'express';
-import { jwtVerify, importSPKI, errors as joseErrors } from 'jose';
+import { jwtVerify, importSPKI } from 'jose';
 import { UserModel } from '@models/User.model.ts';
 import { myEnv } from '@/validateConfig.ts';
 import { createErrorResponse } from '@/errorHandlers.ts';

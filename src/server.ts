@@ -9,7 +9,7 @@ import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 
 import { myEnv } from '@/validateConfig.ts';
-import { validateJwtKeys } from '@auth/jwtUtils.ts';
+import { validateJwtKeys } from '@utils/jwtUtils.ts';
 import logger from '@/logger.ts';
 
 import {

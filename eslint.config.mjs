@@ -11,7 +11,7 @@ export default defineConfig([
       rules: {
          'no-console': 'warn',
          '@typescript-eslint/no-explicit-any': 'off',
-         '@typesectip-eslint/no-unused-vars': [
+         '@typescript-eslint/no-unused-vars': [
             'error',
             { argsIgnorePattern: '^_' },
          ],

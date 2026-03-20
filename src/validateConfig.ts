@@ -17,14 +17,9 @@ import {
    regex,
    digits,
    number,
-   parseJson,
-   email,
-   picklist,
-   record,
    url,
 } from 'valibot';
-import { userRoles, type UserRole } from '@/_SSOT/user_roles_constants.ts';
-import { makePicklist } from '@/utils/arrayToValPicklist.ts';
+import { Buffer } from 'node:buffer';
 
 const nonEmptyReasonablyLongString = pipe(
    string('Variable is not a string'),
@@ -73,7 +68,7 @@ const mongoConnStrPattern = regex(
 const resendApiKeys = pipe(
    string(`Must be a string.`),
    trim(),
-   regex(/^[a-zA-Z0-9\-\._]{36}$/, `String doesn't conform to the pattern.`)
+   regex(/^[a-zA-Z0-9\-._]{36}$/, `String doesn't conform to the pattern.`)
 );
 
 const ConfigSchema = strictObject({
@@ -118,17 +113,9 @@ const ConfigSchema = strictObject({
    apiKeys: strictObject({
       resend: resendApiKeys,
    }),
-   whiteList: pipe(
-      string(`The Whitelist must be a string.`),
-      parseJson(),
-      record(
-         pipe(
-            string(`The key must be a string.`),
-            email(`The email is badly formatted.`),
-            transform(str => str.toLowerCase())
-         ),
-         makePicklist(userRoles)
-      )
+   argon2Secret: pipe(
+      nonEmptyReasonablyLongString,
+      transform(str => Buffer.from(str))
    ),
    appBaseUrl: pipe(
       nonEmptyReasonablyLongString,
@@ -164,7 +151,7 @@ const rawConfig = {
    apiKeys: {
       resend: env.RESEND_API_KEY,
    },
-   whiteList: env.STAFF_WHITELIST,
+   argon2Secret: env.ARGON2_SECRET,
    appBaseUrl: env.APP_BASE_URL,
 };
 
@@ -180,6 +167,3 @@ function validateConfig(): Env {
 }
 
 export const myEnv: Env = validateConfig();
-export const staffWhiteList = new Map<string, UserRole>(
-   Object.entries(myEnv.whiteList)
-);

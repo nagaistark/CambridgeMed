@@ -10,7 +10,7 @@ import { createErrorResponse } from '@/errorHandlers.ts';
 import {
    VERIFICATION_TOKEN_EXPIRY,
    EMAIL_VERIFICATION_AUDIENCE,
-} from '@/_SSOT/email_verification_constants.ts';
+} from '@ssot/email_verification_constants.ts';
 
 export async function registerController(
    _req: Request,

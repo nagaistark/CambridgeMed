@@ -1,3 +1,5 @@
+// Is going to be used in case of a User changing the email.
+
 // In the jose library, the setExpirationTime() method accepts a human-readable time span (e.g., '2h', '7d', '15m'). The library resolves this into a duration added to the current Unix timestamp.
 
 const timeUnits = {
