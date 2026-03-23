@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { userRoles, type UserRole } from '@ssot/user_roles_constants.ts';
+import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
 
 import {
    email,
@@ -14,6 +15,8 @@ import {
    transform,
    trim,
 } from 'valibot';
+import { DatabaseManager } from '@/dbConnect.ts';
+import { createModelGetter } from '@utils/createLazyGetter.ts';
 
 // This is what we expect from a User
 export type IUserInitial = InferOutput<typeof UserRegistrationSchema>;
@@ -33,10 +36,6 @@ type IUserDocument = IUserDefinition & {
    _id: mongoose.Types.ObjectId;
    createdAt: Date;
    updatedAt: Date;
-};
-
-type StrictSchemaDefinition<T> = {
-   [K in keyof T]-?: mongoose.SchemaDefinitionProperty<T[K]>;
 };
 
 const baseString = pipe(
@@ -141,5 +140,9 @@ const UserSchema = new mongoose.Schema<IUserDocument>(UserDefinition, {
    strict: 'throw',
 });
 
-// TBH `<IUserDocument>` doesn't really constrain anything that goes in, but it precisely describes what comes out. It's more like a return-type declaration on a function
-export const UserModel = mongoose.model<IUserDocument>('User', UserSchema);
+// MODEL FACTORY (lazy getter pattern)
+export const getUserModel = createModelGetter<IUserDocument>(
+   () => DatabaseManager.getInstance().auth.connection,
+   'User',
+   UserSchema
+);
