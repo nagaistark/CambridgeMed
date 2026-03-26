@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
-import { jwtVerify, importSPKI } from 'jose';
+import { jwtVerify } from 'jose';
+import { getPublicKey } from '@utils/jwtUtils.ts';
 import { getUserModel } from '@models/User.model.ts';
-import { myEnv } from '@/validateConfig.ts';
 import { createErrorResponse } from '@/errorHandlers.ts';
 import { EMAIL_VERIFICATION_AUDIENCE } from '@/_SSOT/email_verification_constants.ts';
 
@@ -35,7 +35,7 @@ export async function verifyEmailController(
          c) Checks that `aud` matches EMAIL_VERIFICATION_AUDIENCE.
       
       If any of these fail, jose throws a JOSEError subclass, which handleJwtError catches and converts to an appropriate 401 response. Nothing leaks about "why" the token was rejected — just "invalid." */
-      const publicKey = await importSPKI(myEnv.jwt.publicKey, 'RS256');
+      const publicKey = await getPublicKey();
 
       // jwtVerify throws JWTExpired if expired, JWSInvalid if tampered. Both are caught by handleJwtError already registered in our pipeline.
       const { payload } = await jwtVerify(token, publicKey, {
