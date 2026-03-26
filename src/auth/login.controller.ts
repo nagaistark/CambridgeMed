@@ -11,7 +11,7 @@ import {
 
 import { createErrorResponse } from '@/errorHandlers.ts';
 import { myEnv } from '@/validateConfig.ts';
-import type { LoginBody } from '@auth/auth.validator.ts';
+import type { LoginBody } from '@/auth/login.schema.ts';
 
 import { TypedResponse } from '@utils/typedResponse.ts';
 
