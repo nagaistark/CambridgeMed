@@ -190,7 +190,7 @@ export function handleValiError(
    // If this isn't a ValiError, it's not our job. Passing it to the next "specialist"
    if (!(err instanceof ValiError)) return next(err);
 
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
 
    // We're only extracting structural information from each issue: PATH (which field failed) and MESSAGE (why it failed)
    const details = err.issues.map(issue => ({
@@ -221,7 +221,7 @@ export function handleMongooseError(
 ): void {
    /* Pull the correlation ID once, at the top, so every branch below can use it without repeating the same res.locals lookup.
    res.locals is typed as Record<string, any> by Express, so we narrow it manually rather than letting `any` silently propagate. */
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
 
    // ── 1. MongoNetworkError ────────────────────────────────────────────────
    /* This is a driver-level error: the connection to the database was lost mid-request. It has nothing to do with the client's data — it's a pure infrastructure failure. 503 tells the client "try again later."*/
@@ -350,7 +350,7 @@ export function handleJwtError(
    // If the error isn't from JOSE, pass it along.
    if (!(err instanceof joseErrors.JOSEError)) return next(err);
 
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
 
    /* JWTExpired is a NORMAL, EXPECTED lifecycle event — the access token ran out and the client needs to hit /api/auth/refresh. */
    if (err instanceof joseErrors.JWTExpired) {
@@ -388,7 +388,7 @@ export function handleHttpError(
    res: Response,
    next: NextFunction
 ): void {
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
 
    // Most specific first: body parser error
    if (isBodyParserError(err)) {
@@ -495,7 +495,7 @@ export function handleEnoentError(
    // Passing it to the next specialist if it's not our responsibility
    if (!isEnoentError(err)) return next(err);
 
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
 
    /* We log the real filesystem path here — on the server, in the logs, where it belongs. This is invaluable for diagnosing deployment issues. `err.path` tells us exactly which file was missing and where Node expected to find it. We intentionally do not include this in the response below. */
    logger.error(
@@ -525,7 +525,7 @@ export function handleCatchAll(
    res: Response,
    next: NextFunction
 ): void {
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
 
    // ── The `res.headersSent` guard ─────────────────────────────────────────
    /* If headers have already been flushed to the client — because a route handler started streaming a response before something threw — we cannot send a new response. Calling next(err) here hands control to Express's own built-in final handler, which will close the connection cleanly. Without this guard, attempting res.json() would itself throw an error, compounding the original problem. */

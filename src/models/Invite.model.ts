@@ -54,12 +54,11 @@ export const InviteCreateSchema = strictObject({
 const InviteDefinition = {
    tokenHash: {
       type: String,
-      required: [true, `Token is required.`],
-      unique: true,
+      required: [true, `Token Hash is required.`],
       trim: true,
       validate: {
          validator: str => HEX64_REGEX.test(str),
-         message: `TokenHash does not conform to the pattern.`,
+         message: `Token Hash does not conform to the pattern.`,
       },
    },
    email: {
@@ -106,6 +105,7 @@ const InviteSchema = new mongoose.Schema<IInviteDocument>(InviteDefinition, {
    strict: 'throw',
 });
 
+InviteSchema.index({ tokenHash: 1 }, { unique: true });
 InviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 
 // MODEL FACTORY (lazy getter pattern)

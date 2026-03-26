@@ -12,6 +12,9 @@ import { myEnv } from '@/validateConfig.ts';
 import { validateJwtKeys } from '@utils/jwtUtils.ts';
 import logger from '@/logger.ts';
 
+import cookieParser from 'cookie-parser';
+import authRouter from '@auth/auth.routes.ts';
+
 import {
    DatabaseManager,
    handleGracefulShutdown,
@@ -155,7 +158,7 @@ const limiter = rateLimit({
       _next: NextFunction,
       options: Options
    ) => {
-      const requestId = res.locals['requestId'] as string | undefined;
+      const requestId = res.locals['requestId'];
       res.status(options.statusCode).json(
          createErrorResponse(
             'RATE_LIMITED',
@@ -180,7 +183,7 @@ const authLimiter = rateLimit({
       _next: NextFunction,
       options: Options
    ) => {
-      const requestId = res.locals['requestId'] as string | undefined;
+      const requestId = res.locals['requestId'];
       res.status(options.statusCode).json(
          createErrorResponse(
             'RATE_LIMITED',
@@ -202,6 +205,9 @@ app.use('/api/auth/login', authLimiter);
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+
+// G. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated (logout reads the refresh token cookie).
+app.use(cookieParser());
 
 // ====================================================================================
 // 4. ROUTES
@@ -226,12 +232,15 @@ app.get(/^\/$|\/index(.html)?$/, (req: Request, res: Response) => {
    res.send('<h1>Welcome to Cambridge Med, Ontario!</h1>');
 });
 
+// To the future me! Auth domain should be mounted BEFORE the catch-all 404 handlers
+app.use('/api/auth', authRouter);
+
 // ====================================================================================
 // 5. 404 & GLOBAL ERROR HANDLING (Must be last!)
 // ====================================================================================
 // Tier 1. API routes that don't exist → proper JSON 404
 app.use('/api/*splat', (req: Request, res: Response) => {
-   const requestId = res.locals['requestId'] as string | undefined;
+   const requestId = res.locals['requestId'];
    res.status(404).json(
       createErrorResponse(
          'NOT_FOUND',

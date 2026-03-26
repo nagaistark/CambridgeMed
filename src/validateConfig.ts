@@ -18,6 +18,7 @@ import {
    digits,
    number,
    url,
+   picklist,
 } from 'valibot';
 import { Buffer } from 'node:buffer';
 
@@ -72,6 +73,10 @@ const resendApiKeys = pipe(
 );
 
 const ConfigSchema = strictObject({
+   environment: picklist(
+      ['development', 'production'],
+      `Must be either 'development' or 'production'.`
+   ),
    database: strictObject({
       appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
       authUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
@@ -124,6 +129,7 @@ const ConfigSchema = strictObject({
 });
 
 const rawConfig = {
+   environment: env.NODE_ENV,
    database: {
       appUri: env.DB_APP_URI,
       authUri: env.DB_AUTH_URI,

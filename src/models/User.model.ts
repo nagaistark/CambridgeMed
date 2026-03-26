@@ -32,7 +32,7 @@ type IUserDefinition = Omit<IUserInitial, 'password'> & {
 };
 
 // This is what we check the hydrated document against
-type IUserDocument = IUserDefinition & {
+export type IUserDocument = IUserDefinition & {
    _id: mongoose.Types.ObjectId;
    createdAt: Date;
    updatedAt: Date;
@@ -100,7 +100,6 @@ const UserDefinition = {
    email: {
       type: String,
       required: [true, `Email is required.`],
-      unique: true,
       lowercase: true,
       trim: true,
    },
@@ -139,6 +138,8 @@ const UserSchema = new mongoose.Schema<IUserDocument>(UserDefinition, {
    timestamps: true,
    strict: 'throw',
 });
+
+UserSchema.index({ email: 1 }, { unique: true });
 
 // MODEL FACTORY (lazy getter pattern)
 export const getUserModel = createModelGetter<IUserDocument>(

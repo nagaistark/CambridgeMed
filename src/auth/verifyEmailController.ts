@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from 'express';
 import { jwtVerify, importSPKI } from 'jose';
-import { UserModel } from '@models/User.model.ts';
+import { getUserModel } from '@models/User.model.ts';
 import { myEnv } from '@/validateConfig.ts';
 import { createErrorResponse } from '@/errorHandlers.ts';
 import { EMAIL_VERIFICATION_AUDIENCE } from '@/_SSOT/email_verification_constants.ts';
@@ -11,7 +11,7 @@ export async function verifyEmailController(
    next: NextFunction
 ): Promise<void> {
    try {
-      const requestId = res.locals['requestId'] as string | undefined;
+      const requestId = res.locals['requestId'];
       const { token } = req.query;
 
       // ── 1. Token presence check ─────────────────────────────────────────
@@ -61,7 +61,7 @@ export async function verifyEmailController(
 
       // ── 4. Mark user as verified ────────────────────────────────────────
       /* `findByIdAndUpdate` is atomic — no risk of a read-then-write race. We don't return the updated document (`new: true` omitted) because we only need to know whether the document existed at all. */
-      const user = await UserModel.findByIdAndUpdate(userId, {
+      const user = await getUserModel().findByIdAndUpdate(userId, {
          isVerified: true,
       });
 
