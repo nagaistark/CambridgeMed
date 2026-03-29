@@ -9,9 +9,10 @@ import {
    setAuthCookies,
 } from '@/utils/tokenUtils.ts';
 
+import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
+
 import { createErrorResponse } from '@/errorHandlers.ts';
-import { myEnv } from '@/validateConfig.ts';
-import type { LoginBody } from '@/auth/login.schema.ts';
+import type { LoginBody } from '@auth/login.schema.ts';
 
 import { TypedResponse } from '@utils/typedResponse.ts';
 
@@ -33,8 +34,6 @@ export async function loginController(
 ): Promise<void> {
    try {
       const { email, password } = res.locals['validatedBody'];
-      const requestId = res.locals['requestId'];
-
       const User = getUserModel();
       const RefreshToken = getRefreshTokenModel();
 
@@ -55,7 +54,7 @@ export async function loginController(
                   'UNAUTHORIZED',
                   'Invalid email or password.',
                   undefined,
-                  requestId
+                  res.locals.requestId
                )
             );
       }
@@ -69,7 +68,7 @@ export async function loginController(
                   'FORBIDDEN',
                   'This account has been deactivated. Please contact an administrator.',
                   undefined,
-                  requestId
+                  res.locals.requestId
                )
             );
       }
@@ -83,34 +82,40 @@ export async function loginController(
                   'FORBIDDEN',
                   'This account has not been verified.',
                   undefined,
-                  requestId
+                  res.locals.requestId
                )
             );
       }
 
       // ── Issue tokens ───────────────────────────────────────────────────────
+      const { ATMA: accessTokenMaxAge, RTMA: refreshTokenMaxAge } =
+         getMaxAgeTokens();
+
       const accessToken = await signAccessToken({
          sub: user._id.toString(),
          role: user.role,
          canIssueInvites: user.canIssueInvites,
+         maxAge: accessTokenMaxAge,
       });
 
       const { raw: rawRefreshToken, hash: refreshTokenHash } =
          generateRefreshToken();
 
-      const expiresAt = new Date(
-         Date.now() + myEnv.jwt.refreshTokenExpiryDays * 24 * 60 * 60 * 1000
-      );
-
       await RefreshToken.create({
          tokenHash: refreshTokenHash,
          userId: user._id,
-         expiresAt,
+         expiresAt: new Date(refreshTokenMaxAge),
          isRevoked: false,
          revokedAt: null,
       });
 
-      setAuthCookies(res, accessToken, rawRefreshToken);
+      setAuthCookies(
+         res,
+         accessToken,
+         accessTokenMaxAge,
+         rawRefreshToken,
+         refreshTokenMaxAge
+      );
 
       // Return only the safe, non-sensitive subset of the user record. Never echo passwordHash, __v, or internal flags back to the client.
       return void res.status(200).json({

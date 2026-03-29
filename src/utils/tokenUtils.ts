@@ -18,6 +18,7 @@ export type AccessTokenPayload = {
    sub: string; // user._id as a string
    role: UserRole;
    canIssueInvites: boolean;
+   maxAge: number;
 };
 
 export async function signAccessToken(
@@ -32,7 +33,7 @@ export async function signAccessToken(
       .setSubject(payload.sub)
       .setAudience(ACCESS_TOKEN_AUDIENCE)
       .setIssuedAt()
-      .setExpirationTime(`${myEnv.jwt.accessTokenExpiryMinutes}m`)
+      .setExpirationTime(payload.maxAge) // Unix Timestamp
       .sign(privateKey);
 }
 
@@ -55,7 +56,9 @@ const isProduction = myEnv.environment === 'production';
 export function setAuthCookies(
    res: Response,
    accessToken: string,
-   rawRefreshToken: string
+   accessTokenMaxAge: number,
+   rawRefreshToken: string,
+   RefreshTokenMaxAge: number
 ): void {
    const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
 
@@ -63,7 +66,7 @@ export function setAuthCookies(
       httpOnly: true,
       secure: isProduction,
       sameSite,
-      maxAge: myEnv.jwt.accessTokenExpiryMinutes * 60 * 1000,
+      maxAge: accessTokenMaxAge,
       path: '/api',
    });
 
@@ -72,7 +75,7 @@ export function setAuthCookies(
       httpOnly: true,
       secure: isProduction,
       sameSite,
-      maxAge: myEnv.jwt.refreshTokenExpiryDays * 24 * 60 * 60 * 1000,
+      maxAge: RefreshTokenMaxAge,
       path: '/api/auth',
    });
 }
@@ -87,6 +90,7 @@ export function clearAuthCookies(res: Response): void {
       sameSite,
       path: '/api',
    });
+
    res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
       httpOnly: true,
       secure: isProduction,
