@@ -88,14 +88,18 @@ export async function loginController(
       }
 
       // ── Issue tokens ───────────────────────────────────────────────────────
-      const { ATMA: accessTokenMaxAge, RTMA: refreshTokenMaxAge } =
-         getMaxAgeTokens();
+      const {
+         ATMA: accessTokenMaxAge,
+         RTMA: refreshTokenMaxAge,
+         ATEXP: accessTokenExpirationTime,
+         RTEXP: refreshTokenExpirationTime,
+      } = getMaxAgeTokens();
 
       const accessToken = await signAccessToken({
          sub: user._id.toString(),
          role: user.role,
          canIssueInvites: user.canIssueInvites,
-         maxAge: accessTokenMaxAge,
+         expirationTime: accessTokenExpirationTime,
       });
 
       const { raw: rawRefreshToken, hash: refreshTokenHash } =
@@ -104,7 +108,7 @@ export async function loginController(
       await RefreshToken.create({
          tokenHash: refreshTokenHash,
          userId: user._id,
-         expiresAt: new Date(refreshTokenMaxAge),
+         expiresAt: new Date(refreshTokenExpirationTime),
          isRevoked: false,
          revokedAt: null,
       });

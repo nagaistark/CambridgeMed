@@ -9,6 +9,8 @@ import {
 export function getMaxAgeTokens(): {
    ATMA: number;
    RTMA: number;
+   ATEXP: number;
+   RTEXP: number;
 } {
    const now = DateTime.now(); // The "now" timestamp for Toronto, ON
    const daysUntilNextRTRWD =
@@ -17,10 +19,19 @@ export function getMaxAgeTokens(): {
    // Refresh Token Reset Weekday => RTRWD
    const nextRTRWD = now.plus({ days: daysUntilNextRTRWD }).startOf('day');
 
+   const nowUTC = Date.now();
+
    // refreshTokenMaxAge => RTMA
-   const RTMA = nextRTRWD.diff(now.toUTC()).as('milliseconds');
+   const RTMA = nextRTRWD.diff(now).as('milliseconds');
 
    // accessTokenMaxAge => ATMA
    const ATMA = Math.min(JWT_ACCESS_TOKEN_EXPIRY_MS, RTMA);
-   return { ATMA, RTMA };
+
+   // refreshTokenExpirationTime => RTEXP
+   const RTEXP = nowUTC + RTMA;
+
+   // accessTokenExpirationTime => ATEXP
+   const ATEXP = nowUTC + ATMA;
+
+   return { ATMA, RTMA, ATEXP, RTEXP };
 }

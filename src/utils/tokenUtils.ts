@@ -18,7 +18,7 @@ export type AccessTokenPayload = {
    sub: string; // user._id as a string
    role: UserRole;
    canIssueInvites: boolean;
-   maxAge: number;
+   expirationTime: number;
 };
 
 export async function signAccessToken(
@@ -33,7 +33,7 @@ export async function signAccessToken(
       .setSubject(payload.sub)
       .setAudience(ACCESS_TOKEN_AUDIENCE)
       .setIssuedAt()
-      .setExpirationTime(payload.maxAge) // Unix Timestamp
+      .setExpirationTime(payload.expirationTime) // Unix Timestamps. Should be milliseconds since THE EPOCH!!!
       .sign(privateKey);
 }
 
