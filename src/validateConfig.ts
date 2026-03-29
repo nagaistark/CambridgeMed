@@ -112,8 +112,6 @@ const ConfigSchema = strictObject({
    jwt: strictObject({
       privateKey: pemPrivateKey,
       publicKey: pemPublicKey,
-      accessTokenExpiryMinutes: stringContainingPositiveInteger,
-      refreshTokenExpiryDays: stringContainingPositiveInteger,
    }),
    apiKeys: strictObject({
       resend: resendApiKeys,
@@ -151,8 +149,6 @@ const rawConfig = {
    jwt: {
       privateKey: env.JWT_PRIVATE_KEY,
       publicKey: env.JWT_PUBLIC_KEY,
-      accessTokenExpiryMinutes: env.JWT_ACCESS_TOKEN_EXPIRY_MIN,
-      refreshTokenExpiryDays: env.JWT_REFRESH_TOKEN_EXPIRY_DAYS,
    },
    apiKeys: {
       resend: env.RESEND_API_KEY,
