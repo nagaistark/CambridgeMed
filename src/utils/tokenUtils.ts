@@ -33,7 +33,7 @@ export async function signAccessToken(
       .setSubject(payload.sub)
       .setAudience(ACCESS_TOKEN_AUDIENCE)
       .setIssuedAt()
-      .setExpirationTime(payload.expirationTime) // Unix Timestamps. Should be milliseconds since THE EPOCH!!!
+      .setExpirationTime(Math.floor(payload.expirationTime / 1000)) // Unix Timestamps. Should be SECONDS (not milliseconds) since THE EPOCH!!!
       .sign(privateKey);
 }
 
