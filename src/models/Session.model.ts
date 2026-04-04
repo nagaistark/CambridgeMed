@@ -46,7 +46,7 @@ const SessionDefinition = {
    },
    previousTokenHash: {
       type: String,
-      required: [true, `Previous Token Hash is required.`],
+      default: null,
       trim: true,
       validate: hexHashValidator,
    },

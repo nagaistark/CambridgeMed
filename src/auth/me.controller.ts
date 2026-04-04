@@ -46,7 +46,9 @@ export async function meController(
       }
 
       /* Mirror the login response's user shape exactly. A consistent contract means the frontend can handle both responses with the same normaliser. */
-      return void res.status(200).json(buildAuthResponse('', user));
+      return void res
+         .status(200)
+         .json(buildAuthResponse('Session valid.', user));
    } catch (err) {
       next(err);
    }
