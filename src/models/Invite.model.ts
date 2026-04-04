@@ -12,8 +12,8 @@ import {
    string,
    transform,
 } from 'valibot';
-import { makePicklist } from '@/utils/arrayToValPicklist.ts';
-import { DatabaseManager } from '@/dbConnect.ts';
+import { makePicklist } from '@utils/arrayToValPicklist.ts';
+import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 
 // This is what the inviter puts in

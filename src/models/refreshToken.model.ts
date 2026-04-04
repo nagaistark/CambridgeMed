@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
-import { DatabaseManager } from '@/dbConnect.ts';
+import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 
 type IRefreshTokenDefinition = {

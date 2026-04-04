@@ -1,22 +1,21 @@
 import type { Request, NextFunction } from 'express';
 import { getUserModel } from '@models/User.model.ts';
-import { getRefreshTokenModel } from '@/models/refreshToken.model.ts';
+import { buildAuthResponse } from '@utils/buildResponses.ts';
+import { getSessionModel } from '@models/Session.model.ts';
 import { verifyPassword } from '@utils/hashAndVerify.ts';
 
 import {
    signAccessToken,
    generateRefreshToken,
    setAuthCookies,
-} from '@/utils/tokenUtils.ts';
+} from '@utils/tokenUtils.ts';
 
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
-
-import { createErrorResponse } from '@/errorHandlers.ts';
+import { createErrorResponse } from 'errorHandlers.ts';
 import type { LoginBody } from '@auth/login.schema.ts';
-
 import { TypedResponse } from '@utils/typedResponse.ts';
 
-// ── Timing-safe dummy hash ────────────────────────────────────────────────────
+// ── Timing-safe dummy hash ───────────────────────────────────────────────────────
 /* A syntactically valid argon2id hash with parameters matching ARGON2_CONFIG. When no user is found for the submitted email, we still run a full Argon2 verification against this dummy (to make the response time indistinguishable from a "user found but wrong password"). This prevents an attacker from enumerating valid email addresses by measuring latency differences.
 
 • The salt (22 chars) represents 16 zero-bytes in base64.
@@ -35,7 +34,7 @@ export async function loginController(
    try {
       const { email, password } = res.locals['validatedBody'];
       const User = getUserModel();
-      const RefreshToken = getRefreshTokenModel();
+      const Session = getSessionModel();
 
       // Since we don't need Mongoose object's methods here, we use lean that return a plain JS object
       const user = await User.findOne({ email }).lean();
@@ -52,28 +51,28 @@ export async function loginController(
             .json(
                createErrorResponse(
                   'UNAUTHORIZED',
-                  'Invalid email or password.',
+                  `Invalid email or password.`,
                   undefined,
                   res.locals.requestId
                )
             );
       }
 
-      /* These checks come AFTER the credential check deliberately. Failing here reveals that the email exists — but only to someone who already proved they know the correct password, so enumeration risk is acceptable at this point. */
+      /* These checks come AFTER the credential check deliberately. Failing here reveals that the email exists, but only to someone who already proved they know the correct password, so enumeration risk is acceptable at this point. */
       if (!user.isActive) {
          return void res
             .status(403)
             .json(
                createErrorResponse(
                   'FORBIDDEN',
-                  'This account has been deactivated. Please contact an administrator.',
+                  `This account has been deactivated. Please contact an administrator.`,
                   undefined,
                   res.locals.requestId
                )
             );
       }
 
-      // isVerified is true by default since it's an invite, but we guard it defensively in case a manual DB operation ever creates a user in an unexpected state.
+      /* isVerified is true by default since it's an invite, but we guard it defensively in case a manual DB operation ever creates a user in an unexpected state. */
       if (!user.isVerified) {
          return void res
             .status(403)
@@ -87,7 +86,7 @@ export async function loginController(
             );
       }
 
-      // ── Issue tokens ───────────────────────────────────────────────────────
+      // ── Issue tokens ───────────────────────────────────────────────────────────
       const {
          ATMA: accessTokenMaxAge,
          RTMA: refreshTokenMaxAge,
@@ -105,12 +104,12 @@ export async function loginController(
       const { raw: rawRefreshToken, hash: refreshTokenHash } =
          generateRefreshToken();
 
-      await RefreshToken.create({
-         tokenHash: refreshTokenHash,
+      await Session.create({
          userId: user._id,
+         currentTokenHash: refreshTokenHash,
+         previousTokenHash: null,
+         rotatedAt: new Date(),
          expiresAt: new Date(refreshTokenExpirationTime),
-         isRevoked: false,
-         revokedAt: null,
       });
 
       setAuthCookies(
@@ -121,19 +120,10 @@ export async function loginController(
          refreshTokenMaxAge
       );
 
-      // Return only the safe, non-sensitive subset of the user record. Never echo passwordHash, __v, or internal flags back to the client.
-      return void res.status(200).json({
-         success: true,
-         message: 'Login successful.',
-         user: {
-            id: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            role: user.role,
-            canIssueInvites: user.canIssueInvites,
-         },
-      });
+      /* Return only the safe, non-sensitive subset of the user record. Never echo passwordHash, __v, or internal flags back to the client. */
+      return void res
+         .status(200)
+         .json(buildAuthResponse('Login successful', user));
    } catch (err) {
       next(err);
    }

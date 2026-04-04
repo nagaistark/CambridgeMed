@@ -3,7 +3,7 @@ import { ValiError, type IssuePathItem } from 'valibot';
 import mongoose from 'mongoose';
 import { MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
-import logger from '@/logger.ts';
+import logger from 'logger.ts';
 // ====================================================================================
 // Every possible machine-readable error code. Extend this union as you add functionality
 // ====================================================================================

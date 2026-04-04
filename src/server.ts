@@ -8,9 +8,9 @@ import rateLimit, { Options } from 'express-rate-limit';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 
-import { myEnv } from '@/validateConfig.ts';
+import { myEnv } from 'validateConfig.ts';
 import { validateJwtKeys } from '@utils/jwtUtils.ts';
-import logger from '@/logger.ts';
+import logger from 'logger.ts';
 
 import cookieParser from 'cookie-parser';
 import authRouter from '@auth/auth.routes.ts';
@@ -19,7 +19,7 @@ import {
    DatabaseManager,
    handleGracefulShutdown,
    sanitizeError,
-} from '@/dbConnect.ts';
+} from 'dbConnect.ts';
 
 import {
    handleValiError,
@@ -29,7 +29,7 @@ import {
    handleEnoentError,
    handleCatchAll,
    createErrorResponse,
-} from '@/errorHandlers.ts';
+} from 'errorHandlers.ts';
 
 // ====================================================================================
 // 1. GLOBAL PROCESS LISTENERS (Must be first!)

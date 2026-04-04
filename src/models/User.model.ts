@@ -15,14 +15,14 @@ import {
    transform,
    trim,
 } from 'valibot';
-import { DatabaseManager } from '@/dbConnect.ts';
+import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 
 // This is what we expect from a User
 export type IUserInitial = InferOutput<typeof UserRegistrationSchema>;
 
 // This is what we check Mongoose Schema definition against
-type IUserDefinition = Omit<IUserInitial, 'password'> & {
+export type IUserDefinition = Omit<IUserInitial, 'password'> & {
    passwordHash: string;
    role: UserRole;
    canIssueInvites: boolean;
@@ -37,6 +37,24 @@ export type IUserDocument = IUserDefinition & {
    createdAt: Date;
    updatedAt: Date;
 };
+
+// The safe, public-facing subset of a user document. This is the only shape that should ever be serialised into an HTTP response.
+type PublicUser = {
+   id: mongoose.Types.ObjectId;
+} & Pick<
+   IUserDefinition,
+   'firstName' | 'lastName' | 'email' | 'role' | 'canIssueInvites'
+>;
+
+// Envelope for responses that establish or confirm an active session. Used by login, refresh, and me.
+export type AuthUserResponse = {
+   success: true;
+   message: string;
+   user: PublicUser;
+};
+
+// Envelope for logout. Same shape as AuthUserResponse but without the user object, since there is no active identity to return after termination.
+export type AuthUserResponseLogout = Omit<AuthUserResponse, 'user'>;
 
 const baseString = pipe(
    string(`Must be a string.`),

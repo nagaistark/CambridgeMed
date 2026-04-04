@@ -1,7 +1,11 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getRefreshTokenModel } from '@models/refreshToken.model.ts';
-import { clearAuthCookies, hashToken } from '@utils/tokenUtils.ts';
-import { REFRESH_TOKEN_COOKIE_NAME } from '@utils/tokenUtils.ts';
+import { getSessionModel } from '@models/Session.model.ts';
+import { buildAuthResponse } from '@utils/buildResponses.ts';
+import {
+   clearAuthCookies,
+   hashToken,
+   REFRESH_TOKEN_COOKIE_NAME,
+} from '@utils/tokenUtils.ts';
 
 export async function logoutController(
    req: Request,
@@ -15,22 +19,22 @@ export async function logoutController(
 
       if (rawRefreshToken) {
          const tokenHash = hashToken(rawRefreshToken);
-         const RefreshToken = getRefreshTokenModel();
+         const Session = getSessionModel();
 
-         // Only mark as revoked if the token exists and isn't already revoked.
-         // findOneAndUpdate with no result (null) is fine — we just move on.
-         await RefreshToken.findOneAndUpdate(
-            { tokenHash, isRevoked: false },
-            { isRevoked: true, revokedAt: new Date() }
-         );
+         /* The browser always sends the most recently issued cookie, so the incoming hash will virtually always match currentTokenHash. We attempt that first. If it matches nothing (the session was already cleaned up by a prior logout or the TTL janitor), deleteOne simply reports zero deletions and we move on — no error, no problem. */
+         const result = await Session.deleteOne({
+            currentTokenHash: tokenHash,
+         });
+
+         /* Edge case: the browser somehow held onto a previousTokenHash cookie (e.g., a network glitch replayed an old response). We make a best-effort attempt to clean up that stale session too. This is not a reuse-detection scenario — the user explicitly asked to log out, so the charitable interpretation always applies. */
+         if (result.deletedCount === 0) {
+            await Session.deleteOne({ previousTokenHash: tokenHash });
+         }
       }
 
       clearAuthCookies(res);
 
-      return void res.status(200).json({
-         success: true,
-         message: `Logged out successfully.`,
-      });
+      return void res.status(200).json(buildAuthResponse('Logout successful.'));
    } catch (err) {
       next(err);
    }

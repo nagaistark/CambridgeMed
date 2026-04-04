@@ -1,7 +1,7 @@
 import { SignJWT } from 'jose';
 import { randomBytes, createHash } from 'node:crypto';
 import type { Response } from 'express';
-import { myEnv } from '@/validateConfig.ts';
+import { myEnv } from 'validateConfig.ts';
 import type { UserRole } from '@ssot/user_roles_constants.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
 

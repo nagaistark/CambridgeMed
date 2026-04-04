@@ -1,6 +1,6 @@
 import 'dotenv/config';
 import { env } from 'node:process';
-import logger from '@/logger.ts';
+import logger from 'logger.ts';
 import {
    strictObject,
    pipe,

@@ -1,5 +1,5 @@
-import { myEnv } from '@/validateConfig.ts';
-import logger from '@/logger.ts';
+import { myEnv } from 'validateConfig.ts';
+import logger from 'logger.ts';
 import mongoose, { Connection, ConnectOptions } from 'mongoose';
 import { Server } from 'http';
 

@@ -6,7 +6,7 @@ import {
    ACCESS_TOKEN_AUDIENCE,
 } from '@utils/tokenUtils.ts';
 import { userRoles, type UserRole } from '@ssot/user_roles_constants.ts';
-import { createErrorResponse } from '@/errorHandlers.ts';
+import { createErrorResponse } from 'errorHandlers.ts';
 
 export async function authenticate(
    req: Request,
@@ -17,7 +17,7 @@ export async function authenticate(
       const rawToken: string | undefined =
          req.cookies[ACCESS_TOKEN_COOKIE_NAME];
 
-      // ── 1. Token presence check ─────────────────────────────────────────
+      // ── Token presence check ─────────────────────────────────────────
       /* A missing token is a controlled, expected condition, not an error. We handle it directly rather than throwing. That's how we tell the client "you need to authenticate first". */
       if (!rawToken) {
          return void res
@@ -25,14 +25,14 @@ export async function authenticate(
             .json(
                createErrorResponse(
                   'UNAUTHORIZED',
-                  'Authentication required',
+                  `Authentication required`,
                   undefined,
                   res.locals.requestId
                )
             );
       }
 
-      // ── 2. Cryptographic verification ───────────────────────────────────
+      // ── Cryptographic verification ───────────────────────────────────
       /* jwtVerify performs four checks simultaneously:
       a) RS256 signature (was this token signed by our private key?)
       b) Expiry (has the `exp` claim passed?)
@@ -46,7 +46,7 @@ export async function authenticate(
          audience: ACCESS_TOKEN_AUDIENCE,
       });
 
-      // ── 3. Defensive payload narrowing ──────────────────────────────────
+      // ── Defensive payload narrowing ──────────────────────────────────
       const { sub, role, canIssueInvites } = payload;
 
       /* The following should never happen, normally. It'd mean we issued a malformed token ourselves. We respond with the same vague 401 to avoid leaking internal details. */
@@ -60,14 +60,14 @@ export async function authenticate(
             .json(
                createErrorResponse(
                   'UNAUTHORIZED',
-                  'Invalid or malformed token.',
+                  `Invalid or malformed token.`,
                   undefined,
                   res.locals.requestId
                )
             );
       }
 
-      // ── 4. Attach verified identity ──────────────────────────────────────
+      // ── Attach verified identity ──────────────────────────────────────
       /* After all four checks pass (the claims are the right shape), we attach the verified identity to res.locals so every downstream controller can read it without touching the database. This is the authenticated user's passport for the remainder of this request's journey. */
       res.locals.authenticatedUser = {
          sub,

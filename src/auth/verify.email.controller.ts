@@ -2,8 +2,8 @@ import { Request, Response, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 import { getPublicKey } from '@utils/jwtUtils.ts';
 import { getUserModel } from '@models/User.model.ts';
-import { createErrorResponse } from '@/errorHandlers.ts';
-import { EMAIL_VERIFICATION_AUDIENCE } from '@/_SSOT/email_verification_constants.ts';
+import { createErrorResponse } from 'errorHandlers.ts';
+import { EMAIL_VERIFICATION_AUDIENCE } from '@ssot/email_verification_constants.ts';
 
 export async function verifyEmailController(
    req: Request,
@@ -11,7 +11,6 @@ export async function verifyEmailController(
    next: NextFunction
 ): Promise<void> {
    try {
-      const requestId = res.locals['requestId'];
       const { token } = req.query;
 
       // ── 1. Token presence check ─────────────────────────────────────────
@@ -23,7 +22,7 @@ export async function verifyEmailController(
                   'VALIDATION_ERROR',
                   'Verification token is missing.',
                   undefined,
-                  requestId
+                  res.locals.requestId
                )
             );
       }
@@ -54,7 +53,7 @@ export async function verifyEmailController(
                   'UNAUTHORIZED',
                   'Invalid or malformed token.',
                   undefined,
-                  requestId
+                  res.locals.requestId
                )
             );
       }
@@ -73,7 +72,7 @@ export async function verifyEmailController(
                   'NOT_FOUND',
                   'Account not found.',
                   undefined,
-                  requestId
+                  res.locals.requestId
                )
             );
       }

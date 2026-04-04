@@ -1,4 +1,4 @@
-import { myEnv } from '@/validateConfig.ts';
+import { myEnv } from 'validateConfig.ts';
 import { Resend } from 'resend';
 import { HUMANIZED_EXPIRY } from '@ssot/email_verification_constants.ts';
 

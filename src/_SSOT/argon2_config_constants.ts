@@ -1,5 +1,5 @@
 import argon2, { Options } from 'argon2';
-import { myEnv } from '@/validateConfig.ts';
+import { myEnv } from 'validateConfig.ts';
 
 export const ARGON2_CONFIG: Options & { type: 2 } = {
    type: argon2.argon2id,

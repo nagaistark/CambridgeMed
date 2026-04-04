@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify, importPKCS8, importSPKI } from 'jose';
-import { myEnv } from '@/validateConfig.ts';
+import { myEnv } from 'validateConfig.ts';
 
 //== JWT KEY VALIDATION ────────────────────────────────────────────────────────────────
 /* Confirming two things before the server accepts any traffic:
