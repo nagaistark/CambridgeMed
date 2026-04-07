@@ -5,7 +5,7 @@ import {
    ACCESS_TOKEN_COOKIE_NAME,
    ACCESS_TOKEN_AUDIENCE,
 } from '@utils/tokenUtils.ts';
-import { userRoles, type UserRole } from '@ssot/user_roles_constants.ts';
+import { allRoles, type UserRole } from '@ssot/user_roles_constants.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 
 export async function authenticate(
@@ -52,7 +52,7 @@ export async function authenticate(
       /* The following should never happen, normally. It'd mean we issued a malformed token ourselves. We respond with the same vague 401 to avoid leaking internal details. */
       if (
          typeof sub !== 'string' ||
-         !userRoles.includes(role as UserRole) ||
+         !allRoles.includes(role as UserRole) ||
          typeof canIssueInvites !== 'boolean'
       ) {
          return void res

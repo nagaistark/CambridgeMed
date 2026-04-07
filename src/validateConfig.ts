@@ -19,6 +19,7 @@ import {
    number,
    url,
    picklist,
+   email,
 } from 'valibot';
 import { Buffer } from 'node:buffer';
 
@@ -113,8 +114,12 @@ const ConfigSchema = strictObject({
       privateKey: pemPrivateKey,
       publicKey: pemPublicKey,
    }),
-   apiKeys: strictObject({
-      resend: resendApiKeys,
+   resend: strictObject({
+      apiKey: resendApiKeys,
+      from: pipe(
+         nonEmptyReasonablyLongString,
+         email(`Email is badly formatted.`)
+      ),
    }),
    argon2Secret: pipe(
       nonEmptyReasonablyLongString,
@@ -150,8 +155,9 @@ const rawConfig = {
       privateKey: env.JWT_PRIVATE_KEY,
       publicKey: env.JWT_PUBLIC_KEY,
    },
-   apiKeys: {
-      resend: env.RESEND_API_KEY,
+   resend: {
+      apiKey: env.RESEND_API_KEY,
+      from: env.RESEND_FROM,
    },
    argon2Secret: env.ARGON2_SECRET,
    appBaseUrl: env.APP_BASE_URL,

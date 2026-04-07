@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { userRoles, type UserRole } from '@ssot/user_roles_constants.ts';
+import { allRoles, type UserRole } from '@ssot/user_roles_constants.ts';
 import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
 
 import {
@@ -24,7 +24,7 @@ export type IUserInitial = InferOutput<typeof UserRegistrationSchema>;
 // This is what we check Mongoose Schema definition against
 export type IUserDefinition = Omit<IUserInitial, 'password'> & {
    passwordHash: string;
-   role: UserRole;
+   role: UserRole; // full union, superadmin must be storable
    canIssueInvites: boolean;
    invitedBy?: mongoose.Types.ObjectId;
    isVerified: boolean;
@@ -128,10 +128,20 @@ const UserDefinition = {
    role: {
       type: String,
       enum: {
-         values: userRoles,
-         message: `Role must be one of: ${userRoles.join(', ')}`,
+         values: allRoles, // full universe — allows the superadmin document to exist
+         message: `Role must be one of: ${allRoles.join(', ')}`,
       },
       required: [true, `Role is required`],
+      validate: {
+         validator: function (role: string) {
+            return (
+               (!!this?.invitedBy && role !== 'superadmin') ||
+               (!this?.invitedBy && role === 'superadmin')
+            );
+         },
+         message:
+            'Role invariant violated: the superadmin role may only exist without an invitedBy reference, and all invited users must have an allowed role.',
+      },
    },
    canIssueInvites: {
       type: Boolean,
@@ -139,16 +149,19 @@ const UserDefinition = {
       default: false,
    },
    invitedBy: {
+      // Optional because the "required" constraint breaks for the superadmin (who isn't invited by anyone)
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
    },
    isVerified: {
       type: Boolean,
       default: true, // The fact that the User activates the invite (that was sent to their email) proves that they have access to the email.
+      required: [true, `Is the user verified?`],
    },
    isActive: {
       type: Boolean,
       default: true,
+      required: [true, `Is the user active?`],
    },
 } satisfies StrictSchemaDefinition<IUserDefinition>;
 

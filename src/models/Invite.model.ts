@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { userRoles } from '@ssot/user_roles_constants.ts';
+import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
 import {
    boolean,
@@ -24,7 +24,6 @@ type IInviteDefinition = IInviteInitial & {
    tokenHash: string;
    usedAt: Date | null;
    expiresAt: Date;
-   isRevoked: boolean;
    issuedBy: mongoose.Types.ObjectId;
 };
 
@@ -47,9 +46,11 @@ export const InviteCreateSchema = strictObject({
          return str.toLowerCase();
       })
    ),
-   role: makePicklist(userRoles),
+   role: makePicklist(allowedRoles), // Allowed Roles only, never a superadmin
    canIssueInvites: boolean(),
 });
+
+export type IInviteCreateBody = InferOutput<typeof InviteCreateSchema>;
 
 const InviteDefinition = {
    tokenHash: {
@@ -70,8 +71,8 @@ const InviteDefinition = {
    role: {
       type: String,
       enum: {
-         values: userRoles,
-         message: `Role must be one of: ${userRoles.join(', ')}`,
+         values: allowedRoles,
+         message: `Role must be one of: ${allowedRoles.join(', ')}`,
       },
       required: [true, `Role is required`],
    },
@@ -88,11 +89,6 @@ const InviteDefinition = {
       type: Date,
       required: [true, `When does the invite expire?`],
    },
-   isRevoked: {
-      type: Boolean,
-      required: [true, `Specify whether the invite has been revoked.`],
-      default: false,
-   },
    issuedBy: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
@@ -105,6 +101,7 @@ const InviteSchema = new mongoose.Schema<IInviteDocument>(InviteDefinition, {
    strict: 'throw',
 });
 
+InviteSchema.index({ email: 1 }, { unique: true });
 InviteSchema.index({ tokenHash: 1 }, { unique: true });
 InviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 

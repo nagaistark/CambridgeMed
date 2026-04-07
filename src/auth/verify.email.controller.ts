@@ -20,7 +20,7 @@ export async function verifyEmailController(
             .json(
                createErrorResponse(
                   'VALIDATION_ERROR',
-                  'Verification token is missing.',
+                  `Verification token is missing.`,
                   undefined,
                   res.locals.requestId
                )
