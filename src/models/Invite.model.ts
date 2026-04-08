@@ -101,7 +101,9 @@ const InviteSchema = new mongoose.Schema<IInviteDocument>(InviteDefinition, {
    strict: 'throw',
 });
 
-InviteSchema.index({ email: 1 }, { unique: true });
+/* NO UNIQUENESS CONSTRAINT! The application layer handles duplicate prevention with a temporally-aware check (usedAt: null, expiresAt: { $gt: new Date() }). A unique index here would cause false 11000 errors during the TTL janitor's 60-second cleanup window after expiry. */
+InviteSchema.index({ email: 1 });
+
 InviteSchema.index({ tokenHash: 1 }, { unique: true });
 InviteSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
 

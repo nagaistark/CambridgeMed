@@ -1,10 +1,6 @@
-import { DateTime, Settings } from 'luxon';
-Settings.defaultLocale = 'en-CA';
-Settings.defaultZone = 'America/Toronto';
-import {
-   JWT_ACCESS_TOKEN_EXPIRY_MS,
-   JWT_REFRESH_TOKEN_RESET_WEEKDAY,
-} from '@ssot/access_refresh_tokens_constants.ts';
+import { DateTime } from 'luxon';
+import { JWT_ACCESS_TOKEN_EXPIRY_MS } from '@ssot/access_refresh_tokens_constants.ts';
+import { RESET_WEEKDAY } from '@ssot/date_time_constants.ts';
 
 export function getMaxAgeTokens(): {
    ATMA: number;
@@ -13,8 +9,7 @@ export function getMaxAgeTokens(): {
    RTEXP: number;
 } {
    const now = DateTime.now(); // The "now" timestamp for Toronto, ON
-   const daysUntilNextRTRWD =
-      (JWT_REFRESH_TOKEN_RESET_WEEKDAY + 7 - now.weekday) % 7 || 7;
+   const daysUntilNextRTRWD = (RESET_WEEKDAY + 7 - now.weekday) % 7 || 7;
 
    // Refresh Token Reset Weekday => RTRWD
    const nextRTRWD = now.plus({ days: daysUntilNextRTRWD }).startOf('day');

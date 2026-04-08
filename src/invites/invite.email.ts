@@ -1,11 +1,12 @@
 import { Resend } from 'resend';
 import { myEnv } from 'validateConfig.ts';
 import type { AllowedUserRole } from '@ssot/user_roles_constants.ts';
+import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 
 /* Instantiated once at module load. Resend is stateless between calls, so a single shared instance is correct and efficient. */
 const resend = new Resend(myEnv.resend.apiKey);
 
-export interface IInviteEmailParams {
+export type IInviteEmailParams = {
    to: string;
    issuerFirstName: string;
    issuerLastName: string;
@@ -13,7 +14,7 @@ export interface IInviteEmailParams {
    canIssueInvites: boolean;
    registrationUrl: string;
    expiresAt: Date;
-}
+};
 
 export async function sendInviteEmail(
    params: IInviteEmailParams
@@ -31,12 +32,12 @@ export async function sendInviteEmail(
    const issuerFullName = `${issuerFirstName} ${issuerLastName}`;
    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
-   const expiryFormatted = expiresAt.toLocaleDateString('en-CA', {
+   const expiryFormatted = expiresAt.toLocaleDateString(LOCALE, {
       weekday: 'long',
       year: 'numeric',
       month: 'long',
       day: 'numeric',
-      timeZone: 'America/Toronto',
+      timeZone: TIME_ZONE,
    });
 
    const privilegeLine = canIssueInvites
@@ -62,8 +63,7 @@ export async function sendInviteEmail(
          <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
             <h2 style="margin:0 0 16px;">You have been invited to CambridgeMed</h2>
             <p style="margin:0 0 12px;">
-               <strong>${issuerFullName}</strong> has invited you to join CambridgeMed as a
-               <strong>${roleLabel}</strong>.
+               <strong>${issuerFullName}</strong> has invited you to join CambridgeMed as a <strong>${roleLabel}</strong>.
             </p>
             ${canIssueInvites ? `<p style="margin:0 0 12px;">You will also have the ability to invite other staff members to the platform.</p>` : ''}
             <p style="margin:24px 0;">

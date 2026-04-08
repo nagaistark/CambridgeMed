@@ -19,7 +19,7 @@ inviteRouter.post(
 );
 
 // Protected: same gate, with an additional ownership check inside the controller.
-inviteRouter.post(
+inviteRouter.delete(
    '/:id',
    authenticate,
    requirePermission('canIssueInvites'),

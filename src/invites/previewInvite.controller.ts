@@ -20,7 +20,7 @@ export async function previewInviteController(
 
       // ── Token format check ─────────────────────────────────────────────────────
       /* We respond with 404 (not 400) because we don't want to leak that token format is being validated — a malformed token is indistinguishable from a non-existent one from the caller's perspective. */
-      if (INVITE_TOKEN_REGEX.test(token)) {
+      if (!INVITE_TOKEN_REGEX.test(token)) {
          return void res
             .status(404)
             .json(
