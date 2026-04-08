@@ -1,3 +1,4 @@
+import '@ssot/date_time_constants.ts';
 import express, { Express, Request, Response, NextFunction } from 'express';
 import { Server } from 'node:http';
 import path from 'node:path';
@@ -32,6 +33,8 @@ import {
    handleCatchAll,
    createErrorResponse,
 } from 'errorHandlers.ts';
+
+import { DateTime } from 'luxon';
 
 // ====================================================================================
 // 1. GLOBAL PROCESS LISTENERS (Must be first!)
@@ -230,8 +233,9 @@ app.get('/health', limiter, (_req: Request, res: Response) => {
    });
 });
 // Simple route example. No reason.
-app.get(/^\/$|\/index(.html)?$/, (req: Request, res: Response) => {
-   res.send('<h1>Welcome to Cambridge Med, Ontario!</h1>');
+app.get(/^\/$|\/index(.html)?$/, (_req: Request, res: Response) => {
+   logger.debug(`${DateTime.now()} — ${DateTime.now().zoneName}`);
+   res.send('<h1>Welcome to CambridgeMed, Ontario!</h1>');
 });
 
 // To the future me! Auth domain should be mounted BEFORE the catch-all 404 handlers
