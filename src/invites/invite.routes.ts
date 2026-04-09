@@ -6,6 +6,7 @@ import { InviteCreateSchema } from '@models/Invite.model.ts';
 import { createInviteController } from '@invites/createInvite.controller.ts';
 import { revokeInviteController } from '@invites/revokeInvite.controller.ts';
 import { previewInviteController } from '@invites/previewInvite.controller.ts';
+import { listInvitesController } from './listInvites.controller.ts';
 
 const inviteRouter = Router();
 
@@ -24,6 +25,14 @@ inviteRouter.delete(
    authenticate,
    requirePermission('canIssueInvites'),
    revokeInviteController
+);
+
+// Protected: list of the invites issued by a particular User OR list of all the invites issued by every User (only visible to superadmin)
+inviteRouter.get(
+   '/',
+   authenticate,
+   requirePermission('canIssueInvites'),
+   listInvitesController
 );
 
 // Public: the invitee has no session yet — authenticate must not appear here.

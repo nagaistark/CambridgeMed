@@ -28,7 +28,7 @@ type IInviteDefinition = IInviteInitial & {
 };
 
 // This is what we check the hydrated document against
-type IInviteDocument = IInviteDefinition & {
+export type IInviteDocument = IInviteDefinition & {
    _id: mongoose.Types.ObjectId;
    createdAt: Date;
    updatedAt: Date;
