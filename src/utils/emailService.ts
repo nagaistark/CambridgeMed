@@ -2,7 +2,7 @@ import { myEnv } from 'validateConfig.ts';
 import { Resend } from 'resend';
 import { HUMANIZED_EXPIRY } from '@ssot/email_verification_constants.ts';
 
-const resend = new Resend(myEnv.apiKeys.resend);
+const resend = new Resend(myEnv.resend.apiKey);
 const APP_BASE_URL = myEnv.cors.origins.at(0);
 
 interface SendVerificationEmailOptions {
