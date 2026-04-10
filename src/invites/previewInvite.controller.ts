@@ -2,9 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { createHash } from 'node:crypto';
 import { getInviteModel } from '@models/Invite.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-
-// Raw invite tokens are 48 random bytes encoded as hex → 96 characters.
-const INVITE_TOKEN_REGEX = /^[a-f0-9]{96}$/i;
+import { INVITE_TOKEN_REGEX } from '@ssot/invite_constants.ts';
 
 // Declare the param shape so `token` is narrowed to `string`:
 type PreviewInviteParams = { token: string };

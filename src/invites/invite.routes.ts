@@ -3,10 +3,12 @@ import { authenticate } from '@middleware/authenticate.ts';
 import { requirePermission } from '@middleware/require.permission.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import { InviteCreateSchema } from '@models/Invite.model.ts';
+import { UserRegistrationSchema } from '@models/User.model.ts';
 import { createInviteController } from '@invites/createInvite.controller.ts';
 import { revokeInviteController } from '@invites/revokeInvite.controller.ts';
 import { previewInviteController } from '@invites/previewInvite.controller.ts';
 import { listInvitesController } from './listInvites.controller.ts';
+import { acceptInviteController } from './acceptInvite.controller.ts';
 
 const inviteRouter = Router();
 
@@ -37,5 +39,12 @@ inviteRouter.get(
 
 // Public: the invitee has no session yet — authenticate must not appear here.
 inviteRouter.get('/:token/preview', previewInviteController);
+
+// Public: the registering user has no session. validateBody runs the full UserRegistrationSchema (firstName, lastName, email, password). The raw token arrives as a path parameter, not in the body.
+inviteRouter.post(
+   '/:token/accept',
+   validateBody(UserRegistrationSchema),
+   acceptInviteController
+);
 
 export default inviteRouter;
