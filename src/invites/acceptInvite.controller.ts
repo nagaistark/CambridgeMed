@@ -1,8 +1,16 @@
 import type { Request, NextFunction } from 'express';
 import { createHash } from 'node:crypto';
+import mongoose from 'mongoose';
 import { DatabaseManager } from 'dbConnect.ts';
-import { getUserModel, type IUserInitial } from '@models/User.model.ts';
-import { getInviteModel } from '@models/Invite.model.ts';
+import {
+   getUserModel,
+   type IUserInitial,
+   type IUserDefinition,
+} from '@models/User.model.ts';
+import {
+   getInviteModel,
+   type IInviteDefinition,
+} from '@models/Invite.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { TypedResponse } from '@utils/typedResponse.ts';
@@ -10,118 +18,79 @@ import { INVITE_TOKEN_REGEX } from '@ssot/invite_constants.ts';
 
 type AcceptInviteParams = { token: string };
 
-export async function acceptInviteController(
-   req: Request<AcceptInviteParams>,
-   res: TypedResponse<IUserInitial>,
-   next: NextFunction
-): Promise<void> {
+// ── Transaction outcome ──────────────────────────────────────────────────────────
+/* A discriminated union describing every meaningful result the transaction can produce. Each member is identifiable by its `status` field, which TypeScript uses to narrow the type in conditional branches. There is no 'pending' member — every outcome that leaves this module is a genuine, settled result. */
+type TransactionOutcome =
+   | { status: 'success' }
+   | { status: 'invalid_token' }
+   | { status: 'email_mismatch' };
+
+// ── A private error class ────────────────────────────────────────────────────────
+/* Used exclusively to signal a deliberate abort from inside the withTransaction() callback. It carries the outcome so the catch block outside can read it and set the sentinel accordingly. It is intentionally not exported — nothing outside this file should ever need to catch or construct one of these. */
+class TransactionAbortError extends Error {
+   constructor(public readonly outcome: TransactionOutcome) {
+      super(`Transaction deliberately aborted: ${outcome.status}`);
+      this.name = 'TransactionAbortError';
+   }
+}
+
+// ── Transaction helper ───────────────────────────────────────────────────────────
+/* Extracting the transactional work into its own function serves two purposes. First, it gives TypeScript a concrete Promise<TransactionOutcome> return type to reason about, which eliminates the "used before assigned" ambiguity that arises when outcome is mutated inside a withTransaction() callback. Second, it enforces the separation of concerns that the sentinel pattern was aiming for conventionally — the controller owns the HTTP layer, and this function owns the database layer. That boundary is now structural, not just a matter of convention.
+
+The 'invalid_token' default inside this function is genuinely justified: it is the function's honest fallback for the case where withTransaction() aborts without the callback having had the chance to set a more specific outcome — for example, if findOneAndUpdate returns null. */
+
+type RegistrationParams = Pick<
+   IUserDefinition,
+   'firstName' | 'lastName' | 'passwordHash'
+> &
+   Pick<IInviteDefinition, 'email' | 'tokenHash'>;
+
+async function runRegistrationTransaction(
+   session: mongoose.ClientSession,
+   params: RegistrationParams
+): Promise<TransactionOutcome> {
+   const { tokenHash, email, firstName, lastName, passwordHash } = params;
+   let outcome: TransactionOutcome = { status: 'invalid_token' };
+
    try {
-      const requestId = res.locals.requestId;
-      const { token } = req.params;
-      const { email, firstName, lastName, password } = res.locals.validatedBody;
-
-      // ── Step 1: Token format check ─────────────────────────────────────────────
-      /* Identical strategy to previewInviteController: 404 rather than 400, so that a malformed token is indistinguishable from a non-existent one. This prevents an attacker from using response codes to probe the expected token format. */
-      if (!INVITE_TOKEN_REGEX.test(token)) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This invite link is invalid or has expired.`,
-                  undefined,
-                  requestId
-               )
-            );
-      }
-
-      // ── Step 2: Hash the password BEFORE opening the transaction ───────────────
-      /* Argon2 is intentionally slow (that's the security guarantee). Keeping a MongoDB transaction open while Argon2 churns would hold server-side resources for 100–300ms unnecessarily. We hash optimistically upfront. If anything downstream fails, we simply discard the hash. */
-      const passwordHash = await hashPassword(password);
-
-      // ── Step 3: Derive the token hash ──────────────────────────────────────────
-      /* The raw token lives only in the URL and in transit. Never store or compare raw values — only their SHA-256 fingerprints. */
-      const tokenHash = createHash('sha256').update(token).digest('hex');
-
-      // ── Step 4: Acquire the auth connection and open a session ─────────────────
-      /* Both the Invite and User collections live on the auth connection, so the session must be started there. A null connection here means the database hasn't finished initialising — treating it as an unexpected server error is correct. */
-      const authConnection = DatabaseManager.getInstance().auth.connection;
-      if (!authConnection) {
-         throw new Error(
-            `Auth database connection unavailable during invite acceptance.`
-         );
-      }
-
-      const session = await authConnection.startSession();
-
-      /* The try/catch/finally pattern here serves three distinct purposes:
-         - The inner try block runs the happy path and handles expected failures (invalid invite, email mismatch) by aborting cleanly.
-         - The catch block handles unexpected errors by aborting and rethrowing, so the outer catch can forward them to the error pipeline via next(err).
-         - The finally block unconditionally ends the session, which is mandatory — a leaked session is a server-side resource leak that compounds under load. */
-      try {
-         session.startTransaction();
-
+      await session.withTransaction(async () => {
          const Invite = getInviteModel();
          const User = getUserModel();
 
-         // ── Step 5: Atomic claim ─────────────────────────────────────────────────
-         /* This is the race-condition-proof heart of the operation. The filter has three conditions that must ALL be true simultaneously:
-            - tokenHash matches (correct invite)
-            - usedAt is null (not yet accepted)
-            - expiresAt is in the future (not expired, regardless of TTL janitor lag)
-
-         Because findOneAndUpdate maps directly to MongoDB's native findAndModify command, the filter evaluation and the $set write happen as a single indivisible operation at the storage layer. Only one concurrent request can ever win the race to satisfy the filter — the second will find usedAt already set and receive null, triggering the 404 branch below.
-
-         { new: true } returns the document AFTER the update, so we immediately have access to the invite's email, role, canIssueInvites, and issuedBy without a separate read. This is a two-for-one: validation and claiming in a single round trip. */
+         // ── Atomic claim ────────────────────────────────────────────────────────
+         /* The filter's three conditions must ALL be true simultaneously:
+              - tokenHash matches → correct invite
+              - usedAt is null    → not yet accepted
+              - expiresAt > now   → not expired, regardless of TTL janitor lag
+   
+         findOneAndUpdate maps to MongoDB's native findAndModify command, so the filter check and the $set write are one indivisible operation at the storage layer. Only one concurrent request can ever satisfy the filter — any subsequent request will find usedAt already set and receive null back. { new: true } returns the document AFTER the update, giving us the invite's fields without a separate read. Validation and claiming happen in one round trip.
+   
+         If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
          const claimedInvite = await Invite.findOneAndUpdate(
             { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
             { $set: { usedAt: new Date() } },
             { new: true, session }
          ).lean();
 
+         /* Returning early signals to withTransaction() that it should abort without retrying. The outcome sentinel stays at its 'invalid_token' default. */
          if (!claimedInvite) {
-            await session.abortTransaction();
-            /* The abort rolls back the findOneAndUpdate, leaving the invite document completely untouched for any legitimate future use. */
-            return void res
-               .status(404)
-               .json(
-                  createErrorResponse(
-                     'NOT_FOUND',
-                     `This invite link is invalid or has expired.`,
-                     undefined,
-                     requestId
-                  )
-               );
+            throw new TransactionAbortError({ status: 'invalid_token' });
          }
 
-         // ── Step 6: Email confirmation check ────────────────────────────────────
-         /* The invitee is asked to type their email address during registration. We compare it against invite.email — the authoritative value set at invite creation time — to confirm the person registering is the intended recipient of this specific invite.
-
-         The comparison uses claimedInvite.email directly (already lowercased at storage time by the Mongoose schema) against the body email (already lowercased by the Valibot transform pipeline in UserRegistrationSchema). No manual lowercasing is needed here, but the symmetry is intentional and worth understanding.
-
-         If the check fails, we abort. The abort rolls back the findOneAndUpdate from Step 5, returning usedAt to null — the invite is unclaimed and can be presented again. A failed confirmation attempt must not consume the invite. */
+         // ── Email confirmation check ────────────────────────────────────────────
+         /* We compare the body email against claimedInvite.email — the authoritative value locked in at invite creation time — to confirm the registering person is the intended recipient. Both values are already lowercased by their respective pipelines (Valibot transform for the body, Mongoose schema for the stored invite), so the comparison is safe as-is.
+   
+         If mismatch, set the outcome BEFORE returning. withTransaction() aborts, rolling back the findOneAndUpdate above and leaving usedAt as null. The invite is fully unclaimed and reusable — a typo in the email field must never consume the invite. */
          if (claimedInvite.email !== email) {
-            await session.abortTransaction();
-            return void res
-               .status(400)
-               .json(
-                  createErrorResponse(
-                     'VALIDATION_ERROR',
-                     `The email address you entered does not match the one this invite was sent to.`,
-                     undefined,
-                     requestId
-                  )
-               );
+            throw new TransactionAbortError({ status: 'email_mismatch' });
          }
 
-         // ── Step 7: Create the User document ────────────────────────────────────
-         /* Critical: the email we persist comes from claimedInvite.email, not from res.locals.validatedBody.email. The body email served its purpose in the confirmation check above and is now discarded. This is defence-in-depth — the authoritative email is always the one locked into the invite at creation time, never whatever the client chose to submit.
-
-         Role, canIssueInvites, and invitedBy are copied directly from the invite document. These were set by the person who issued the invite and are not negotiable by the registering user.
-
-         isVerified is true by default in the schema, but we set it explicitly here to make the intent unmistakable: possession of this token proves the user controls the invited email address.
-
-         Mongoose's create() with a session requires the array signature. It returns an array of the created documents — we discard the return value because this controller's response carries no user data. */
+         // ── Create the User document ────────────────────────────────────────────
+         /* The email we persist is claimedInvite.email, not the body email. The body email has served its purpose in the confirmation check and is now discarded. This is defence-in-depth: even if the comparison check were somehow circumvented, the stored email would still be the one locked into the invite at creation time, never whatever the client submitted.
+   
+         role, canIssueInvites, and invitedBy come from the invite document and are not negotiable by the registering user. isVerified is set explicitly to true — possession of the invite token proves the user controls the invited email.
+   
+         Mongoose's create() with a session requires the array signature and returns an array of the created documents. We discard the return value because our response carries no user data. */
          await User.create(
             [
                {
@@ -139,24 +108,113 @@ export async function acceptInviteController(
             { session }
          );
 
-         // ── Step 8: Commit ───────────────────────────────────────────────────────
-         /* Both writes — the invite's usedAt timestamp and the new User document — are committed atomically. If this line throws (e.g. a transient network error), the catch block below aborts the transaction and rethrows, so the outer catch can forward to next(err). Neither write lands in the database unless both succeed. */
-         await session.commitTransaction();
-
-         // ── Step 9: Respond ──────────────────────────────────────────────────────
-         /* 201 Created. Minimal payload — no user data, no tokens. The client is expected to redirect to the login page. The full user lifecycle is now complete: invited → registered → ready to authenticate. */
-         return void res.status(201).json({
-            success: true,
-            message: `Registration successful. You may now log in.`,
-         });
-      } catch (err) {
-         /* An unexpected error occurred somewhere inside the transaction block. We abort to ensure no partial writes persist, then rethrow so the outer catch can hand it to next(err) and the error pipeline. */
-         await session.abortTransaction();
+         outcome = { status: 'success' };
+         // withTransaction() commits automatically when the callback resolves.
+      });
+   } catch (err) {
+      if (err instanceof TransactionAbortError) {
+         /* This is a deliberate, expected abort. Set the outcome and let the function return normally — this is not an error condition from the controller's perspective. */
+         outcome = err.outcome;
+      } else {
          throw err;
+      }
+   }
+
+   return outcome;
+}
+
+// ── Controller ───────────────────────────────────────────────────────────────────
+export async function acceptInviteController(
+   req: Request<AcceptInviteParams>,
+   res: TypedResponse<IUserInitial>,
+   next: NextFunction
+): Promise<void> {
+   try {
+      const requestId = res.locals.requestId;
+      const { token } = req.params;
+      const { email, firstName, lastName, password } = res.locals.validatedBody;
+
+      // ── Step 1: Token format check ─────────────────────────────────────────────
+      /* 404 rather than 400, so a malformed token is indistinguishable from a non-existent one. We don't want to leak that format validation is occurring. */
+      if (!INVITE_TOKEN_REGEX.test(token)) {
+         return void res
+            .status(404)
+            .json(
+               createErrorResponse(
+                  'NOT_FOUND',
+                  `This invite link is invalid or has expired.`,
+                  undefined,
+                  requestId
+               )
+            );
+      }
+
+      // ── Step 2: Hash the password BEFORE opening the transaction ───────────────
+      /* Argon2 is intentionally slow — keeping a MongoDB transaction open while it churns for 100–300ms would hold server-side resources unnecessarily. We hash optimistically up front and discard the result if anything downstream fails. */
+      const passwordHash = await hashPassword(password);
+
+      // ── Step 3: Derive the token hash ──────────────────────────────────────────
+      const tokenHash = createHash('sha256').update(token).digest('hex');
+
+      // ── Step 4: Acquire the auth connection ────────────────────────────────────
+      /* Both Invite and User collections live on the auth connection. The null check satisfies TypeScript honestly — without it we'd need a non-null assertion, which is exactly the kind of "trust me, compiler" shortcut that erodes safety. In practice, the server bootstrap guarantee means this is never null, and any unexpected throw here is correctly caught by the outer try/catch below. */
+      const authConnection = DatabaseManager.getInstance().auth.connection;
+      if (!authConnection) {
+         throw new Error(
+            `Auth database connection unavailable during invite acceptance.`
+         );
+      }
+
+      // ── Step 5: Run the transaction ────────────────────────────────────────────
+      const session = await authConnection.startSession();
+
+      /* The try/finally here has one narrow job: guarantee that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. Leaking a session is a server-side resource leak that compounds quietly under load. Any unexpected throw from withTransaction() travels through the finally block and is caught by the outer try/catch, which forwards it to next(err) and the error pipeline. */
+      let outcome: TransactionOutcome;
+      try {
+         outcome = await runRegistrationTransaction(session, {
+            tokenHash,
+            email,
+            firstName,
+            lastName,
+            passwordHash,
+         });
       } finally {
-         /* This runs whether we committed, aborted, or threw. Ending the session returns its server-side resources to the connection pool. Skipping this would silently leak resources on every failed registration attempt. */
          await session.endSession();
       }
+
+      // ── Step 6: Send the HTTP response ─────────────────────────────────────────
+      /* All database work is settled. We are outside the transaction and can send exactly one response without any retry risk. TypeScript can see that outcome is fully assigned from runRegistrationTransaction's return value, so it narrows the union correctly through each branch below. */
+      if (outcome.status === 'invalid_token') {
+         return void res
+            .status(404)
+            .json(
+               createErrorResponse(
+                  'NOT_FOUND',
+                  `This invite link is invalid or has expired.`,
+                  undefined,
+                  requestId
+               )
+            );
+      }
+
+      if (outcome.status === 'email_mismatch') {
+         return void res
+            .status(400)
+            .json(
+               createErrorResponse(
+                  'VALIDATION_ERROR',
+                  `The email address you entered does not match the one this invite was sent to.`,
+                  undefined,
+                  requestId
+               )
+            );
+      }
+
+      /* outcome.status === 'success' 201 Created. Minimal payload — no user data, no tokens. The client redirects to the login page. The full user lifecycle is now complete: invited → registered → ready to authenticate. */
+      return void res.status(201).json({
+         success: true,
+         message: `Registration successful. You may now log in.`,
+      });
    } catch (err) {
       next(err);
    }

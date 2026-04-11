@@ -20,7 +20,7 @@ import { createModelGetter } from '@utils/createLazyGetter.ts';
 type IInviteInitial = InferOutput<typeof InviteCreateSchema>;
 
 // This is what we save to the database
-type IInviteDefinition = IInviteInitial & {
+export type IInviteDefinition = IInviteInitial & {
    tokenHash: string;
    usedAt: Date | null;
    expiresAt: Date;
