@@ -7,8 +7,8 @@ import { UserRegistrationSchema } from '@models/User.model.ts';
 import { createInviteController } from '@invites/createInvite.controller.ts';
 import { revokeInviteController } from '@invites/revokeInvite.controller.ts';
 import { previewInviteController } from '@invites/previewInvite.controller.ts';
-import { listInvitesController } from './listInvites.controller.ts';
-import { acceptInviteController } from './acceptInvite.controller.ts';
+import { listInvitesController } from '@invites/listInvites.controller.ts';
+import { acceptInviteController } from '@invites/acceptInvite.controller.ts';
 
 const inviteRouter = Router();
 
