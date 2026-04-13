@@ -17,57 +17,38 @@ import {
 } from 'valibot';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
+import {
+   NAME_CHANGE_CAP,
+   EMAIL_CHANGE_CAP,
+} from '@ssot/user_change_constants.ts';
 
-// This is what we expect from a User
+// ── History entry types ──────────────────────────────────────────────────────────
+/* Each entry represents a name or email that was once the live value on this account. `archivedAt` records the moment the entry was archived — i.e., the
+   moment the *new* value took effect and this one was retired. The field is explicitly set by application code rather than relying on Mongoose's automatic timestamps, because subdocuments embedded in arrays do not participate in the parent document's timestamp lifecycle. */
+export type INameHistoryEntry = Pick<IUserInitial, 'firstName' | 'lastName'> & {
+   archivedAt: Date;
+};
+
+export type IEmailHistoryEntry = Pick<IUserInitial, 'email'> & {
+   archivedAt: Date;
+};
+
+// ── Valibot registration schema ──────────────────────────────────────────────────
+/* This schema validates the body of POST /api/invites/:token/accept. It is unchanged from its original form — the history/counter additions to the User model are server-side concerns invisible to the registering user. */
 export type IUserInitial = InferOutput<typeof UserRegistrationSchema>;
-
-// This is what we check Mongoose Schema definition against
-export type IUserDefinition = Omit<IUserInitial, 'password'> & {
-   passwordHash: string;
-   role: UserRole; // full union, superadmin must be storable
-   canIssueInvites: boolean;
-   invitedBy?: mongoose.Types.ObjectId;
-   isVerified: boolean;
-   isActive: boolean;
-};
-
-// This is what we check the hydrated document against
-export type IUserDocument = IUserDefinition & {
-   _id: mongoose.Types.ObjectId;
-   createdAt: Date;
-   updatedAt: Date;
-};
-
-// The safe, public-facing subset of a user document. This is the only shape that should ever be serialised into an HTTP response.
-type PublicUser = {
-   id: mongoose.Types.ObjectId;
-} & Pick<
-   IUserDefinition,
-   'firstName' | 'lastName' | 'email' | 'role' | 'canIssueInvites'
->;
-
-// Envelope for responses that establish or confirm an active session. Used by login, refresh, and me.
-export type AuthUserResponse = {
-   success: true;
-   message: string;
-   user: PublicUser;
-};
-
-// Envelope for logout. Same shape as AuthUserResponse but without the user object, since there is no active identity to return after termination.
-export type AuthUserResponseLogout = Omit<AuthUserResponse, 'user'>;
 
 const baseString = pipe(
    string(`Must be a string.`),
    trim(),
-   minLength(2, `String should be at least 2 character long.`),
+   minLength(2, `String should be at least 2 characters long.`),
    maxLength(32, `String is too long.`)
 );
 
 const nameString = pipe(
    baseString,
    regex(
-      /^[\p{L} .'\-‘’]+$/u,
-      'Must not contain invalid or consecutive non-alphanumeric characters in name (valibot)'
+      /^[\p{L} .'\-'']+$/u,
+      'Must not contain invalid or consecutive non-alphanumeric characters in name.'
    ),
    transform(name => {
       const words = name
@@ -81,7 +62,6 @@ const nameString = pipe(
    })
 );
 
-// 1. A User accepts an invite and signs up. Valibot validates the incoming HTTP POST request.
 export const UserRegistrationSchema = strictObject({
    firstName: nameString,
    lastName: nameString,
@@ -90,9 +70,7 @@ export const UserRegistrationSchema = strictObject({
       nonEmpty(`Please enter your email.`),
       email(`Incorrectly formatted email.`),
       maxLength(64, `Your email is too long.`),
-      transform(str => {
-         return str.toLowerCase();
-      })
+      transform(str => str.toLowerCase())
    ),
    password: pipe(
       string(`Must be a string.`),
@@ -104,15 +82,83 @@ export const UserRegistrationSchema = strictObject({
    ),
 });
 
+// ── Domain types ─────────────────────────────────────────────────────────────────
+export type IUserDefinition = Omit<IUserInitial, 'password'> & {
+   passwordHash: string;
+   role: UserRole; // full union — superadmin must be storable
+   canIssueInvites: boolean;
+
+   /* Each array grows by one entry every time the corresponding value changes. Once nameChangesUsed / emailChangesUsed reaches NAME_CHANGE_CAP / EMAIL_CHANGE_CAP, further changes are blocked at the application layer. The counters (incremented atomically alongside the array push) are the SSOT for the cap check. */
+   previousNames: INameHistoryEntry[];
+   previousEmails: IEmailHistoryEntry[];
+   nameChangesUsed: number;
+   emailChangesUsed: number;
+
+   invitedBy?: mongoose.Types.ObjectId;
+   isActive: boolean;
+
+   /* isVerified removed. Email ownership is proven structurally. */
+};
+
+export type IUserDocument = IUserDefinition & {
+   _id: mongoose.Types.ObjectId;
+   createdAt: Date;
+   updatedAt: Date;
+};
+
+/* The safe, full projection for self-view (GET /api/auth/me) and superadmin views. passwordHash is the only excluded field. INTERNAL implementation detail of the authentication layer with no legitimate use in any HTTP response, even an admin-facing one. */
+export type SafeUser = Omit<IUserDocument, 'passwordHash'>;
+
+/* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
+type PublicUser = {
+   id: mongoose.Types.ObjectId;
+} & Pick<
+   IUserDefinition,
+   'firstName' | 'lastName' | 'email' | 'role' | 'canIssueInvites'
+>;
+
+// ── HTTP response envelope types ─────────────────────────────────────────────────
+export type AuthUserResponse = {
+   success: true;
+   message: string;
+   user: PublicUser;
+};
+
+export type AuthUserResponseLogout = Omit<AuthUserResponse, 'user'>;
+
+// ── Subdocument schemas ──────────────────────────────────────────────────────────
+/* { _id: false } suppresses the automatic ObjectId that Mongoose adds to every subdocument in an array by default. History entries have no independent identity and are never queried or updated in isolation. */
+const nameHistoryEntryDefinition = {
+   firstName: { type: String, required: true },
+   lastName: { type: String, required: true },
+   archivedAt: { type: Date, required: true, default: Date.now },
+} satisfies StrictSchemaDefinition<INameHistoryEntry>;
+
+const NameHistoryEntrySchema = new mongoose.Schema<INameHistoryEntry>(
+   nameHistoryEntryDefinition,
+   { _id: false }
+);
+
+const emailHistoryEntryDefinition = {
+   email: { type: String, required: true },
+   archivedAt: { type: Date, required: true, default: Date.now },
+} satisfies StrictSchemaDefinition<IEmailHistoryEntry>;
+
+const EmailHistoryEntrySchema = new mongoose.Schema<IEmailHistoryEntry>(
+   emailHistoryEntryDefinition,
+   { _id: false }
+);
+
+// ── Mongoose schema definition ───────────────────────────────────────────────────
 const UserDefinition = {
    firstName: {
       type: String,
-      required: [true, `Username is required.`],
+      required: [true, `First name is required.`],
       trim: true,
    },
    lastName: {
       type: String,
-      required: [true, `Username is required.`],
+      required: [true, `Last name is required.`],
       trim: true,
    },
    email: {
@@ -139,8 +185,7 @@ const UserDefinition = {
                (!this?.invitedBy && role === 'superadmin')
             );
          },
-         message:
-            'Role invariant violated: the superadmin role may only exist without an invitedBy reference, and all invited users must have an allowed role.',
+         message: `Role invariant violated: the superadmin role may only exist without an invitedBy reference, and all invited users must have an allowed role.`,
       },
    },
    canIssueInvites: {
@@ -148,15 +193,38 @@ const UserDefinition = {
       required: [true, `Please specify whether the User can issue invites.`],
       default: false,
    },
+   previousNames: {
+      type: [NameHistoryEntrySchema],
+      default: [],
+   },
+   previousEmails: {
+      type: [EmailHistoryEntrySchema],
+      default: [],
+   },
+   nameChangesUsed: {
+      type: Number,
+      required: [true, `Name change count is required.`],
+      default: 0,
+      min: [0, `Name change count cannot be negative.`],
+      max: [
+         NAME_CHANGE_CAP,
+         `Name change count cannot exceed the cap of ${NAME_CHANGE_CAP}.`,
+      ],
+   },
+   emailChangesUsed: {
+      type: Number,
+      required: [true, `Email change count is required.`],
+      default: 0,
+      min: [0, `Email change count cannot be negative.`],
+      max: [
+         EMAIL_CHANGE_CAP,
+         `Email change count cannot exceed the cap of ${EMAIL_CHANGE_CAP}.`,
+      ],
+   },
    invitedBy: {
       // Optional because the "required" constraint breaks for the superadmin (who isn't invited by anyone)
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
-   },
-   isVerified: {
-      type: Boolean,
-      default: true, // The fact that the User activates the invite (that was sent to their email) proves that they have access to the email.
-      required: [true, `Is the user verified?`],
    },
    isActive: {
       type: Boolean,

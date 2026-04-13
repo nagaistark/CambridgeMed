@@ -58,7 +58,7 @@ export async function loginController(
             );
       }
 
-      /* These checks come AFTER the credential check deliberately. Failing here reveals that the email exists, but only to someone who already proved they know the correct password, so enumeration risk is acceptable at this point. */
+      /* This check comes AFTER the credential check deliberately. Failing here reveals that the email exists, but only to someone who already proved they know the correct password — so enumeration risk is acceptable. */
       if (!user.isActive) {
          return void res
             .status(403)
@@ -72,19 +72,7 @@ export async function loginController(
             );
       }
 
-      /* isVerified is true by default since it's an invite, but we guard it defensively in case a manual DB operation ever creates a user in an unexpected state. */
-      if (!user.isVerified) {
-         return void res
-            .status(403)
-            .json(
-               createErrorResponse(
-                  'FORBIDDEN',
-                  'This account has not been verified.',
-                  undefined,
-                  res.locals.requestId
-               )
-            );
-      }
+      /* isVerified removed. Email ownership is proven structurally. */
 
       // ── Issue tokens ───────────────────────────────────────────────────────────
       const {

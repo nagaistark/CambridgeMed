@@ -1,6 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getUserModel } from '@models/User.model.ts';
-import { buildAuthResponse } from '@utils/buildResponses.ts';
+import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 
 export async function meController(
@@ -46,9 +46,7 @@ export async function meController(
       }
 
       /* Mirror the login response's user shape exactly. A consistent contract means the frontend can handle both responses with the same normaliser. */
-      return void res
-         .status(200)
-         .json(buildAuthResponse('Session valid.', user));
+      return void res.status(200).json(buildMeResponse('Session valid.', user));
    } catch (err) {
       next(err);
    }

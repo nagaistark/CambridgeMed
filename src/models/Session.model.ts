@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
+import { hexHashValidator } from '@ssot/deterministic_hash_constants.ts';
 
 type ISessionDefinition = {
    userId: mongoose.Types.ObjectId;
@@ -23,13 +24,6 @@ export type ISessionDocument = ISessionDefinition & {
    _id: mongoose.Types.ObjectId;
    createdAt: Date;
    updatedAt: Date;
-};
-
-const HEX64_REGEX = /^[a-f0-9]{64}$/i;
-
-const hexHashValidator = {
-   validator: (str: string) => HEX64_REGEX.test(str),
-   message: `Must be a 64-character lowercase hex string (SHA-256 digest).`,
 };
 
 const SessionDefinition = {

@@ -101,7 +101,6 @@ async function runRegistrationTransaction(
                   role: claimedInvite.role,
                   canIssueInvites: claimedInvite.canIssueInvites,
                   invitedBy: claimedInvite.issuedBy,
-                  isVerified: true,
                   isActive: true,
                },
             ],

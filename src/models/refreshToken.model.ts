@@ -2,6 +2,7 @@ import mongoose from 'mongoose';
 import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
+import { hexHashValidator } from '@ssot/deterministic_hash_constants.ts';
 
 type IRefreshTokenDefinition = {
    // SHA-256 hex digest of the raw opaque token sent to the client. We never persist the raw value — only its fingerprint.
@@ -20,17 +21,12 @@ export type IRefreshTokenDocument = IRefreshTokenDefinition & {
    updatedAt: Date;
 };
 
-const HEX64_REGEX = /^[a-f0-9]{64}$/i;
-
 const RefreshTokenDefinition = {
    tokenHash: {
       type: String,
       required: [true, `Token Hash is required.`],
       trim: true,
-      validate: {
-         validator: (str: string) => HEX64_REGEX.test(str),
-         message: `tokenHash must be a 64-character hex string (SHA-256).`,
-      },
+      validate: hexHashValidator,
    },
    userId: {
       type: mongoose.Schema.Types.ObjectId,

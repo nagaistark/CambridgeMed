@@ -15,6 +15,7 @@ import {
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
+import { hexHashValidator } from '@ssot/deterministic_hash_constants.ts';
 
 // This is what the inviter puts in
 type IInviteInitial = InferOutput<typeof InviteCreateSchema>;
@@ -33,8 +34,6 @@ export type IInviteDocument = IInviteDefinition & {
    createdAt: Date;
    updatedAt: Date;
 };
-
-const HEX64_REGEX = /^[a-f0-9]{64}$/i;
 
 export const InviteCreateSchema = strictObject({
    email: pipe(
@@ -57,10 +56,7 @@ const InviteDefinition = {
       type: String,
       required: [true, `Token Hash is required.`],
       trim: true,
-      validate: {
-         validator: str => HEX64_REGEX.test(str),
-         message: `Token Hash does not conform to the pattern.`,
-      },
+      validate: hexHashValidator,
    },
    email: {
       type: String,
