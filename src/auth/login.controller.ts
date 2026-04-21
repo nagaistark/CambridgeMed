@@ -36,7 +36,6 @@ export async function loginController(
       const User = getUserModel();
       const Session = getSessionModel();
 
-      // Since we don't need Mongoose object's methods here, we use lean that return a plain JS object
       const user = await User.findOne({ email }).lean();
 
       const isPasswordValid = await verifyPassword(

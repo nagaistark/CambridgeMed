@@ -23,8 +23,7 @@ import {
 } from '@ssot/user_change_constants.ts';
 
 // ── History entry types ──────────────────────────────────────────────────────────
-/* Each entry represents a name or email that was once the live value on this account. `archivedAt` records the moment the entry was archived — i.e., the
-   moment the *new* value took effect and this one was retired. The field is explicitly set by application code rather than relying on Mongoose's automatic timestamps, because subdocuments embedded in arrays do not participate in the parent document's timestamp lifecycle. */
+/* Each entry represents a name or email that was once the live value on this account. `archivedAt` records the moment the entry was archived (explicitly set by application code because subdocuments embedded in arrays do not participate in the parent document's timestamp lifecycle). */
 export type INameHistoryEntry = Pick<IUserInitial, 'firstName' | 'lastName'> & {
    archivedAt: Date;
 };
@@ -44,7 +43,7 @@ const baseString = pipe(
    maxLength(32, `String is too long.`)
 );
 
-const nameString = pipe(
+export const nameString = pipe(
    baseString,
    regex(
       /^[\p{L} .'\-'']+$/u,
@@ -106,15 +105,13 @@ export type IUserDocument = IUserDefinition & {
    updatedAt: Date;
 };
 
-/* The safe, full projection for self-view (GET /api/auth/me) and superadmin views. passwordHash is the only excluded field. INTERNAL implementation detail of the authentication layer with no legitimate use in any HTTP response, even an admin-facing one. */
+/* The SAFE, full (except `passwordHash`) projection for self-view (GET /api/auth/me) and superadmin views. */
 export type SafeUser = Omit<IUserDocument, 'passwordHash'>;
 
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
-type PublicUser = {
-   id: mongoose.Types.ObjectId;
-} & Pick<
-   IUserDefinition,
-   'firstName' | 'lastName' | 'email' | 'role' | 'canIssueInvites'
+export type PublicUser = Pick<
+   IUserDocument,
+   '_id' | 'firstName' | 'lastName' | 'email' | 'role' | 'canIssueInvites'
 >;
 
 // ── HTTP response envelope types ─────────────────────────────────────────────────

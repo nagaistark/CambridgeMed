@@ -59,11 +59,9 @@ async function runRegistrationTransaction(
 
          // ── Atomic claim ────────────────────────────────────────────────────────
          /* The filter's three conditions must ALL be true simultaneously:
-              - tokenHash matches → correct invite
-              - usedAt is null    → not yet accepted
-              - expiresAt > now   → not expired, regardless of TTL janitor lag
-   
-         findOneAndUpdate maps to MongoDB's native findAndModify command, so the filter check and the $set write are one indivisible operation at the storage layer. Only one concurrent request can ever satisfy the filter — any subsequent request will find usedAt already set and receive null back. { new: true } returns the document AFTER the update, giving us the invite's fields without a separate read. Validation and claiming happen in one round trip.
+            - tokenHash matches → correct invite
+            - usedAt is null    → not yet accepted
+            - expiresAt > now   → not expired, regardless of TTL janitor lag
    
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
          const claimedInvite = await Invite.findOneAndUpdate(
@@ -72,25 +70,20 @@ async function runRegistrationTransaction(
             { new: true, session }
          ).lean();
 
-         /* Returning early signals to withTransaction() that it should abort without retrying. The outcome sentinel stays at its 'invalid_token' default. */
          if (!claimedInvite) {
             throw new TransactionAbortError({ status: 'invalid_token' });
          }
 
          // ── Email confirmation check ────────────────────────────────────────────
-         /* We compare the body email against claimedInvite.email — the authoritative value locked in at invite creation time — to confirm the registering person is the intended recipient. Both values are already lowercased by their respective pipelines (Valibot transform for the body, Mongoose schema for the stored invite), so the comparison is safe as-is.
+         /* We compare the body email against claimedInvite.email (the value locked in at invite creation time) to confirm the registering person is the intended recipient.
    
-         If mismatch, set the outcome BEFORE returning. withTransaction() aborts, rolling back the findOneAndUpdate above and leaving usedAt as null. The invite is fully unclaimed and reusable — a typo in the email field must never consume the invite. */
+         If mismatch, set the outcome BEFORE returning. withTransaction() aborts, rolling back the findOneAndUpdate above and leaving usedAt as null. The invite is fully unclaimed and reusable. */
          if (claimedInvite.email !== email) {
             throw new TransactionAbortError({ status: 'email_mismatch' });
          }
 
          // ── Create the User document ────────────────────────────────────────────
-         /* The email we persist is claimedInvite.email, not the body email. The body email has served its purpose in the confirmation check and is now discarded. This is defence-in-depth: even if the comparison check were somehow circumvented, the stored email would still be the one locked into the invite at creation time, never whatever the client submitted.
-   
-         role, canIssueInvites, and invitedBy come from the invite document and are not negotiable by the registering user. isVerified is set explicitly to true — possession of the invite token proves the user controls the invited email.
-   
-         Mongoose's create() with a session requires the array signature and returns an array of the created documents. We discard the return value because our response carries no user data. */
+         /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role, canIssueInvites, and invitedBy come from the invite document and are not negotiable by the registering user. Mongoose's create() with a session requires the array signature and returns an array of the created documents. We discard the return value because our response carries no user data. */
          await User.create(
             [
                {
@@ -149,14 +142,14 @@ export async function acceptInviteController(
       }
 
       // ── Step 2: Hash the password BEFORE opening the transaction ───────────────
-      /* Argon2 is intentionally slow — keeping a MongoDB transaction open while it churns for 100–300ms would hold server-side resources unnecessarily. We hash optimistically up front and discard the result if anything downstream fails. */
+      /* Keeping a MongoDB transaction open while Argon2 churns for 100–300ms would hold server-side resources unnecessarily. */
       const passwordHash = await hashPassword(password);
 
       // ── Step 3: Derive the token hash ──────────────────────────────────────────
       const tokenHash = createHash('sha256').update(token).digest('hex');
 
       // ── Step 4: Acquire the auth connection ────────────────────────────────────
-      /* Both Invite and User collections live on the auth connection. The null check satisfies TypeScript honestly — without it we'd need a non-null assertion, which is exactly the kind of "trust me, compiler" shortcut that erodes safety. In practice, the server bootstrap guarantee means this is never null, and any unexpected throw here is correctly caught by the outer try/catch below. */
+      /* The server bootstrap guarantees this is never null, and any unexpected throw here is caught by the outer try/catch. */
       const authConnection = DatabaseManager.getInstance().auth.connection;
       if (!authConnection) {
          throw new Error(
@@ -167,7 +160,7 @@ export async function acceptInviteController(
       // ── Step 5: Run the transaction ────────────────────────────────────────────
       const session = await authConnection.startSession();
 
-      /* The try/finally here has one narrow job: guarantee that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. Leaking a session is a server-side resource leak that compounds quietly under load. Any unexpected throw from withTransaction() travels through the finally block and is caught by the outer try/catch, which forwards it to next(err) and the error pipeline. */
+      /* The try/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
       let outcome: TransactionOutcome;
       try {
          outcome = await runRegistrationTransaction(session, {
@@ -182,7 +175,6 @@ export async function acceptInviteController(
       }
 
       // ── Step 6: Send the HTTP response ─────────────────────────────────────────
-      /* All database work is settled. We are outside the transaction and can send exactly one response without any retry risk. TypeScript can see that outcome is fully assigned from runRegistrationTransaction's return value, so it narrows the union correctly through each branch below. */
       if (outcome.status === 'invalid_token') {
          return void res
             .status(404)
@@ -209,7 +201,7 @@ export async function acceptInviteController(
             );
       }
 
-      /* outcome.status === 'success' 201 Created. Minimal payload — no user data, no tokens. The client redirects to the login page. The full user lifecycle is now complete: invited → registered → ready to authenticate. */
+      /* outcome.status === 'success' 201 Created. Minimal payload (no user data, no tokens). The client redirects to the login page. The full user lifecycle is now complete: invited → registered → ready to authenticate. */
       return void res.status(201).json({
          success: true,
          message: `Registration successful. You may now log in.`,

@@ -1,0 +1,96 @@
+import type { Request, NextFunction } from 'express';
+import mongoose from 'mongoose';
+import { getUserModel } from '@models/User.model.ts';
+import { createErrorResponse } from 'errorHandlers.ts';
+import { TypedResponse } from '@utils/typedResponse.ts';
+import type { ChangeNameBody } from '@users/User.schemas.ts';
+import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
+
+export async function changeNameController(
+   _req: Request,
+   res: TypedResponse<ChangeNameBody>,
+   next: NextFunction
+): Promise<void> {
+   try {
+      const requestId = res.locals.requestId;
+      const { sub } = res.locals.authenticatedUser!;
+      const { firstName, lastName } = res.locals.validatedBody;
+
+      const User = getUserModel();
+      const user = await User.findById(sub).lean();
+
+      if (!user) {
+         return void res
+            .status(404)
+            .json(
+               createErrorResponse(
+                  'NOT_FOUND',
+                  `Account not found.`,
+                  undefined,
+                  requestId
+               )
+            );
+      }
+
+      // ── Cap check ──────────────────────────────────────────────────────────────
+      if (user.nameChangesUsed >= NAME_CHANGE_CAP) {
+         return void res
+            .status(409)
+            .json(
+               createErrorResponse(
+                  'CONFLICT',
+                  `You have reached the maximum number of name changes (${NAME_CHANGE_CAP}). Please contact an administrator.`,
+                  undefined,
+                  requestId
+               )
+            );
+      }
+
+      // ── No-op guard ────────────────────────────────────────────────────────────
+      /* If the submitted values are identical to what's already stored, we reject early to avoid burning a name-change credit for a pointless write. */
+      const newFirstName = firstName ?? user.firstName;
+      const newLastName = lastName ?? user.lastName;
+
+      if (newFirstName === user.firstName && newLastName === user.lastName) {
+         return void res
+            .status(400)
+            .json(
+               createErrorResponse(
+                  'VALIDATION_ERROR',
+                  `The submitted name is identical to your current name.`,
+                  undefined,
+                  requestId
+               )
+            );
+      }
+
+      // ── Atomic archive-and-update ──────────────────────────────────────────────
+      /* We always archive the *full name pair* (firstName + lastName together), even when only one field changes. $push, $set, and $inc execute in a single findAndModify round-trip. There is no window where the document is partially updated. */
+      const updateFields: Partial<{ firstName: string; lastName: string }> = {};
+      if (firstName !== undefined) updateFields.firstName = firstName;
+      if (lastName !== undefined) updateFields.lastName = lastName;
+
+      await User.updateOne(
+         { _id: new mongoose.Types.ObjectId(sub) },
+         {
+            $set: updateFields,
+            $push: {
+               previousNames: {
+                  firstName: user.firstName,
+                  lastName: user.lastName,
+                  archivedAt: new Date(),
+               },
+            },
+            $inc: { nameChangesUsed: 1 },
+         },
+         { runValidators: true }
+      );
+
+      return void res.status(200).json({
+         success: true,
+         message: `Name updated successfully.`,
+      });
+   } catch (err) {
+      next(err);
+   }
+}

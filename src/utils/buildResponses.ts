@@ -21,24 +21,28 @@ export function buildAuthResponse(
    message: string,
    user?: IUserDocument
 ): AuthUserResponse | AuthUserResponseLogout {
-   return {
-      success: true,
-      message,
-      ...(user && {
+   if (user) {
+      return {
+         success: true,
+         message,
          user: {
-            id: user._id,
+            _id: user._id,
             firstName: user.firstName,
             lastName: user.lastName,
             email: user.email,
             role: user.role,
             canIssueInvites: user.canIssueInvites,
          },
-      }),
+      };
+   }
+   return {
+      success: true,
+      message,
    };
 }
 
 // ── Self-profile response (GET /api/auth/me) ─────────────────────────────────────
-/* Distinct from buildAuthResponse because the /me endpoint is the one place where a user is entitled to see everything about themselves. The only thing withheld is `passwordHash`. 
+/* Distinct from buildAuthResponse because the /me endpoint is the one place where a user sees everything about themselves (except `passwordHash`).
 
 The separation into a dedicated function (rather than a third overload) is intentional. The overload mechanism was designed around the user-present / user-absent distinction. A different *level of detail* for the same user is a semantically distinct concern and warrants a named function of its own. */
 export type MeResponse = {

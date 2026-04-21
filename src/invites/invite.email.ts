@@ -51,11 +51,11 @@ export async function sendInviteEmail(
    const template: Template = {
       intro: 'has invited you to join CambridgeMed as a',
       privilege:
-         'You will also have the ability to invite other staff members to the platform.',
+         'You will also have the ability to invite other staff members to the platform',
       link: 'Click the link below to complete your registration:',
       exp: 'This invitation expires on',
       otherwise:
-         'If you were not expecting this invitation, you can safely ignore this email.',
+         'If you were not expecting this invitation, you can safely ignore this email',
    };
 
    function renderMessage(): {
@@ -64,14 +64,14 @@ export async function sendInviteEmail(
    } {
       const text = [
          `${issuerFullName} ${template.intro} ${roleLabel}.`,
-         canIssueInvites ? template.privilege : null,
+         `${canIssueInvites ? template.privilege : null}.`,
          '',
          template.link,
          registrationUrl,
          '',
          `${template.exp} ${expiryFormatted}.`,
          '',
-         template.otherwise,
+         `${template.otherwise}.`,
       ]
          .filter((line): line is string => line !== null)
          .join('\n');
@@ -83,18 +83,15 @@ export async function sendInviteEmail(
             <p style="margin:0 0 12px;">
                <strong>${issuerFullName}</strong> ${template.intro} <strong>${roleLabel}</strong>.
             </p>
-            ${canIssueInvites ? `<p style="margin:0 0 12px;">${template.privilege}</p>` : ''}
+            ${canIssueInvites ? `<p style="margin:0 0 12px;">${template.privilege}.</p>` : ''}
             <p style="margin:24px 0;">
-               <a href="${registrationUrl}"
-                  style="background:#2563eb; color:#ffffff; padding:12px 24px;border-radius:6px; text-decoration:none; font-weight:600;display:inline-block;">
-               Complete Registration
-               </a>
+               <a href="${registrationUrl}" style="background:#2563eb; color:#ffffff; padding:12px 24px;border-radius:6px; text-decoration:none; font-weight:600;display:inline-block;">Complete Registration</a>
             </p>
             <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
                ${template.exp} <strong>${expiryFormatted}</strong>.
             </p>
             <p style="color:#6b7280;font-size:13px;margin:0;">
-               ${template.otherwise}
+               ${template.otherwise}.
             </p>
          </body>
       </html>`;
