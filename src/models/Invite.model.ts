@@ -15,7 +15,7 @@ import {
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
-import { hexHashValidator } from '@ssot/deterministic_hash_constants.ts';
+import { hexHashValidator } from '@ssot/node_crypto_constants.ts';
 
 // This is what the inviter puts in
 type IInviteInitial = InferOutput<typeof InviteCreateSchema>;

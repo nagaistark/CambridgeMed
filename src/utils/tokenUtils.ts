@@ -1,9 +1,10 @@
 import { SignJWT } from 'jose';
-import { randomBytes, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { Response } from 'express';
 import { myEnv } from 'validateConfig.ts';
 import type { UserRole } from '@ssot/user_roles_constants.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
+import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 // Single source of truth for cookie names. Imported by the authenticate middleware and the refresh controller.
@@ -40,8 +41,7 @@ export async function signAccessToken(
 // ── Refresh token ────────────────────────────────────────────────────────────
 // Generating a cryptographically random opaque token plus its SHA-256 hash. The `raw` value goes to the client as an httpOnly cookie. The `hash` value is what we store in MongoDB.
 export function generateRefreshToken(): { raw: string; hash: string } {
-   // 48 bytes → 96-character hex string. Far beyond any brute-force threshold.
-   const raw = randomBytes(48).toString('hex');
+   const raw = generateRandomToken();
    const hash = createHash('sha256').update(raw).digest('hex');
    return { raw, hash };
 }

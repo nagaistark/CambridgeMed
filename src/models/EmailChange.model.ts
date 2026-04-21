@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
-import { hexHashValidator } from '@ssot/deterministic_hash_constants.ts';
+import { hexHashValidator } from '@ssot/node_crypto_constants.ts';
 import { InitiateEmailChangeBody } from '@users/User.schemas.ts';
 
 // ── Domain types ─────────────────────────────────────────────────────────────────

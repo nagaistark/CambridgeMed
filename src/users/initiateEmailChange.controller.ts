@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { randomBytes, createHash } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getEmailChangeModel } from '@models/EmailChange.model.ts';
@@ -7,6 +7,7 @@ import { createErrorResponse } from 'errorHandlers.ts';
 import { TypedResponse } from '@utils/typedResponse.ts';
 import type { InitiateEmailChangeBody } from '@users/User.schemas.ts';
 import { sendEmailChangeEmails } from '@users/emailChange.email.ts';
+import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
 import {
    EMAIL_CHANGE_CAP,
    EMAIL_CHANGE_TOKEN_EXPIRY_MS,
@@ -127,8 +128,8 @@ export async function initiateEmailChangeController(
 
       // ── Generate bilateral tokens ──────────────────────────────────────────────
       /* Two independent opaque tokens: one for confirmation (sent to new address), one for cancellation (sent to old address). Both are 48 random bytes encoded as hex. Only the SHA-256 hashes are stored. */
-      const rawConfirmToken = randomBytes(48).toString('hex');
-      const rawCancelToken = randomBytes(48).toString('hex');
+      const rawConfirmToken = generateRandomToken();
+      const rawCancelToken = generateRandomToken();
       const confirmTokenHash = createHash('sha256')
          .update(rawConfirmToken)
          .digest('hex');

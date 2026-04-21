@@ -14,7 +14,7 @@ import {
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { TypedResponse } from '@utils/typedResponse.ts';
-import { INVITE_TOKEN_REGEX } from '@ssot/invite_constants.ts';
+import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -128,7 +128,7 @@ export async function acceptInviteController(
 
       // ── Step 1: Token format check ─────────────────────────────────────────────
       /* 404 rather than 400, so a malformed token is indistinguishable from a non-existent one. We don't want to leak that format validation is occurring. */
-      if (!INVITE_TOKEN_REGEX.test(token)) {
+      if (!HEX96_REGEX.test(token)) {
          return void res
             .status(404)
             .json(

@@ -6,7 +6,7 @@ import { getSessionModel } from '@models/Session.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'dbConnect.ts';
-import { INVITE_TOKEN_REGEX } from '@ssot/invite_constants.ts';
+import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
 import logger from 'logger.ts';
 
 /* Email change tokens are generated with the same strategy as invite tokens. Check `invite_constants.ts`. */
@@ -22,7 +22,7 @@ export async function confirmEmailChangeController(
       const { token } = req.params;
 
       // ── Token format check ─────────────────────────────────────────────────────
-      if (!INVITE_TOKEN_REGEX.test(token)) {
+      if (!HEX96_REGEX.test(token)) {
          return void res
             .status(404)
             .json(

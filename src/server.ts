@@ -16,7 +16,8 @@ import logger from 'logger.ts';
 import cookieParser from 'cookie-parser';
 
 import authRouter from '@auth/auth.routes.ts';
-import inviteRouter from '@invites/invite.routes.ts';
+import inviteRouter from '@invites/invites.routes.ts';
+import usersRouter from '@users/users.routes.ts';
 
 import {
    DatabaseManager,
@@ -241,6 +242,7 @@ app.get(/^\/$|\/index(.html)?$/, (_req: Request, res: Response) => {
 // To the future me! Auth domain should be mounted BEFORE the catch-all 404 handlers
 app.use('/api/auth', authRouter);
 app.use('/api/invites', inviteRouter);
+app.use('/api/users', usersRouter);
 
 // ====================================================================================
 // 5. 404 & GLOBAL ERROR HANDLING (Must be last!)
