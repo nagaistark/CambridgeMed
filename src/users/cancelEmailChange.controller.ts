@@ -41,7 +41,6 @@ export async function cancelEmailChangeController(
       // ── Look up the EmailChange record ─────────────────────────────────────────
       const emailChange = await EmailChange.findOne({
          cancelTokenHash: tokenHash,
-         cancelledAt: null,
          expiresAt: { $gt: new Date() },
       }).lean();
 
