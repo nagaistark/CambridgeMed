@@ -10,6 +10,10 @@ import {
    EMAIL_CHANGE_INITIATE_MAX_REQUESTS,
    EMAIL_TOKEN_WINDOW_MS,
    EMAIL_TOKEN_MAX_REQUESTS,
+   FORGOT_PASSWORD_WINDOW_MS,
+   FORGOT_PASSWORD_MAX_REQUESTS,
+   RESET_PASSWORD_WINDOW_MS,
+   RESET_PASSWORD_MAX_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 
 /* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-7'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
@@ -59,4 +63,14 @@ export const emailChangeInitiateRateLimiter = makeRateLimiter(
 export const emailTokenRateLimiter = makeRateLimiter(
    EMAIL_TOKEN_WINDOW_MS,
    EMAIL_TOKEN_MAX_REQUESTS
+);
+
+export const forgotPasswordRateLimiter = makeRateLimiter(
+   FORGOT_PASSWORD_WINDOW_MS,
+   FORGOT_PASSWORD_MAX_REQUESTS
+);
+
+export const resetPasswordRateLimiter = makeRateLimiter(
+   RESET_PASSWORD_WINDOW_MS,
+   RESET_PASSWORD_MAX_REQUESTS
 );
