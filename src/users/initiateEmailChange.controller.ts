@@ -110,7 +110,6 @@ export async function initiateEmailChangeController(
       /* Only one active (non-expired) email change per user at a time is allowed. Active = confirmed-but-still-cancellable. */
       const userHasActiveChange = await EmailChange.exists({
          userId: new mongoose.Types.ObjectId(sub),
-         confirmedAt: { $ne: null },
          expiresAt: { $gt: now },
       });
       if (userHasActiveChange) {

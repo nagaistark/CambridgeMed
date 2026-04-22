@@ -59,19 +59,6 @@ export async function confirmEmailChangeController(
       }
 
       // ── State guard ────────────────────────────────────────────────────────────
-      // if (emailChange.cancelledAt !== null) {
-      //    return void res
-      //       .status(409)
-      //       .json(
-      //          createErrorResponse(
-      //             'CONFLICT',
-      //             `This email change request has already been cancelled.`,
-      //             undefined,
-      //             requestId
-      //          )
-      //       );
-      // }
-
       if (emailChange.confirmedAt !== null) {
          return void res
             .status(409)
@@ -96,11 +83,17 @@ export async function confirmEmailChangeController(
       const session = await authConnection.startSession();
       try {
          await session.withTransaction(async () => {
-            await EmailChange.updateOne(
-               { _id: emailChange._id },
+            const updateResult = await EmailChange.updateOne(
+               { _id: emailChange._id, confirmedAt: null },
                { $set: { confirmedAt: new Date() } },
                { session }
             );
+
+            if (updateResult.modifiedCount === 0) {
+               throw new Error(
+                  'CONCURRENCY_ERROR: Email change already confirmed.'
+               );
+            }
 
             /* The old email is pushed to the archive BEFORE being overwritten. archivedAt records the moment it stopped being the live address. */
             await User.updateOne(
