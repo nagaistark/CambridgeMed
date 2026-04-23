@@ -41,13 +41,11 @@ export async function forgotPasswordController(
       const tokenHash = createHash('sha256').update(rawToken).digest('hex');
       const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
 
-      await getPasswordResetModel().deleteOne({ userId: user._id });
-
-      await getPasswordResetModel().create({
-         tokenHash,
-         userId: user._id,
-         expiresAt,
-      });
+      await getPasswordResetModel().replaceOne(
+         { userId: user._id },
+         { tokenHash, userId: user._id, expiresAt },
+         { upsert: true }
+      );
 
       // ── Email delivery with rollback ───────────────────────────────────────────
       /* Mirrors the same pattern as initiateEmailChangeController. A PasswordReset document that was never delivered is actively harmful — it blocks re-initiation for 30 minutes while the user has no actionable link. Rolling back removes that obstacle. The email error is re-thrown and becomes a 500, which is honest: "something went wrong, try again." It does not confirm whether the account exists. */
