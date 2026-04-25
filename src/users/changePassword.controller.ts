@@ -6,17 +6,20 @@ import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'dbConnect.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedBody,
+} from '@utils/customTypedResponses.ts';
 import type { ChangePasswordBody } from '@users/User.schemas.ts';
 
 export async function changePasswordController(
    _req: Request,
-   res: ResponseWithValidatedBody<ChangePasswordBody>,
+   res: ResponseWithValidatedBody<ChangePasswordBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser!;
+      const { sub } = res.locals.authenticatedUser;
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
       const User = getUserModel();

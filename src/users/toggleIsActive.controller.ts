@@ -3,19 +3,22 @@ import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getSessionModel } from '@models/Session.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedBody,
+} from '@utils/customTypedResponses.ts';
 import type { SetIsActiveBody } from '@users/User.schemas.ts';
 
 type ToggleIsActiveParams = { id: string };
 
 export async function toggleIsActiveController(
    req: Request<ToggleIsActiveParams>,
-   res: ResponseWithValidatedBody<SetIsActiveBody>,
+   res: ResponseWithValidatedBody<SetIsActiveBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { role } = res.locals.authenticatedUser!;
+      const { role } = res.locals.authenticatedUser;
       const { id } = req.params;
       const { isActive } = res.locals.validatedBody;
 

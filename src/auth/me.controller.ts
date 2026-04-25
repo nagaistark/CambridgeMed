@@ -1,18 +1,19 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import { getUserModel } from '@models/User.model.ts';
+import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 
 export async function meController(
-   req: Request,
-   res: Response,
+   _req: Request,
+   res: AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
 
       /* res.locals.authenticatedUser is guaranteed to be populated here because this controller only runs behind the `authenticate` middleware. If `authenticate` had not set this, the request would have already been rejected with a 401 before reaching us. */
-      const { sub } = res.locals.authenticatedUser!;
+      const { sub } = res.locals.authenticatedUser;
 
       /* A single indexed primary-key lookup. A direct _id B-tree hit. Two reasons why we do this:
          1. The JWT only carries sub, role, and canIssueInvites. The frontend also needs firstName, lastName, and email to render the UI.

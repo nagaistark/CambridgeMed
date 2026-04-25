@@ -4,7 +4,10 @@ import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getEmailChangeModel } from '@models/EmailChange.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedBody,
+} from '@utils/customTypedResponses.ts';
 import type { InitiateEmailChangeBody } from '@users/User.schemas.ts';
 import { sendEmailChangeEmails } from '@users/emailChange.email.ts';
 import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
@@ -16,12 +19,13 @@ import { myEnv } from 'validateConfig.ts';
 
 export async function initiateEmailChangeController(
    _req: Request,
-   res: ResponseWithValidatedBody<InitiateEmailChangeBody>,
+   res: ResponseWithValidatedBody<InitiateEmailChangeBody> &
+      AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser!;
+      const { sub } = res.locals.authenticatedUser;
       const { newEmail } = res.locals.validatedBody;
 
       const User = getUserModel();

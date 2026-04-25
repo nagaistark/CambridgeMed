@@ -2,19 +2,23 @@ import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedBody,
+} from '@utils/customTypedResponses.ts';
 import type { SetCanIssueInvitesBody } from '@users/User.schemas.ts';
 
 type ToggleParams = { id: string };
 
 export async function toggleCanIssueInvitesController(
    req: Request<ToggleParams>,
-   res: ResponseWithValidatedBody<SetCanIssueInvitesBody>,
+   res: ResponseWithValidatedBody<SetCanIssueInvitesBody> &
+      AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, role } = res.locals.authenticatedUser!;
+      const { sub, role } = res.locals.authenticatedUser;
       const { id } = req.params;
       const { canIssueInvites } = res.locals.validatedBody;
 

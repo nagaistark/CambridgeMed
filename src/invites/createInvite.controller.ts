@@ -7,7 +7,10 @@ import {
    type IInviteCreateBody,
 } from '@models/Invite.model.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedBody,
+} from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { sendInviteEmail } from '@invites/invite.email.ts';
 import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
@@ -15,12 +18,12 @@ import { myEnv } from 'validateConfig.ts';
 
 export async function createInviteController(
    _req: Request,
-   res: ResponseWithValidatedBody<IInviteCreateBody>,
+   res: ResponseWithValidatedBody<IInviteCreateBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser!;
+      const { sub } = res.locals.authenticatedUser;
       const { email, role, canIssueInvites } = res.locals.validatedBody;
 
       const User = getUserModel();

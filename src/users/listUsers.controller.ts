@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import {
    getUserModel,
    type SafeUser,
@@ -8,14 +8,15 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 
 export async function listUsersController(
    _req: Request,
-   res: Response,
+   res: AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
-      const { role } = res.locals.authenticatedUser!;
+      const { role } = res.locals.authenticatedUser;
       const isSuperAdmin = role === 'superadmin';
       const User = getUserModel();
 

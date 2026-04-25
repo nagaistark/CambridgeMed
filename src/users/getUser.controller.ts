@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import {
    getUserModel,
@@ -10,17 +10,18 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 
 type GetUserParams = { id: string };
 
 export async function getUserController(
    req: Request<GetUserParams>,
-   res: Response,
+   res: AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { role } = res.locals.authenticatedUser!;
+      const { role } = res.locals.authenticatedUser;
       const { id } = req.params;
 
       if (!mongoose.Types.ObjectId.isValid(id)) {

@@ -1,10 +1,11 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getInviteModel } from '@models/Invite.model.ts';
 
 import { IUserDocument } from '@models/User.model.ts';
 import { IInviteDocument } from '@models/Invite.model.ts';
+import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 
 type IInviteIssuer = Pick<IUserDocument, '_id' | 'firstName' | 'lastName'>;
 type IPendingInviteItem = Pick<
@@ -29,11 +30,11 @@ type IInviteListItem = IPendingInviteItem | IAcceptedInviteItem;
 
 export async function listInvitesController(
    _req: Request,
-   res: Response,
+   res: AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
-      const { sub, role } = res.locals.authenticatedUser!;
+      const { sub, role } = res.locals.authenticatedUser;
       const isSuperAdmin: boolean = role === 'superadmin';
 
       const Invite = getInviteModel();

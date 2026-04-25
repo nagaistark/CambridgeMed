@@ -1,19 +1,20 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { getInviteModel } from '@models/Invite.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
+import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 
 /* Request<P> threads P into req.params, narrowing each value from `string | string[]` down to plain `string`. */
 type RevokeInviteParams = { id: string };
 
 export async function revokeInviteController(
    req: Request<RevokeInviteParams>,
-   res: Response,
+   res: AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, role } = res.locals.authenticatedUser!;
+      const { sub, role } = res.locals.authenticatedUser;
       const { id } = req.params;
 
       // ── Validate the ID format before touching the database ────────────────────

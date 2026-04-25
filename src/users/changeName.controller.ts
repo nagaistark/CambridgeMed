@@ -2,18 +2,21 @@ import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedBody,
+} from '@utils/customTypedResponses.ts';
 import type { ChangeNameBody } from '@users/User.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 
 export async function changeNameController(
    _req: Request,
-   res: ResponseWithValidatedBody<ChangeNameBody>,
+   res: ResponseWithValidatedBody<ChangeNameBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser!;
+      const { sub } = res.locals.authenticatedUser;
       const { firstName, lastName } = res.locals.validatedBody;
 
       const User = getUserModel();
