@@ -25,7 +25,6 @@ export async function revokeInviteController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `Invalid invite ID.`,
-                  undefined,
                   requestId
                )
             );
@@ -39,12 +38,7 @@ export async function revokeInviteController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `Invite not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `Invite not found.`, requestId)
             );
       }
 
@@ -56,7 +50,6 @@ export async function revokeInviteController(
                createErrorResponse(
                   'CONFLICT',
                   `This invite has already been accepted and cannot be revoked.`,
-                  undefined,
                   requestId
                )
             );
@@ -74,7 +67,6 @@ export async function revokeInviteController(
                createErrorResponse(
                   'FORBIDDEN',
                   `You can only revoke invites that you issued.`,
-                  undefined,
                   requestId
                )
             );

@@ -25,7 +25,6 @@ export async function toggleCanIssueInvitesController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `Invalid user ID.`,
-                  undefined,
                   requestId
                )
             );
@@ -38,12 +37,7 @@ export async function toggleCanIssueInvitesController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `User not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `User not found.`, requestId)
             );
       }
 
@@ -65,7 +59,6 @@ export async function toggleCanIssueInvitesController(
                createErrorResponse(
                   'FORBIDDEN',
                   `You do not have permission to modify this user's invite privileges.`,
-                  undefined,
                   requestId
                )
             );
@@ -80,7 +73,6 @@ export async function toggleCanIssueInvitesController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `This user's invite privilege is already set to ${canIssueInvites}.`,
-                  undefined,
                   requestId
                )
             );

@@ -25,7 +25,6 @@ export async function previewInviteController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This invite link is invalid or has expired.`,
-                  undefined,
                   requestId
                )
             );
@@ -45,7 +44,6 @@ export async function previewInviteController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This invite link is invalid or has expired.`,
-                  undefined,
                   requestId
                )
             );
@@ -59,7 +57,6 @@ export async function previewInviteController(
                createErrorResponse(
                   'CONFLICT',
                   `This invite has already been accepted.`,
-                  undefined,
                   requestId
                )
             );

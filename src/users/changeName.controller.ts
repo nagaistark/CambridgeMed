@@ -23,12 +23,7 @@ export async function changeNameController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `Account not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `Account not found.`, requestId)
             );
       }
 
@@ -40,7 +35,6 @@ export async function changeNameController(
                createErrorResponse(
                   'CONFLICT',
                   `You have reached the maximum number of name changes (${NAME_CHANGE_CAP}). Please contact an administrator.`,
-                  undefined,
                   requestId
                )
             );
@@ -58,7 +52,6 @@ export async function changeNameController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `The submitted name is identical to your current name.`,
-                  undefined,
                   requestId
                )
             );

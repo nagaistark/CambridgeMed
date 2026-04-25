@@ -23,12 +23,7 @@ export async function meController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `Account not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `Account not found.`, requestId)
             );
       }
 
@@ -39,7 +34,6 @@ export async function meController(
                createErrorResponse(
                   'FORBIDDEN',
                   `This account has been deactivated. Please contact an administrator.`,
-                  undefined,
                   requestId
                )
             );

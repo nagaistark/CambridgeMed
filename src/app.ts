@@ -136,7 +136,6 @@ const limiter = rateLimit({
          createErrorResponse(
             'RATE_LIMITED',
             'Too many requests from this IP, please try again later',
-            undefined,
             requestId
          )
       );
@@ -161,7 +160,6 @@ const authLimiter = rateLimit({
          createErrorResponse(
             'RATE_LIMITED',
             'Too many login attempts. Please wait 15 minutes before trying again.',
-            undefined,
             requestId
          )
       );
@@ -217,7 +215,6 @@ app.use('/api/*splat', (req: Request, res: Response) => {
       createErrorResponse(
          'NOT_FOUND',
          `API route ${req.originalUrl} not found.`,
-         undefined,
          requestId
       )
    );

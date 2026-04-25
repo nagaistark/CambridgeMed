@@ -36,7 +36,6 @@ export async function createInviteController(
                createErrorResponse(
                   'CONFLICT',
                   `A user with this email address already exists.`,
-                  undefined,
                   requestId
                )
             );
@@ -56,7 +55,6 @@ export async function createInviteController(
                createErrorResponse(
                   'CONFLICT',
                   `A pending invite for this email address already exists.`,
-                  undefined,
                   requestId
                )
             );

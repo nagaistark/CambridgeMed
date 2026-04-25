@@ -33,7 +33,6 @@ export async function refreshController(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Authentication required.`,
-                  undefined,
                   requestId
                )
             );
@@ -65,7 +64,6 @@ export async function refreshController(
                   createErrorResponse(
                      'UNAUTHORIZED',
                      `The user does not exist or has been deactivated.`,
-                     undefined,
                      requestId
                   )
                );
@@ -135,7 +133,6 @@ export async function refreshController(
                   createErrorResponse(
                      'CONFLICT',
                      `Session was already refreshed. Please retry your request.`,
-                     undefined,
                      requestId
                   )
                );
@@ -151,7 +148,6 @@ export async function refreshController(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Session compromised. Please log in again.`,
-                  undefined,
                   requestId
                )
             );
@@ -165,7 +161,6 @@ export async function refreshController(
             createErrorResponse(
                'UNAUTHORIZED',
                `Session not found. Please log in again.`,
-               undefined,
                requestId
             )
          );

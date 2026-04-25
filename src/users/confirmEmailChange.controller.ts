@@ -29,7 +29,6 @@ export async function confirmEmailChangeController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This link is invalid.`,
-                  undefined,
                   requestId
                )
             );
@@ -52,7 +51,6 @@ export async function confirmEmailChangeController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This link has expired or the email change has been cancelled.`,
-                  undefined,
                   requestId
                )
             );
@@ -66,7 +64,6 @@ export async function confirmEmailChangeController(
                createErrorResponse(
                   'CONFLICT',
                   `This email address has already been confirmed.`,
-                  undefined,
                   requestId
                )
             );

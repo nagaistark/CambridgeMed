@@ -4,11 +4,9 @@ import mongoose from 'mongoose';
 import { MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
 import logger from 'logger.ts';
-// ====================================================================================
-// Every possible machine-readable error code. Extend this union as you add functionality
-// ====================================================================================
+// ===== Every possible machine-readable error code (so far) =======================
 export type ErrorCode =
-   // ── Client errors (4XX) ──────────────────────────────────────────────
+   // ───── Client errors (4XX) ────────────────────────────────────────────────────
    | 'VALIDATION_ERROR' // Valibot ValiError: body/params failed schema validation
    | 'INVALID_JSON' // Body parser couldn't parse the request body as JSON
    | 'NOT_FOUND' // Route or database document does not exist
@@ -25,9 +23,7 @@ export type ErrorCode =
    // ── Catch-all (500) ──────────────────────────────────────────────────
    | 'INTERNAL_ERROR'; // Unexpected programmer error — details hidden in production
 
-// ====================================================================================
-// CANONICAL RESPONSE SHAPE
-// ====================================================================================
+// ===== CANONICAL RESPONSE SHAPE ==================================================
 interface ApiErrorResponse {
    success: false; // It's always literally "false" for Errors, not just "boolean"
    code: string;
@@ -36,9 +32,7 @@ interface ApiErrorResponse {
    requestId?: string;
 }
 
-// ====================================================================================
-// FACTORY FUNCTION that produces a guaranteed-valid ApiErrorResponse
-// ====================================================================================
+// ===== FACTORY FUNCTION that produces a guaranteed-valid ApiErrorResponse ========
 export function createErrorResponse(
    // `code` must be one of the strings in our `ErrorCode` union
    code: ErrorCode,
@@ -46,24 +40,30 @@ export function createErrorResponse(
    // A human-readable message safe to display. The handler is responsible for deciding whether this should be vague (production) or candid (dev).
    message: string,
 
-   // `details` is optional — only Valibot field-level issues and similar structured payloads will use this. `unknown` forces any consumer of this field to narrow its type before using it, which is the safe choice.
-   details?: unknown,
-
    // The correlation ID from res.locals.requestId, also optional because in some edge cases (very early middleware failures) it may not exist yet.
-   requestId?: string
+   requestId: string,
+
+   // `details` is optional — only Valibot field-level issues and similar structured payloads will use this. `unknown` forces any consumer of this field to narrow its type before using it, which is the safe choice.
+   details?: unknown
 ): ApiErrorResponse {
+   if (details !== undefined) {
+      return {
+         success: false,
+         code,
+         message,
+         requestId,
+         details,
+      };
+   }
    return {
       success: false,
       code,
       message,
-      ...(details !== undefined && { details }),
-      ...(requestId !== undefined && { requestId }),
+      requestId,
    };
 }
 
-// ====================================================================================
-// The expected shapes of HTTP-like errors
-// ====================================================================================
+// ===== The expected shapes of HTTP-like errors ===================================
 // Express Body Parser (e.g., malformed JSON)
 interface BodyParserError extends Error {
    status: number;
@@ -94,9 +94,7 @@ export type HttpErrorLike =
    | StatusOnlyError
    | StatusCodeOnlyError;
 
-// ====================================================================================
-// Type guards for Http-related errors.
-// ====================================================================================
+// ===== Type guards for Http-related errors =======================================
 /* Body parser error: has `status` AND `type`, but not `expose`. We check `type` as a string but wait until the handler to compare it to 'entity.parse.failed' — the guard's job is existence and type, not value. */
 function isBodyParserError(err: unknown): err is BodyParserError {
    return (
@@ -153,9 +151,7 @@ const statusToErrorCode = (status: number, type?: string): ErrorCode => {
    return 'INTERNAL_ERROR';
 };
 
-// ====================================================================================
-// OPERATIONAL ERRORS VS PROGRAMMER ERRORS
-// ====================================================================================
+// ===== OPERATIONAL ERRORS VS PROGRAMMER ERRORS ===================================
 /* A best-effort heuristic for distinguishing operational errors from programmer errors. We recognise known Node.js operational error classes by name, since they don't share a common base class we can use instanceof with. This list covers the most common cases — it is intentionally conservative. When in doubt, we treat an error as a programmer error (the safer assumption, because it triggers more aggressive logging and a 500 rather than a 503). */
 const OPERATIONAL_ERROR_NAMES = new Set([
    'ErrnoException', // Node.js filesystem and OS-level errors
@@ -176,11 +172,9 @@ function isOperationalError(err: unknown): boolean {
    );
 }
 
-// ====================================================================================
-// "SPECIALISTS" in the pipeline. Each only touches the errors it recognizes
-// ====================================================================================
-// The "ValiError" specialist/handler
-// ====================================================================================
+// ===== "SPECIALISTS" in the pipeline. Each only touches the errors it recognizes =
+
+// ===== The "ValiError" specialist/handler ========================================
 export function handleValiError(
    err: unknown,
    _req: Request,
@@ -201,18 +195,16 @@ export function handleValiError(
 
    const response = createErrorResponse(
       'VALIDATION_ERROR',
-      'The request data failed validation.',
-      details,
-      requestId
+      `The request data failed validation.`,
+      requestId,
+      details
    );
 
    return void res.status(422).json(response);
    // NOTICE that we do NOT call `next()` here. We handled it. The pipeline stops
 }
 
-// ====================================================================================
-// The "Mongoose / MongoDB" specialist/handler
-// ====================================================================================
+// ===== The "Mongoose / MongoDB" specialist/handler ===============================
 export function handleMongooseError(
    err: unknown,
    _req: Request,
@@ -232,7 +224,6 @@ export function handleMongooseError(
             createErrorResponse(
                'SERVICE_UNAVAILABLE',
                'A database connectivity issue occurred. Please try again shortly.',
-               undefined,
                requestId
             )
          );
@@ -247,7 +238,6 @@ export function handleMongooseError(
             createErrorResponse(
                'CONFLICT',
                'A record with that value already exists.',
-               undefined,
                requestId
             )
          );
@@ -262,7 +252,6 @@ export function handleMongooseError(
             createErrorResponse(
                'VALIDATION_ERROR',
                `Invalid value provided for field '${err.path}'.`,
-               undefined,
                requestId
             )
          );
@@ -282,8 +271,8 @@ export function handleMongooseError(
             createErrorResponse(
                'VALIDATION_ERROR',
                'The submitted data failed validation.',
-               details,
-               requestId
+               requestId,
+               details
             )
          );
    }
@@ -297,7 +286,6 @@ export function handleMongooseError(
             createErrorResponse(
                'NOT_FOUND',
                'The requested resource was not found.',
-               undefined,
                requestId
             )
          );
@@ -312,7 +300,6 @@ export function handleMongooseError(
             createErrorResponse(
                'CONFLICT',
                'The resource was modified by another request. Please re-fetch and retry.',
-               undefined,
                requestId
             )
          );
@@ -327,7 +314,6 @@ export function handleMongooseError(
             createErrorResponse(
                'DATABASE_ERROR',
                'An unexpected database error occurred.',
-               undefined,
                requestId
             )
          );
@@ -338,9 +324,7 @@ export function handleMongooseError(
    return next(err);
 }
 
-// ====================================================================================
-// The JWT specialist/handler
-// ====================================================================================
+// ===== The JWT specialist/handler ================================================
 export function handleJwtError(
    err: unknown,
    _req: Request,
@@ -357,12 +341,7 @@ export function handleJwtError(
       return void res
          .status(401)
          .json(
-            createErrorResponse(
-               'UNAUTHORIZED',
-               'Token has expired.',
-               undefined,
-               requestId
-            )
+            createErrorResponse('UNAUTHORIZED', 'Token has expired.', requestId)
          );
    }
 
@@ -373,15 +352,12 @@ export function handleJwtError(
          createErrorResponse(
             'UNAUTHORIZED',
             'Invalid or malformed token.',
-            undefined,
             requestId
          )
       );
 }
 
-// ====================================================================================
-// The HTTP specialist/handler
-// ====================================================================================
+// ===== The HTTP specialist/handler ===============================================
 export function handleHttpError(
    err: unknown,
    _req: Request,
@@ -403,7 +379,6 @@ export function handleHttpError(
             createErrorResponse(
                code,
                'The request body could not be parsed.',
-               undefined,
                requestId
             )
          );
@@ -422,7 +397,6 @@ export function handleHttpError(
             createErrorResponse(
                statusToErrorCode(err.status),
                message,
-               undefined,
                requestId
             )
          );
@@ -442,7 +416,6 @@ export function handleHttpError(
             createErrorResponse(
                statusToErrorCode(err.status),
                message,
-               undefined,
                requestId
             )
          );
@@ -462,7 +435,6 @@ export function handleHttpError(
             createErrorResponse(
                statusToErrorCode(err.statusCode),
                message,
-               undefined,
                requestId
             )
          );
@@ -472,9 +444,7 @@ export function handleHttpError(
    return next(err);
 }
 
-// ====================================================================================
-// ENOENT specialist/handler
-// ====================================================================================
+// ===== ENOENT specialist/handler =================================================
 export function handleEnoentError(
    err: unknown,
    _req: Request,
@@ -510,15 +480,12 @@ export function handleEnoentError(
          createErrorResponse(
             'SERVICE_UNAVAILABLE',
             'The application is temporarily unavailable. Please try again shortly.',
-            undefined,
             requestId
          )
       );
 }
 
-// ====================================================================================
-// Catch-All specialist/handler
-// ====================================================================================
+// ===== Catch-All specialist/handler ==============================================
 export function handleCatchAll(
    err: unknown,
    _req: Request,
@@ -583,7 +550,7 @@ export function handleCatchAll(
 
    return void res
       .status(status)
-      .json(createErrorResponse(code, message, undefined, requestId));
+      .json(createErrorResponse(code, message, requestId));
 
    // Notice: no next(err) here, ever (except in the headersSent guard above). This handler is the terminal station. There is nobody left to pass to.
 }

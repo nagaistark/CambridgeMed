@@ -28,7 +28,6 @@ export async function cancelEmailChangeController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This link is invalid.`,
-                  undefined,
                   requestId
                )
             );
@@ -51,7 +50,6 @@ export async function cancelEmailChangeController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This link is invalid or has already been used.`,
-                  undefined,
                   requestId
                )
             );

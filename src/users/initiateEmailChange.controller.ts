@@ -32,12 +32,7 @@ export async function initiateEmailChangeController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `Account not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `Account not found.`, requestId)
             );
       }
 
@@ -49,7 +44,6 @@ export async function initiateEmailChangeController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `The new email address must be different from your current one.`,
-                  undefined,
                   requestId
                )
             );
@@ -63,7 +57,6 @@ export async function initiateEmailChangeController(
                createErrorResponse(
                   'CONFLICT',
                   `You have reached the maximum number of email changes (${EMAIL_CHANGE_CAP}). Please contact an administrator.`,
-                  undefined,
                   requestId
                )
             );
@@ -78,7 +71,6 @@ export async function initiateEmailChangeController(
                createErrorResponse(
                   'CONFLICT',
                   `An account with this email address already exists.`,
-                  undefined,
                   requestId
                )
             );
@@ -100,7 +92,6 @@ export async function initiateEmailChangeController(
                createErrorResponse(
                   'CONFLICT',
                   `This email address is already claimed by a pending change request.`,
-                  undefined,
                   requestId
                )
             );
@@ -119,7 +110,6 @@ export async function initiateEmailChangeController(
                createErrorResponse(
                   'CONFLICT',
                   `You already have an active email change request. Please complete or cancel it first.`,
-                  undefined,
                   requestId
                )
             );

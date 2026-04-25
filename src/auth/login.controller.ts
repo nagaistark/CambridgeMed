@@ -51,7 +51,6 @@ export async function loginController(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Invalid email or password.`,
-                  undefined,
                   res.locals.requestId
                )
             );
@@ -65,7 +64,6 @@ export async function loginController(
                createErrorResponse(
                   'FORBIDDEN',
                   `This account has been deactivated. Please contact an administrator.`,
-                  undefined,
                   res.locals.requestId
                )
             );

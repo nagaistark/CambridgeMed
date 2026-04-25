@@ -21,7 +21,6 @@ export function requirePermission(key: PermissionKey): RequestHandler {
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Authentication required.`,
-                  undefined,
                   res.locals.requestId
                )
             );
@@ -34,7 +33,6 @@ export function requirePermission(key: PermissionKey): RequestHandler {
                createErrorResponse(
                   'FORBIDDEN',
                   `You do not have permission to perform this action.`,
-                  undefined,
                   res.locals.requestId
                )
             );

@@ -28,7 +28,6 @@ export async function toggleIsActiveController(
                createErrorResponse(
                   'FORBIDDEN',
                   `Only the superadmin can activate or deactivate accounts.`,
-                  undefined,
                   requestId
                )
             );
@@ -41,7 +40,6 @@ export async function toggleIsActiveController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `Invalid user ID.`,
-                  undefined,
                   requestId
                )
             );
@@ -54,12 +52,7 @@ export async function toggleIsActiveController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `User not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `User not found.`, requestId)
             );
       }
 
@@ -72,7 +65,6 @@ export async function toggleIsActiveController(
                createErrorResponse(
                   'FORBIDDEN',
                   `The superadmin account cannot be deactivated.`,
-                  undefined,
                   requestId
                )
             );
@@ -86,7 +78,6 @@ export async function toggleIsActiveController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `This account is already ${isActive ? 'active' : 'inactive'}.`,
-                  undefined,
                   requestId
                )
             );

@@ -30,7 +30,6 @@ export async function getUserController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `Invalid user ID.`,
-                  undefined,
                   requestId
                )
             );
@@ -48,12 +47,7 @@ export async function getUserController(
             return void res
                .status(404)
                .json(
-                  createErrorResponse(
-                     'NOT_FOUND',
-                     `User not found.`,
-                     undefined,
-                     requestId
-                  )
+                  createErrorResponse('NOT_FOUND', `User not found.`, requestId)
                );
          }
          return void res.status(200).json({ success: true, user });
@@ -67,12 +61,7 @@ export async function getUserController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `User not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `User not found.`, requestId)
             );
       }
       return void res.status(200).json({ success: true, user });

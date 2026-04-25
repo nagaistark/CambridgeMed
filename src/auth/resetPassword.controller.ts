@@ -33,7 +33,6 @@ export async function resetPasswordController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This link is invalid.`,
-                  undefined,
                   requestId
                )
             );
@@ -55,7 +54,6 @@ export async function resetPasswordController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This link is invalid or has expired.`,
-                  undefined,
                   requestId
                )
             );

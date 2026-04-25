@@ -135,7 +135,6 @@ export async function acceptInviteController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This invite link is invalid or has expired.`,
-                  undefined,
                   requestId
                )
             );
@@ -182,7 +181,6 @@ export async function acceptInviteController(
                createErrorResponse(
                   'NOT_FOUND',
                   `This invite link is invalid or has expired.`,
-                  undefined,
                   requestId
                )
             );
@@ -195,7 +193,6 @@ export async function acceptInviteController(
                createErrorResponse(
                   'VALIDATION_ERROR',
                   `The email address you entered does not match the one this invite was sent to.`,
-                  undefined,
                   requestId
                )
             );

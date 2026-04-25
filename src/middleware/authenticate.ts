@@ -26,7 +26,6 @@ export async function authenticate(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Authentication required`,
-                  undefined,
                   res.locals.requestId
                )
             );
@@ -61,7 +60,6 @@ export async function authenticate(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Invalid or malformed token.`,
-                  undefined,
                   res.locals.requestId
                )
             );

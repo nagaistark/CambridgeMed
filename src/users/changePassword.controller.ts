@@ -27,12 +27,7 @@ export async function changePasswordController(
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `Account not found.`,
-                  undefined,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', `Account not found.`, requestId)
             );
       }
 
@@ -49,7 +44,6 @@ export async function changePasswordController(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `Current password is incorrect.`,
-                  undefined,
                   requestId
                )
             );

@@ -33,7 +33,6 @@ function makeRateLimiter(
                createErrorResponse(
                   'RATE_LIMITED',
                   `Too many requests. Please try again later.`,
-                  undefined,
                   res.locals.requestId
                )
             );
