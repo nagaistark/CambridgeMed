@@ -8,10 +8,10 @@ import {
 } from '@utils/customTypedResponses.ts';
 import type { SetCanIssueInvitesBody } from '@users/User.schemas.ts';
 
-type ToggleParams = { id: string };
+type ToggleCanIssueInvitesParams = { id: string };
 
 export async function toggleCanIssueInvitesController(
-   req: Request<ToggleParams>,
+   req: Request<ToggleCanIssueInvitesParams>,
    res: ResponseWithValidatedBody<SetCanIssueInvitesBody> &
       AuthenticatedResponse,
    next: NextFunction
