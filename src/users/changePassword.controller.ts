@@ -6,12 +6,12 @@ import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'dbConnect.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ChangePasswordBody } from '@users/User.schemas.ts';
 
 export async function changePasswordController(
    _req: Request,
-   res: TypedResponse<ChangePasswordBody>,
+   res: ResponseWithValidatedBody<ChangePasswordBody>,
    next: NextFunction
 ): Promise<void> {
    try {

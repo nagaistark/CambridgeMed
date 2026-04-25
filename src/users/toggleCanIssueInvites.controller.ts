@@ -2,14 +2,14 @@ import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { SetCanIssueInvitesBody } from '@users/User.schemas.ts';
 
 type ToggleParams = { id: string };
 
 export async function toggleCanIssueInvitesController(
    req: Request<ToggleParams>,
-   res: TypedResponse<SetCanIssueInvitesBody>,
+   res: ResponseWithValidatedBody<SetCanIssueInvitesBody>,
    next: NextFunction
 ): Promise<void> {
    try {

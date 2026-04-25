@@ -5,13 +5,13 @@ import { getPasswordResetModel } from '@models/PasswordReset.model.ts';
 import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
 import { PASSWORD_RESET_TOKEN_EXPIRY_MS } from '@ssot/password_reset_constants.ts';
 import { sendPasswordResetEmail } from '@auth/passwordReset.email.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ForgotPasswordBody } from '@auth/forgotPassword.schema.ts';
 import { myEnv } from 'validateConfig.ts';
 
 export async function forgotPasswordController(
    _req: Request,
-   res: TypedResponse<ForgotPasswordBody>,
+   res: ResponseWithValidatedBody<ForgotPasswordBody>,
    next: NextFunction
 ): Promise<void> {
    try {

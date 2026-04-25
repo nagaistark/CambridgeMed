@@ -13,7 +13,7 @@ import {
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import type { LoginBody } from '@auth/login.schema.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 
 // ── Timing-safe dummy hash ───────────────────────────────────────────────────────
 /* A syntactically valid argon2id hash with parameters matching ARGON2_CONFIG. When no user is found for the submitted email, we still run a full Argon2 verification against this dummy (to make the response time indistinguishable from a "user found but wrong password"). This prevents an attacker from enumerating valid email addresses by measuring latency differences.
@@ -28,7 +28,7 @@ const TIMING_DUMMY_HASH =
 
 export async function loginController(
    _req: Request,
-   res: TypedResponse<LoginBody>,
+   res: ResponseWithValidatedBody<LoginBody>,
    next: NextFunction
 ): Promise<void> {
    try {

@@ -3,14 +3,14 @@ import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getSessionModel } from '@models/Session.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { SetIsActiveBody } from '@users/User.schemas.ts';
 
 type ToggleIsActiveParams = { id: string };
 
 export async function toggleIsActiveController(
    req: Request<ToggleIsActiveParams>,
-   res: TypedResponse<SetIsActiveBody>,
+   res: ResponseWithValidatedBody<SetIsActiveBody>,
    next: NextFunction
 ): Promise<void> {
    try {

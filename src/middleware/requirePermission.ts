@@ -1,8 +1,8 @@
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 
-/* Extract all keys of `authenticatedUser` whose value type is boolean. Currently resolves to: `canIssueInvites`. Any future boolean permission added to Express.Locals automatically becomes valid here. */
-type AuthenticatedUser = NonNullable<Express.Locals['authenticatedUser']>;
 type PermissionKey = {
    [K in keyof AuthenticatedUser]: AuthenticatedUser[K] extends boolean
       ? K
@@ -10,10 +10,12 @@ type PermissionKey = {
 }[keyof AuthenticatedUser];
 
 export function requirePermission(key: PermissionKey): RequestHandler {
-   return (_req: Request, res: Response, next: NextFunction): void => {
-      const user = res.locals.authenticatedUser;
+   return (req: Request, res: Response, next: NextFunction): void => {
+      /* The cast is justified by contract: requirePermission is only ever placed after authenticate in a route chain. authenticate guarantees authenticatedUser is populated before calling next(). */
+      const authenticatedRes = res as AuthenticatedResponse;
+      const user = authenticatedRes.locals.authenticatedUser;
 
-      /* Defensive guard: this middleware is designed to run after `authenticate`, which guarantees `authenticatedUser` is populated. If somehow it isn't, we respond with 401 rather than crashing on a null-access. */
+      /* If somehow authenticate didn't run first, we fail safely with a 401 rather than crashing on a property access */
       if (!user) {
          return void res
             .status(401)

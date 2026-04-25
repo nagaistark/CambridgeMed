@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '@middleware/authenticate.ts';
-import { requirePermission } from '@middleware/require.permission.ts';
+import { requirePermission } from '@middleware/requirePermission.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import { InviteCreateSchema } from '@models/Invite.model.ts';
 import { UserRegistrationSchema } from '@models/User.model.ts';

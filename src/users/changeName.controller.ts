@@ -2,13 +2,13 @@ import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ChangeNameBody } from '@users/User.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 
 export async function changeNameController(
    _req: Request,
-   res: TypedResponse<ChangeNameBody>,
+   res: ResponseWithValidatedBody<ChangeNameBody>,
    next: NextFunction
 ): Promise<void> {
    try {

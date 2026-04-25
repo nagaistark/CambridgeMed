@@ -9,14 +9,14 @@ import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ResetPasswordBody } from '@auth/resetPassword.schema.ts';
 
 type ResetPasswordParams = { token: string };
 
 export async function resetPasswordController(
    req: Request<ResetPasswordParams>,
-   res: TypedResponse<ResetPasswordBody>,
+   res: ResponseWithValidatedBody<ResetPasswordBody>,
    next: NextFunction
 ): Promise<void> {
    try {

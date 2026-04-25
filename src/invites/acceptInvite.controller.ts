@@ -13,7 +13,7 @@ import {
 } from '@models/Invite.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { TypedResponse } from '@utils/typedResponse.ts';
+import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
 
 type AcceptInviteParams = { token: string };
@@ -118,7 +118,7 @@ async function runRegistrationTransaction(
 // ── Controller ───────────────────────────────────────────────────────────────────
 export async function acceptInviteController(
    req: Request<AcceptInviteParams>,
-   res: TypedResponse<IUserInitial>,
+   res: ResponseWithValidatedBody<IUserInitial>,
    next: NextFunction
 ): Promise<void> {
    try {
