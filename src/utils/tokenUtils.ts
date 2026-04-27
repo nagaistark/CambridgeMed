@@ -1,10 +1,12 @@
 import { SignJWT } from 'jose';
-import { createHash } from 'node:crypto';
 import type { Response } from 'express';
 import { myEnv } from 'validateConfig.ts';
 import type { UserRole } from '@ssot/user_roles_constants.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
-import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
+import {
+   generateRandomToken,
+   generateStandardHash,
+} from '@ssot/node_crypto_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────
 // Single source of truth for cookie names. Imported by the authenticate middleware and the refresh controller.
@@ -42,13 +44,8 @@ export async function signAccessToken(
 // Generating a cryptographically random opaque token plus its SHA-256 hash. The `raw` value goes to the client as an httpOnly cookie. The `hash` value is what we store in MongoDB.
 export function generateRefreshToken(): { raw: string; hash: string } {
    const raw = generateRandomToken();
-   const hash = createHash('sha256').update(raw).digest('hex');
+   const hash = generateStandardHash(raw);
    return { raw, hash };
-}
-
-// Used by the logout and refresh controllers to re-derive the hash from the raw token in the incoming cookie.
-export function hashToken(raw: string): string {
-   return createHash('sha256').update(raw).digest('hex');
 }
 
 // ── Cookie management ────────────────────────────────────────────────────────

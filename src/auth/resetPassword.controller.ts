@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getPasswordResetModel } from '@models/PasswordReset.model.ts';
@@ -8,7 +7,10 @@ import { hashPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'dbConnect.ts';
-import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
+import {
+   generateStandardHash,
+   HEX96_REGEX,
+} from '@ssot/node_crypto_constants.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ResetPasswordBody } from '@auth/resetPassword.schema.ts';
 
@@ -38,7 +40,7 @@ export async function resetPasswordController(
             );
       }
 
-      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const tokenHash = generateStandardHash(token);
 
       const passwordReset = await getPasswordResetModel()
          .findOne({

@@ -1,8 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
 import { getInviteModel } from '@models/Invite.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
+import {
+   generateStandardHash,
+   HEX96_REGEX,
+} from '@ssot/node_crypto_constants.ts';
 
 // Declare the param shape so `token` is narrowed to `string`:
 type PreviewInviteParams = { token: string };
@@ -31,7 +33,7 @@ export async function previewInviteController(
       }
 
       // ── Hash and look up ───────────────────────────────────────────────────────
-      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const tokenHash = generateStandardHash(token);
       const Invite = getInviteModel();
       const invite = await Invite.findOne({ tokenHash }).lean();
 

@@ -7,12 +7,12 @@ import {
    generateRefreshToken,
    setAuthCookies,
    clearAuthCookies,
-   hashToken,
    REFRESH_TOKEN_COOKIE_NAME,
 } from '@utils/tokenUtils.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { SESSION_REUSE_GRACE_WINDOW_MS } from '@ssot/access_refresh_tokens_constants.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 
 export async function refreshController(
    req: Request,
@@ -38,7 +38,7 @@ export async function refreshController(
             );
       }
 
-      const tokenHash = hashToken(rawToken);
+      const tokenHash = generateStandardHash(rawToken);
       const Session = getSessionModel();
 
       // ── Primary lookup: is this the current token? ─────────────────────--------

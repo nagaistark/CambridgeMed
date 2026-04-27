@@ -1,12 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
 import { getUserModel } from '@models/User.model.ts';
 import { getEmailChangeModel } from '@models/EmailChange.model.ts';
 import { getSessionModel } from '@models/Session.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'dbConnect.ts';
-import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
+import {
+   generateStandardHash,
+   HEX96_REGEX,
+} from '@ssot/node_crypto_constants.ts';
 import logger from 'logger.ts';
 
 type CancelParams = { token: string };
@@ -33,7 +35,7 @@ export async function cancelEmailChangeController(
             );
       }
 
-      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const tokenHash = generateStandardHash(token);
       const EmailChange = getEmailChangeModel();
       const User = getUserModel();
 

@@ -1,6 +1,5 @@
 import type { Request, NextFunction } from 'express';
 import mongoose from 'mongoose';
-import { createHash } from 'node:crypto';
 import { getUserModel } from '@models/User.model.ts';
 import {
    getInviteModel,
@@ -13,7 +12,10 @@ import {
 } from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { sendInviteEmail } from '@invites/invite.email.ts';
-import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
+import {
+   generateRandomToken,
+   generateStandardHash,
+} from '@ssot/node_crypto_constants.ts';
 import { myEnv } from 'validateConfig.ts';
 
 export async function createInviteController(
@@ -66,7 +68,7 @@ export async function createInviteController(
       // ── Generate the invite token ──────────────────────────────────────────────
       /* Same strategy as refresh tokens: cryptographically random opaque bytes. The raw value travels to the invitee via email (never stored). Only the SHA-256 hash is persisted. */
       const raw = generateRandomToken(); // 96-char hex string
-      const tokenHash = createHash('sha256').update(raw).digest('hex');
+      const tokenHash = generateStandardHash(raw);
 
       // ── Calculate expiry (next Monday 00:00 Toronto time) ──────────────────────
       /* We reuse the same Monday-reset logic as refresh tokens. RTEXP is the Unix timestamp (ms) of the next reset boundary. */

@@ -1,8 +1,10 @@
 import type { Request, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
 import { getUserModel } from '@models/User.model.ts';
 import { getPasswordResetModel } from '@models/PasswordReset.model.ts';
-import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
+import {
+   generateRandomToken,
+   generateStandardHash,
+} from '@ssot/node_crypto_constants.ts';
 import { PASSWORD_RESET_TOKEN_EXPIRY_MS } from '@ssot/password_reset_constants.ts';
 import { sendPasswordResetEmail } from '@auth/passwordReset.email.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
@@ -38,7 +40,7 @@ export async function forgotPasswordController(
          - If deleteOne succeeds and create fails: the user has no pending reset and can try again immediately. No harm done.
          - If both succeed: the happy path. */
       const rawToken = generateRandomToken();
-      const tokenHash = createHash('sha256').update(rawToken).digest('hex');
+      const tokenHash = generateStandardHash(rawToken);
       const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
 
       const replaceResult = await getPasswordResetModel().replaceOne(

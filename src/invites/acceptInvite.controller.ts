@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 import { DatabaseManager } from 'dbConnect.ts';
 import {
@@ -14,7 +13,10 @@ import {
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
-import { HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
+import {
+   generateStandardHash,
+   HEX96_REGEX,
+} from '@ssot/node_crypto_constants.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -145,7 +147,7 @@ export async function acceptInviteController(
       const passwordHash = await hashPassword(password);
 
       // ── Step 3: Derive the token hash ──────────────────────────────────────────
-      const tokenHash = createHash('sha256').update(token).digest('hex');
+      const tokenHash = generateStandardHash(token);
 
       // ── Step 4: Acquire the auth connection ────────────────────────────────────
       /* The server bootstrap guarantees this is never null, and any unexpected throw here is caught by the outer try/catch. */

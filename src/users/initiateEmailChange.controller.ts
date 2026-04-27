@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { createHash } from 'node:crypto';
 import mongoose from 'mongoose';
 import { getUserModel } from '@models/User.model.ts';
 import { getEmailChangeModel } from '@models/EmailChange.model.ts';
@@ -10,7 +9,10 @@ import {
 } from '@utils/customTypedResponses.ts';
 import type { InitiateEmailChangeBody } from '@users/User.schemas.ts';
 import { sendEmailChangeEmails } from '@users/emailChange.email.ts';
-import { generateRandomToken } from '@ssot/node_crypto_constants.ts';
+import {
+   generateRandomToken,
+   generateStandardHash,
+} from '@ssot/node_crypto_constants.ts';
 import {
    EMAIL_CHANGE_CAP,
    EMAIL_CHANGE_TOKEN_EXPIRY_MS,
@@ -123,12 +125,8 @@ export async function initiateEmailChangeController(
       /* Two independent opaque tokens: one for confirmation (sent to new address), one for cancellation (sent to old address). Both are 48 random bytes encoded as hex. Only the SHA-256 hashes are stored. */
       const rawConfirmToken = generateRandomToken();
       const rawCancelToken = generateRandomToken();
-      const confirmTokenHash = createHash('sha256')
-         .update(rawConfirmToken)
-         .digest('hex');
-      const cancelTokenHash = createHash('sha256')
-         .update(rawCancelToken)
-         .digest('hex');
+      const confirmTokenHash = generateStandardHash(rawConfirmToken);
+      const cancelTokenHash = generateStandardHash(rawCancelToken);
 
       const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TOKEN_EXPIRY_MS);
 

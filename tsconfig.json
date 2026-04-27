@@ -23,17 +23,14 @@
          "@auth/*": ["auth/*"],
          "@invites/*": ["invites/*"],
          "@ssot/*": ["_SSOT/*"],
-         "@controllers/*": ["controllers/*"],
          "@dist/*": ["dist/*"],
-         "@lib/*": ["lib/*"],
          "@models/*": ["models/*"],
          "@middleware/*": ["middleware/*"],
          "@routes/*": ["routes/*"],
          "@scripts/*": ["scripts/*"],
          "@tests/*": ["tests/*"],
          "@users/*": ["users/*"],
-         "@utils/*": ["utils/*"],
-         "@validators/*": ["validators/*"]
+         "@utils/*": ["utils/*"]
       } /* Specify a set of entries that re-map imports to additional lookup locations. */,
       "typeRoots": [
          "./node_modules/@types",

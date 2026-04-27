@@ -3,9 +3,9 @@ import { getSessionModel } from '@models/Session.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import {
    clearAuthCookies,
-   hashToken,
    REFRESH_TOKEN_COOKIE_NAME,
 } from '@utils/tokenUtils.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 
 export async function logoutController(
    req: Request,
@@ -18,7 +18,7 @@ export async function logoutController(
          req.cookies[REFRESH_TOKEN_COOKIE_NAME];
 
       if (rawRefreshToken) {
-         const tokenHash = hashToken(rawRefreshToken);
+         const tokenHash = generateStandardHash(rawRefreshToken);
          const Session = getSessionModel();
 
          /* The browser always sends the most recently issued cookie, so the incoming hash will virtually always match currentTokenHash. We attempt that first. If it matches nothing (the session was already cleaned up by a prior logout or the TTL janitor), deleteOne simply reports zero deletions and we move on — no error, no problem. */
