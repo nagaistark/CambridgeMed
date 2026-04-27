@@ -8,8 +8,8 @@
       "check": "tsc --noEmit",
       "start": "cross-env NODE_ENV=production node dist/server.js",
       "dev": "tsx --env-file=.env src/server.ts",
-      "test": "vitest --env-file=.env.test",
-      "test:run": "vitest run --env-file=.env.test"
+      "test": "vitest --mode=test",
+      "test:run": "vitest run --mode=test"
    },
    "keywords": [],
    "author": "",
@@ -54,6 +54,7 @@
       "tsx": "^4.21.0",
       "typescript": "^6.0.2",
       "typescript-eslint": "^8.58.0",
+      "vite": "^8.0.10",
       "vite-tsconfig-paths": "^6.1.1",
       "vitest": "^4.1.5"
    }
