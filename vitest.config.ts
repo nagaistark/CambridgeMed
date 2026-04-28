@@ -1,23 +1,25 @@
 import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
-import tsconfigPaths from 'vite-tsconfig-paths';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig(({ mode }) => ({
-   plugins: [tsconfigPaths()],
+   resolve: {
+      tsconfigPaths: true,
+   },
    test: {
-      // 'node' environment for backend testing
       environment: 'node',
-
-      // Where to look for the files
       include: ['src/**/*.test.ts', 'src/**/*.spec.ts'],
-
-      // One at a time. No concurrent DB access races
       fileParallelism: false,
 
-      setupFiles: ['./src/tests/setup/testSetup.ts'],
+      /* fileURLToPath + new URL() gives Vite an unambiguous absolute path. Note: no .ts extension — Vite resolves the file itself once it has the correct absolute path to work from. */
+      setupFiles: [
+         fileURLToPath(
+            new URL('./src/tests/setup/testSetup.ts', import.meta.url)
+         ),
+      ],
+
       testTimeout: 10_000,
       reporters: ['verbose'],
-
       env: loadEnv(mode, process.cwd(), ''),
    },
 }));

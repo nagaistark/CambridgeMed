@@ -75,8 +75,8 @@ const resendApiKeys = pipe(
 
 const ConfigSchema = strictObject({
    environment: picklist(
-      ['development', 'production'],
-      `Must be either 'development' or 'production'.`
+      ['development', 'production', 'test'],
+      `Must be 'development', 'production' or 'test'.`
    ),
    database: strictObject({
       appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
@@ -169,7 +169,7 @@ function validateConfig(): Env {
    try {
       return parse(ConfigSchema, rawConfig);
    } catch (err) {
-      logger.error(`Configuration validation error: ${err}`);
+      logger.error(`Configuration validation error: ${err} — ${env.NODE_ENV}`);
       process.exit(1);
    }
 }
