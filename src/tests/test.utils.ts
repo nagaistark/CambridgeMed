@@ -1,3 +1,5 @@
+import { DatabaseManager } from 'dbConnect.ts';
+
 export type Optionalize<T> = {
    [K in keyof T]?: T[K];
 };
@@ -13,5 +15,19 @@ export const testToken =
 
 export const testPassword = 'testPassword' as const;
 
-export const testUsername = 'invited' as const;
-export const testDomain = 'example.com' as const;
+export const testUsername = 'jascha.stark' as const;
+export const testDomain = 'gmail.com' as const;
+
+export async function wipeCollections(): Promise<void> {
+   const manager = DatabaseManager.getInstance();
+
+   const authConn = manager.auth.connection;
+   const clinicConn = manager.clinic.connection;
+
+   await Promise.all([
+      ...Object.values(authConn?.collections ?? {}).map(c => c.deleteMany({})),
+      ...Object.values(clinicConn?.collections ?? {}).map(c =>
+         c.deleteMany({})
+      ),
+   ]);
+}

@@ -15,7 +15,7 @@ function createSeedInvite(username: string, domain: string) {
    let counter = 0;
 
    return async function (opts: SeedInviteOptions): Promise<IInviteDocument> {
-      const email = `${username}${String(++counter).padStart(2, '0')}@${domain}`;
+      const email = `${username}+invited${String(++counter).padStart(2, '0')}@${domain}`;
       const tokenHash = generateStandardHash(email);
       const expiresAt = new Date(getMaxAgeTokens().RTEXP);
 

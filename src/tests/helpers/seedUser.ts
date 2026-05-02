@@ -24,10 +24,10 @@ type SeedUserOptions = OptionalizeExcept<
 >;
 
 function createSeedUser(username: string, domain: string) {
-   let counter = 0;
+   let counter: number = 0;
 
    return async function (opts: SeedUserOptions): Promise<SeededUser> {
-      const email = `${username}${String(++counter).padStart(2, '0')}@${domain}`;
+      const email = `${username}+invited${String(++counter).padStart(2, '0')}@${domain}`;
 
       const internalPassword = testPassword;
       const passwordHash = await hashPassword(internalPassword);
