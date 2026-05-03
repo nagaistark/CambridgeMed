@@ -10,5 +10,5 @@ export async function verifyPassword(
    password: string
 ): Promise<boolean> {
    if (!hash || !password || !hash.startsWith('$argon2')) return false;
-   return await argon2.verify(hash, password);
+   return await argon2.verify(hash, password, { secret: ARGON2_CONFIG.secret });
 }
