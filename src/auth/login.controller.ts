@@ -27,7 +27,7 @@ const TIMING_DUMMY_HASH =
    '$argon2id$v=19$m=65536,t=3,p=4$AAAAAAAAAAAAAAAAAAAAAA$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
 
 export async function loginController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<LoginBody>,
    next: NextFunction
 ): Promise<void> {
@@ -79,22 +79,25 @@ export async function loginController(
          RTEXP: refreshTokenExpirationTime,
       } = getMaxAgeTokens();
 
-      const accessToken = await signAccessToken({
-         sub: user._id.toString(),
-         role: user.role,
-         canIssueInvites: user.canIssueInvites,
-         expirationTime: accessTokenExpirationTime,
-      });
-
       const { raw: rawRefreshToken, hash: refreshTokenHash } =
          generateRefreshToken();
 
-      await Session.create({
+      const sessionDoc = await Session.create({
          userId: user._id,
          currentTokenHash: refreshTokenHash,
          previousTokenHash: null,
          rotatedAt: new Date(),
          expiresAt: new Date(refreshTokenExpirationTime),
+         ipAddress: req.ip ?? 'unknown',
+         userAgent: req.headers['user-agent']?.slice(0, 512) ?? 'unknown',
+      });
+
+      const accessToken = await signAccessToken({
+         sub: user._id.toString(),
+         role: user.role,
+         canIssueInvites: user.canIssueInvites,
+         sessionId: sessionDoc._id.toString(),
+         expirationTime: accessTokenExpirationTime,
       });
 
       setAuthCookies(

@@ -83,6 +83,7 @@ export async function refreshController(
             sub: user._id.toString(),
             role: user.role,
             canIssueInvites: user.canIssueInvites,
+            sessionId: session._id.toString(),
             expirationTime: accessTokenExpirationTime,
          });
 

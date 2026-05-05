@@ -30,6 +30,7 @@ import {
 } from 'errorHandlers.ts';
 
 import { DateTime } from 'luxon';
+import sessionsRouter from '@sessions/sessions.routes.ts';
 
 // ===== APP INITIALIZATION & CONFIG ===============================================
 const app: Express = express();
@@ -206,6 +207,7 @@ app.get(/^\/$|\/index(.html)?$/, (_req: Request, res: Response) => {
 app.use('/api/auth', authRouter);
 app.use('/api/invites', inviteRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/sessions', sessionsRouter);
 
 // ===== 404 & GLOBAL ERROR HANDLING (Must be last!) ===============================
 /* Tier 1. API routes that don't exist → proper JSON 404 */

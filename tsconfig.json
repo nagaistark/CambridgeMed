@@ -29,6 +29,7 @@
          "@routes/*": ["routes/*"],
          "@scripts/*": ["scripts/*"],
          "@tests/*": ["tests/*"],
+         "@sessions/*": ["sessions/*"],
          "@users/*": ["users/*"],
          "@utils/*": ["utils/*"]
       } /* Specify a set of entries that re-map imports to additional lookup locations. */,

@@ -21,6 +21,7 @@ export type AccessTokenPayload = {
    sub: string; // user._id as a string
    role: UserRole;
    canIssueInvites: boolean;
+   sessionId: string; // the Session document's _id as a string
    expirationTime: number;
 };
 
@@ -31,6 +32,7 @@ export async function signAccessToken(
    return new SignJWT({
       role: payload.role,
       canIssueInvites: payload.canIssueInvites,
+      sessionId: payload.sessionId,
    })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject(payload.sub)

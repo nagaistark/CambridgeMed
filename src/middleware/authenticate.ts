@@ -46,13 +46,14 @@ export async function authenticate(
       });
 
       // ── Defensive payload narrowing ──────────────────────────────────
-      const { sub, role, canIssueInvites } = payload;
+      const { sub, role, canIssueInvites, sessionId } = payload;
 
       /* The following should never happen, normally. It'd mean we issued a malformed token ourselves. We respond with the same vague 401 to avoid leaking internal details. */
       if (
          typeof sub !== 'string' ||
          !allRoles.includes(role as UserRole) ||
-         typeof canIssueInvites !== 'boolean'
+         typeof canIssueInvites !== 'boolean' ||
+         typeof sessionId !== 'string'
       ) {
          return void res
             .status(401)
@@ -71,6 +72,7 @@ export async function authenticate(
          sub,
          role: role as UserRole,
          canIssueInvites,
+         sessionId,
       };
       next();
    } catch (err) {

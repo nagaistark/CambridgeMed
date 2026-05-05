@@ -18,6 +18,10 @@ type ISessionDefinition = {
 
    // The TTL index on this field causes MongoDB to automatically purge the session document at the weekly reset, regardless of whether the user explicitly logged out.
    expiresAt: Date;
+
+   // Device-metadata (captured once at login, never mutated)
+   ipAddress: string;
+   userAgent: string;
 };
 
 export type ISessionDocument = ISessionDefinition & {
@@ -51,6 +55,17 @@ const SessionDefinition = {
    expiresAt: {
       type: Date,
       required: [true, `The time of expiration is required.`],
+   },
+   ipAddress: {
+      type: String,
+      required: [true, `IP address is required.`],
+      trim: true,
+   },
+   userAgent: {
+      type: String,
+      required: [true, `User-Agent is required.`],
+      trim: true,
+      maxlength: [512, `User-Agent string is too long.`],
    },
 } satisfies StrictSchemaDefinition<ISessionDefinition>;
 

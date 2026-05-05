@@ -5,4 +5,5 @@ export type AuthenticatedUser = {
    sub: string;
    role: UserRole;
    canIssueInvites: boolean;
+   sessionId: string;
 };
