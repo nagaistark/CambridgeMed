@@ -73,7 +73,7 @@ export async function killSessionController(
       }
 
       const targetIsOlderThanCurrent =
-         targetSession.createdAt <= currentSession.createdAt;
+         targetSession.createdAt < currentSession.createdAt;
 
       if (targetIsOlderThanCurrent) {
          return void res
