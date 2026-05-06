@@ -13,7 +13,12 @@ export async function killSessionController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, sessionId: currentSessionId } = res.locals.authenticatedUser;
+      const {
+         sub,
+         role,
+         sessionId: currentSessionId,
+      } = res.locals.authenticatedUser;
+      const isSuperAdmin = role === 'superadmin';
 
       const { id } = req.params;
 
@@ -46,45 +51,45 @@ export async function killSessionController(
 
       const targetSession = await Session.findById(id).lean();
 
-      if (!targetSession || targetSession.userId.toString() !== sub) {
-         // Deliberately vague. Do NOT confirm whether the session exists for another user.
+      if (
+         !targetSession ||
+         (!isSuperAdmin && targetSession.userId.toString() !== sub)
+      ) {
          return void res
             .status(404)
             .json(
-               createErrorResponse('NOT_FOUND', `Session not found.`, requestId)
+               createErrorResponse('NOT_FOUND', 'Session not found.', requestId)
             );
       }
 
-      // ── Recency enforcement ────────────────────────────────────────────────────
+      // ── Recency enforcement (non-superadmin users) ─────────────────────────────
       /* We only allow killing sessions that were created AFTER the current one. */
-      const currentSession = await Session.findById(currentSessionId).lean();
+      if (!isSuperAdmin) {
+         const currentSession = await Session.findById(currentSessionId).lean();
+         if (!currentSession) {
+            // If the current session has somehow vanished, treat it as expired
+            return void res
+               .status(401)
+               .json(
+                  createErrorResponse(
+                     'UNAUTHORIZED',
+                     `Current session not found.`,
+                     requestId
+                  )
+               );
+         }
 
-      if (!currentSession) {
-         // If the current session has somehow vanished, treat it as expired
-         return void res
-            .status(401)
-            .json(
-               createErrorResponse(
-                  'UNAUTHORIZED',
-                  `Current session not found.`,
-                  requestId
-               )
-            );
-      }
-
-      const targetIsOlderThanCurrent =
-         targetSession.createdAt < currentSession.createdAt;
-
-      if (targetIsOlderThanCurrent) {
-         return void res
-            .status(403)
-            .json(
-               createErrorResponse(
-                  'FORBIDDEN',
-                  `You can only terminate sessions that were created after your current session.`,
-                  requestId
-               )
-            );
+         if (targetSession.createdAt < currentSession.createdAt) {
+            return void res
+               .status(403)
+               .json(
+                  createErrorResponse(
+                     'FORBIDDEN',
+                     `You can only terminate sessions that were created after your current session.`,
+                     requestId
+                  )
+               );
+         }
       }
 
       await Session.deleteOne({ _id: targetSession._id });
