@@ -93,6 +93,10 @@ export type IUserDefinition = Omit<IUserInitial, 'password'> & {
    nameChangesUsed: number;
    emailChangesUsed: number;
 
+   totpSecret: string | null; // AES-256-GCM encrypted, null until enrollment begins
+   isTotpEnabled: boolean; // false until first successful verification post-enrollment
+   totpRecoveryCodes: string[]; // Argon2 hashes of the one-time recovery codes
+
    invitedBy?: mongoose.Types.ObjectId;
    isActive: boolean;
 
@@ -217,6 +221,20 @@ const UserDefinition = {
          EMAIL_CHANGE_CAP,
          `Email change count cannot exceed the cap of ${EMAIL_CHANGE_CAP}.`,
       ],
+   },
+   totpSecret: {
+      type: String,
+      default: null,
+   },
+   isTotpEnabled: {
+      type: Boolean,
+      required: [true, `Specify whether TOTP is enabled.`],
+      default: false,
+   },
+   totpRecoveryCodes: {
+      type: [String],
+      required: [true, `TOTP Recovery Codes are required.`],
+      default: [],
    },
    invitedBy: {
       // Optional because the "required" constraint breaks for the superadmin (who isn't invited by anyone)

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { validateBody } from '@middleware/validateBody.ts';
 import { authenticate } from '@middleware/authenticate.ts';
+import { authenticateTotp } from '@middleware/authenticateTotp.ts';
 import { LoginSchema } from '@auth/login.schema.ts';
 import { ForgotPasswordSchema } from '@auth/forgotPassword.schema.ts';
 import { ResetPasswordSchema } from '@auth/resetPassword.schema.ts';
@@ -14,6 +15,16 @@ import {
    forgotPasswordRateLimiter,
    resetPasswordRateLimiter,
 } from '@utils/rateLimiters.ts';
+import { enrollTotpController } from '@auth/enrollTotp.controller.ts';
+import { confirmTotpEnrollmentController } from '@auth/confirmTotpEnrollment.controller.ts';
+import { disableTotpController } from '@auth/disableTotp.controller.ts';
+import { verifyTotpController } from '@auth/verifyTotp.controller.ts';
+import { recoverTotpController } from '@auth/recoverTotp.controller.ts';
+import {
+   TotpCodeSchema,
+   DisableTotpSchema,
+   RecoveryCodeSchema,
+} from '@auth/totp.schemas.ts';
 
 const authRouter = Router();
 
@@ -36,6 +47,38 @@ authRouter.post(
    resetPasswordRateLimiter,
    validateBody(ResetPasswordSchema),
    resetPasswordController
+);
+
+// ── TOTP (authenticated user managing their own 2FA) ─────────────────────────────
+authRouter.post(`/totp/enroll`, authenticate, enrollTotpController);
+
+authRouter.post(
+   `/totp/enroll/confirm`,
+   authenticate,
+   validateBody(TotpCodeSchema),
+   confirmTotpEnrollmentController
+);
+
+authRouter.delete(
+   `/totp`,
+   authenticate,
+   validateBody(DisableTotpSchema),
+   disableTotpController
+);
+
+// ── TOTP (mid-login, challenge token only — no session yet) ──────────────────────
+authRouter.post(
+   `/totp/verify`,
+   authenticateTotp,
+   validateBody(TotpCodeSchema),
+   verifyTotpController
+);
+
+authRouter.post(
+   `/totp/recover`,
+   authenticateTotp,
+   validateBody(RecoveryCodeSchema),
+   recoverTotpController
 );
 
 export default authRouter;

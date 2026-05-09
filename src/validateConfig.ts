@@ -129,6 +129,15 @@ const ConfigSchema = strictObject({
       nonEmptyReasonablyLongString,
       url(`The URL is badly formatted.`)
    ),
+   totpEncryptionKey: pipe(
+      string(`TOTP_ENCRYPTION_KEY must be a string.`),
+      trim(),
+      check(str => {
+         const buf = Buffer.from(str, 'base64');
+         return buf.length === 32;
+      }, `TOTP_ENCRYPTION_KEY must be a base64 string that decodes to exactly 32 bytes.`),
+      transform(str => Buffer.from(str, 'base64'))
+   ),
 });
 
 const rawConfig = {
@@ -161,6 +170,7 @@ const rawConfig = {
    },
    argon2Secret: env.ARGON2_SECRET,
    appBaseUrl: env.APP_BASE_URL,
+   totpEncryptionKey: env.TOTP_ENCRYPTION_KEY,
 };
 
 type Env = InferOutput<typeof ConfigSchema>;

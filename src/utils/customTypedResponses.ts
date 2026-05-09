@@ -8,3 +8,8 @@ export type ResponseWithValidatedBody<T> = Response & {
 export type AuthenticatedResponse = Response & {
    locals: Express.Locals & { authenticatedUser: AuthenticatedUser };
 };
+
+// For controllers that sit behind authenticateTotp instead of authenticate.
+export type TotpChallengeResponse = Response & {
+   locals: Express.Locals & { totpChallengeSub: string };
+};

@@ -8,6 +8,8 @@ import {
    signAccessToken,
    generateRefreshToken,
    setAuthCookies,
+   signTotpChallengeToken,
+   setTotpChallengeCookie,
 } from '@utils/tokenUtils.ts';
 
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
@@ -69,7 +71,20 @@ export async function loginController(
             );
       }
 
-      /* isVerified removed. Email ownership is proven structurally. */
+      // ── TOTP gate ──────────────────────────────────────────────────────────────
+      /* If the user has TOTP enabled, we cannot issue session tokens yet. Instead, we issue a narrow challenge token and return 202 to signal to the frontend that a second factor is required. The client should redirect to the TOTP input screen. The real session is created only after /totp/verify succeeds. */
+      if (user.isTotpEnabled) {
+         const challengeToken = await signTotpChallengeToken(
+            user._id.toString()
+         );
+         setTotpChallengeCookie(res, challengeToken);
+
+         return void res.status(202).json({
+            success: true,
+            requiresTotp: true,
+            message: `Two-factor authentication required.`,
+         });
+      }
 
       // ── Issue tokens ───────────────────────────────────────────────────────────
       const {
