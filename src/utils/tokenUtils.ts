@@ -55,52 +55,65 @@ export function generateRefreshToken(): { raw: string; hash: string } {
    return { raw, hash };
 }
 
+// ── Private cookie primitives ────────────────────────────────────────────────────
+/* These are not exported. They encode the security baseline that every cookie in this application must meet. All public cookie functions delegate to these so the security flags are defined in exactly one place. */
+function writeCookie(
+   res: Response,
+   name: string,
+   value: string,
+   maxAge: number,
+   path: string
+): void {
+   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
+   res.cookie(name, value, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite,
+      maxAge,
+      path,
+   });
+}
+
+function eraseCookie(res: Response, name: string, path: string): void {
+   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
+   res.clearCookie(name, {
+      httpOnly: true,
+      secure: isProduction,
+      sameSite,
+      path,
+   });
+}
+
 // ── Cookie management ────────────────────────────────────────────────────────────
 const isProduction = myEnv.environment === 'production';
+
+// ── Public cookie functions ──────────────────────────────────────────────────────
 export function setAuthCookies(
    res: Response,
    accessToken: string,
    accessTokenMaxAge: number,
    rawRefreshToken: string,
-   RefreshTokenMaxAge: number
+   refreshTokenMaxAge: number
 ): void {
-   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
-
-   res.cookie(ACCESS_TOKEN_COOKIE_NAME, accessToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      maxAge: accessTokenMaxAge,
-      path: '/api',
-   });
-
-   /* Refresh token is scoped to /api/auth only. The browser will never send it to /api/patients, /api/users, or anywhere else. Even if we accidentally try to read it there. */
-   res.cookie(REFRESH_TOKEN_COOKIE_NAME, rawRefreshToken, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      maxAge: RefreshTokenMaxAge,
-      path: '/api/auth',
-   });
+   writeCookie(
+      res,
+      ACCESS_TOKEN_COOKIE_NAME,
+      accessToken,
+      accessTokenMaxAge,
+      '/api'
+   );
+   writeCookie(
+      res,
+      REFRESH_TOKEN_COOKIE_NAME,
+      rawRefreshToken,
+      refreshTokenMaxAge,
+      '/api/auth'
+   );
 }
 
 export function clearAuthCookies(res: Response): void {
-   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
-
-   /* clearCookie works by issuing a Set-Cookie header with an expired date. The path must match exactly what was used when setting or the browser won't find the cookie to delete. */
-   res.clearCookie(ACCESS_TOKEN_COOKIE_NAME, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      path: '/api',
-   });
-
-   res.clearCookie(REFRESH_TOKEN_COOKIE_NAME, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      path: '/api/auth',
-   });
+   eraseCookie(res, ACCESS_TOKEN_COOKIE_NAME, '/api');
+   eraseCookie(res, REFRESH_TOKEN_COOKIE_NAME, '/api/auth');
 }
 
 // ── TOTP challenge token ─────────────────────────────────────────────────────────
@@ -117,22 +130,15 @@ export async function signTotpChallengeToken(userId: string): Promise<string> {
 }
 
 export function setTotpChallengeCookie(res: Response, token: string): void {
-   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
-   res.cookie(TOTP_CHALLENGE_COOKIE_NAME, token, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      maxAge: TOTP_CHALLENGE_EXPIRY_SECONDS * 1000,
-      path: '/api/auth/totp', // Scoped tightly — never sent outside this subtree
-   });
+   writeCookie(
+      res,
+      TOTP_CHALLENGE_COOKIE_NAME,
+      token,
+      TOTP_CHALLENGE_EXPIRY_SECONDS * 1000,
+      '/api/auth/totp'
+   );
 }
 
 export function clearTotpChallengeCookie(res: Response): void {
-   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
-   res.clearCookie(TOTP_CHALLENGE_COOKIE_NAME, {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite,
-      path: '/api/auth/totp',
-   });
+   eraseCookie(res, TOTP_CHALLENGE_COOKIE_NAME, '/api/auth/totp');
 }

@@ -1,15 +1,8 @@
 import type { Request, NextFunction } from 'express';
 import { verify } from 'otplib';
 import { getUserModel } from '@models/User.model.ts';
-import { getSessionModel } from '@models/Session.model.ts';
 import { decryptTotpSecret } from '@utils/totpCrypto.ts';
-import {
-   signAccessToken,
-   generateRefreshToken,
-   setAuthCookies,
-   clearTotpChallengeCookie,
-} from '@utils/tokenUtils.ts';
-import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
+import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
@@ -17,6 +10,7 @@ import {
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { TotpCodeBody } from '@auth/totp.schemas.ts';
+import { issueSession } from '@utils/issueSession.ts';
 
 export async function verifyTotpController(
    req: Request,
@@ -77,42 +71,7 @@ export async function verifyTotpController(
       }
 
       // ── Complete the login: create session + issue tokens ──────────────────────
-      /* This is the same token-issuing logic as `loginController`, just reached via a different path. The challenge token has now been fully redeemed. */
-      const {
-         ATMA: accessTokenMaxAge,
-         RTMA: refreshTokenMaxAge,
-         ATEXP: accessTokenExpirationTime,
-         RTEXP: refreshTokenExpirationTime,
-      } = getMaxAgeTokens();
-
-      const { raw: rawRefreshToken, hash: refreshTokenHash } =
-         generateRefreshToken();
-
-      const sessionDoc = await getSessionModel().create({
-         userId: user._id,
-         currentTokenHash: refreshTokenHash,
-         previousTokenHash: null,
-         rotatedAt: new Date(),
-         expiresAt: new Date(refreshTokenExpirationTime),
-         ipAddress: req.ip ?? 'unknown',
-         userAgent: req.headers['user-agent']?.slice(0, 512) ?? 'unknown',
-      });
-
-      const accessToken = await signAccessToken({
-         sub: user._id.toString(),
-         role: user.role,
-         canIssueInvites: user.canIssueInvites,
-         sessionId: sessionDoc._id.toString(),
-         expirationTime: accessTokenExpirationTime,
-      });
-
-      setAuthCookies(
-         res,
-         accessToken,
-         accessTokenMaxAge,
-         rawRefreshToken,
-         refreshTokenMaxAge
-      );
+      await issueSession(user, req, res);
 
       clearTotpChallengeCookie(res);
 
