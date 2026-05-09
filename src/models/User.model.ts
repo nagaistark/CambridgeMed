@@ -110,7 +110,10 @@ export type IUserDocument = IUserDefinition & {
 };
 
 /* The SAFE, full (except `passwordHash`) projection for self-view (GET /api/auth/me) and superadmin views. */
-export type SafeUser = Omit<IUserDocument, 'passwordHash'>;
+export type SafeUser = Omit<
+   IUserDocument,
+   'passwordHash' | 'totpSecret' | 'totpRecoveryCodes'
+>;
 
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
 export type PublicUser = Pick<

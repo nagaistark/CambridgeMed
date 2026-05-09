@@ -12,6 +12,7 @@ export const SAFE_USER_PROJECTION: Record<keyof SafeUser, 1> = {
    previousEmails: 1,
    nameChangesUsed: 1,
    emailChangesUsed: 1,
+   isTotpEnabled: 1,
    invitedBy: 1,
    isActive: 1,
    _id: 1,
