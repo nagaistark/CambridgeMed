@@ -86,7 +86,11 @@ export async function confirmTotpEnrollmentController(
       const hashedCodes = plainTextCodes.map(hashRecoveryCode);
 
       /* Narrowing and extracting the step */
-      const currentStep = 'timeStep' in result ? result.timeStep : 0;
+      if (!('timeStep' in result)) {
+         throw new Error(
+            `TOTP verification succeeded but returned no timeStep. Cannot safely persist replay protection state.`
+         );
+      }
 
       await User.updateOne(
          { _id: user._id },
@@ -94,7 +98,7 @@ export async function confirmTotpEnrollmentController(
             $set: {
                isTotpEnabled: true,
                totpRecoveryCodes: hashedCodes,
-               totpLastUsedStep: currentStep,
+               totpLastUsedStep: result.timeStep,
             },
          },
          { runValidators: true }
