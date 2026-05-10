@@ -53,14 +53,14 @@ authRouter.post(
 authRouter.post(`/totp/enroll`, authenticate, enrollTotpController);
 
 authRouter.post(
-   `/totp/enroll/confirm`,
+   '/totp/enroll/confirm',
    authenticate,
    validateBody(TotpCodeSchema),
    confirmTotpEnrollmentController
 );
 
 authRouter.delete(
-   `/totp`,
+   '/totp',
    authenticate,
    validateBody(DisableTotpSchema),
    disableTotpController
@@ -68,14 +68,14 @@ authRouter.delete(
 
 // ── TOTP (mid-login, challenge token only — no session yet) ──────────────────────
 authRouter.post(
-   `/totp/verify`,
+   '/totp/verify',
    authenticateTotp,
    validateBody(TotpCodeSchema),
    verifyTotpController
 );
 
 authRouter.post(
-   `/totp/recover`,
+   '/totp/recover',
    authenticateTotp,
    validateBody(RecoveryCodeSchema),
    recoverTotpController

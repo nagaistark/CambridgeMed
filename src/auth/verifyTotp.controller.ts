@@ -22,7 +22,8 @@ export async function verifyTotpController(
       const { totpChallengeSub } = res.locals;
       const { code } = res.locals.validatedBody;
 
-      const user = await getUserModel().findById(totpChallengeSub).lean();
+      const User = getUserModel();
+      const user = await User.findById(totpChallengeSub).lean();
 
       if (!user || !user.isActive) {
          clearTotpChallengeCookie(res);
@@ -51,11 +52,13 @@ export async function verifyTotpController(
       }
 
       // ── Verify the code ────────────────────────────────────────────────────────
-      /* On failure we deliberately do NOT clear the challenge cookie. The user may have mis-typed the code — they should be able to retry within the 5-minute challenge window without having to re-enter their password. */
+      /* On failure we deliberately do NOT clear the challenge cookie. The user may have mis-typed the code — they should be able to retry within the challenge window without having to re-enter their password. */
       const rawSecret = decryptTotpSecret(user.totpSecret);
       const result = await verify({
          token: code,
          secret: rawSecret,
+         epochTolerance: 5,
+         afterTimeStep: user.totpLastUsedStep,
       });
 
       if (!result.valid) {
@@ -68,6 +71,14 @@ export async function verifyTotpController(
                   requestId
                )
             );
+      }
+
+      // ── Update the Time Step ───────────────────────────────────────────────────
+      if ('timeStep' in result) {
+         await User.updateOne(
+            { _id: user._id },
+            { $set: { totpLastUsedStep: result.timeStep } }
+         );
       }
 
       // ── Complete the login: create session + issue tokens ──────────────────────

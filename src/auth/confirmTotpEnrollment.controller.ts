@@ -63,6 +63,8 @@ export async function confirmTotpEnrollmentController(
       const result = await verify({
          token: code,
          secret: rawSecret,
+         epochTolerance: 5,
+         afterTimeStep: user.totpLastUsedStep,
       });
 
       if (!result.valid) {
@@ -77,10 +79,14 @@ export async function confirmTotpEnrollmentController(
             );
       }
 
-      // ── Generate and persist recovery codes ────────────────────────────────────
+      // ── Generate and persist recovery codes + Add Time Step ────────────────────
+
       /* Plaintext codes are generated, hashed for storage, then returned to the user exactly once. The plaintext is never persisted anywhere — after this response is sent, it is gone forever. */
       const plainTextCodes = generateRecoveryCodes();
       const hashedCodes = plainTextCodes.map(hashRecoveryCode);
+
+      /* Narrowing and extracting the step */
+      const currentStep = 'timeStep' in result ? result.timeStep : 0;
 
       await User.updateOne(
          { _id: user._id },
@@ -88,6 +94,7 @@ export async function confirmTotpEnrollmentController(
             $set: {
                isTotpEnabled: true,
                totpRecoveryCodes: hashedCodes,
+               totpLastUsedStep: currentStep,
             },
          },
          { runValidators: true }

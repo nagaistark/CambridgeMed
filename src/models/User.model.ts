@@ -97,6 +97,8 @@ export type IUserDefinition = Omit<IUserInitial, 'password'> & {
    isTotpEnabled: boolean; // false until first successful verification post-enrollment
    totpRecoveryCodes: string[]; // Argon2 hashes of the one-time recovery codes
 
+   totpLastUsedStep: number;
+
    invitedBy?: mongoose.Types.ObjectId;
    isActive: boolean;
 
@@ -112,7 +114,7 @@ export type IUserDocument = IUserDefinition & {
 /* The SAFE, full (except `passwordHash`) projection for self-view (GET /api/auth/me) and superadmin views. */
 export type SafeUser = Omit<
    IUserDocument,
-   'passwordHash' | 'totpSecret' | 'totpRecoveryCodes'
+   'passwordHash' | 'totpSecret' | 'totpRecoveryCodes' | 'totpLastUsedStep'
 >;
 
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
@@ -238,6 +240,11 @@ const UserDefinition = {
       type: [String],
       required: [true, `TOTP Recovery Codes are required.`],
       default: [],
+   },
+   totpLastUsedStep: {
+      type: Number,
+      required: [true, `TOTP Last User Step is required.`],
+      default: 0,
    },
    invitedBy: {
       // Optional because the "required" constraint breaks for the superadmin (who isn't invited by anyone)
