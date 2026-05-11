@@ -51,11 +51,6 @@ export type MeResponse = {
    user: SafeUser;
 };
 
-export function buildMeResponse(
-   message: string,
-   user: IUserDocument
-): MeResponse {
-   /* Destructure passwordHash out and collect everything else. TypeScript correctly infers the remainder as Omit<IUserDocument, 'passwordHash'>, which is exactly SafeUser — no cast needed. The `_` prefix signals to both the reader and the compiler that the variable is intentionally discarded. */
-   const { passwordHash: _passwordHash, ...safeUser } = user;
-   return { success: true, message, user: safeUser };
+export function buildMeResponse(message: string, user: SafeUser): MeResponse {
+   return { success: true, message, user };
 }

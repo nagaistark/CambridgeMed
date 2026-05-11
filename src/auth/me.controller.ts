@@ -1,8 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserModel, SafeUser } from '@models/User.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
+import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function meController(
    _req: Request,
@@ -15,10 +16,10 @@ export async function meController(
       /* res.locals.authenticatedUser is guaranteed to be populated here because this controller only runs behind the `authenticate` middleware. If `authenticate` had not set this, the request would have already been rejected with a 401 before reaching us. */
       const { sub } = res.locals.authenticatedUser;
 
-      /* A single indexed primary-key lookup. A direct _id B-tree hit. Two reasons why we do this:
-         1. The JWT only carries sub, role, and canIssueInvites. The frontend also needs firstName, lastName, and email to render the UI.
-         2. isActive is authoritative only in the database. A user deactivated mid-session should be caught here immediately, not up to a minute later when the access token finally expires. */
-      const user = await getUserModel().findById(sub).lean();
+      /* Only fetch the data that is safe to expose (SAFE_USER_PROJECTION). */
+      const user = (await getUserModel()
+         .findById(sub, SAFE_USER_PROJECTION)
+         .lean()) as SafeUser | null;
 
       if (!user) {
          return void res
@@ -27,7 +28,7 @@ export async function meController(
                createErrorResponse('NOT_FOUND', `Account not found.`, requestId)
             );
       }
-
+      /* isActive is authoritative only in the database. A user deactivated mid-session should be caught here immediately, not up to a minute later when the access token finally expires. */
       if (!user.isActive) {
          return void res
             .status(403)
@@ -40,7 +41,7 @@ export async function meController(
             );
       }
 
-      /* Mirror the login response's user shape exactly. A consistent contract means the frontend can handle both responses with the same normaliser. */
+      /* At this point the `user` is already `SafeUser`. */
       return void res.status(200).json(buildMeResponse('Session valid.', user));
    } catch (err) {
       next(err);

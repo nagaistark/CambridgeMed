@@ -63,11 +63,15 @@ export async function recoverTotpController(
       }
 
       // ── Find and consume the matching code ─────────────────────────────────────
-      /* We hash the submitted code with the same HMAC key used at storage time, then look for that hash in the stored array. HMAC-SHA256 is deterministic, so hash(input) == hash(input) always — we can compare directly without the verify-and-timing-safe dance that Argon2 requires. */
       const submittedHash = hashRecoveryCode(code);
-      const matchIndex = user.totpRecoveryCodes.indexOf(submittedHash);
 
-      if (matchIndex === -1) {
+      const updateResult = await User.findOneAndUpdate(
+         { _id: user._id, totpRecoveryCodes: submittedHash },
+         { $pull: { totpRecoveryCodes: submittedHash } },
+         { new: true }
+      ).lean();
+
+      if (!updateResult) {
          return void res
             .status(401)
             .json(
@@ -78,13 +82,6 @@ export async function recoverTotpController(
                )
             );
       }
-
-      // ── Atomically remove the used code ───────────────────────────────────────
-      /* $pull removes the matched element from the array in a single operation. If two requests somehow arrive simultaneously with the same code, one will win and the other's $pull will find nothing to remove — the code will be used twice but not persisted twice, which is acceptable. For a 12-user clinic this race condition is entirely theoretical. */
-      await User.updateOne(
-         { _id: user._id },
-         { $pull: { totpRecoveryCodes: submittedHash } }
-      );
 
       // ── Complete the login ─────────────────────────────────────────────────────
       await issueSession(user, req, res);

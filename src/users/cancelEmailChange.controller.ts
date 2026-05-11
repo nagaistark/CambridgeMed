@@ -70,10 +70,10 @@ export async function cancelEmailChangeController(
          );
       }
 
+      let isReversion: boolean = false;
+
       const session = await authConnection.startSession();
       try {
-         let isReversion: boolean = false;
-
          await session.withTransaction(async () => {
             isReversion = emailChange.confirmedAt !== null;
 
@@ -130,7 +130,9 @@ export async function cancelEmailChangeController(
 
       return void res.status(200).json({
          success: true,
-         message: `Email change reverted successfully. Your previous address has been restored. Please log in again.`,
+         message: isReversion
+            ? `Email change reverted successfully. Your previous address has been restored. Please log in again.`
+            : `Email change cancelled successfully.`,
       });
    } catch (err) {
       next(err);

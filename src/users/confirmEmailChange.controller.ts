@@ -11,7 +11,6 @@ import {
 } from '@ssot/node_crypto_constants.ts';
 import logger from 'logger.ts';
 
-/* Email change tokens are generated with the same strategy as invite tokens. Check `invite_constants.ts`. */
 type ConfirmParams = { token: string };
 
 export async function confirmEmailChangeController(
