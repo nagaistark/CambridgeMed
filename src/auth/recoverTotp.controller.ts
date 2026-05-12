@@ -88,8 +88,7 @@ export async function recoverTotpController(
 
       clearTotpChallengeCookie(res);
 
-      /* Warn if they're running low. Zero remaining is handled above as a 409  before we even check the code, so here `remaining` is always >= 0. */
-      const remainingCodes = user.totpRecoveryCodes.length - 1;
+      const remainingCodes = updateResult.totpRecoveryCodes.length;
 
       return void res.status(200).json({
          ...buildAuthResponse(`Login successful via recovery code.`, user),
