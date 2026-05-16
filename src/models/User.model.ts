@@ -13,8 +13,8 @@ import {
    strictObject,
    string,
    transform,
-   trim,
 } from 'valibot';
+import { nameString } from '@utils/valibotSchemaReusables.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import {
@@ -35,31 +35,6 @@ export type IEmailHistoryEntry = Pick<IUserInitial, 'email'> & {
 // ── Valibot registration schema ──────────────────────────────────────────────────
 /* This schema validates the body of POST /api/invites/:token/accept. It is unchanged from its original form — the history/counter additions to the User model are server-side concerns invisible to the registering user. */
 export type IUserInitial = InferOutput<typeof UserRegistrationSchema>;
-
-const baseString = pipe(
-   string(`Must be a string.`),
-   trim(),
-   minLength(2, `String should be at least 2 characters long.`),
-   maxLength(32, `String is too long.`)
-);
-
-export const nameString = pipe(
-   baseString,
-   regex(
-      /^[\p{L} .'\-'']+$/u,
-      'Must not contain invalid or consecutive non-alphanumeric characters in name.'
-   ),
-   transform(name => {
-      const words = name
-         .split(/[\s-]+/)
-         .map(w => `${w.slice(0, 1).toUpperCase()}${w.slice(1).toLowerCase()}`);
-      const separators = name.match(/[\s-]+/g) ?? [];
-      return words.reduce(
-         (acc, cur, idx) => acc + cur + (separators[idx] ?? ''),
-         ''
-      );
-   })
-);
 
 export const UserRegistrationSchema = strictObject({
    firstName: nameString,

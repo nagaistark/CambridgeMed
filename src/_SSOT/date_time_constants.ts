@@ -6,4 +6,4 @@ export const LOCALE = 'en-CA' as const;
 export const RESET_WEEKDAY = 1; //  // Luxon-based weekdays: 1 — Monday, 7 — Sunday;
 
 Settings.defaultZone = TIME_ZONE;
-Settings.defaultLocale = 'en-CA';
+Settings.defaultLocale = LOCALE;
