@@ -251,6 +251,8 @@ export class DatabaseManager {
    // Hard-Private services
    #auth: DatabaseService;
    #clinic: DatabaseService;
+   #audit: DatabaseService;
+
    #isInitialized: boolean = false;
    #isCleanedUp: boolean = false;
    #initializingPromise: Promise<void> | null = null;
@@ -258,6 +260,7 @@ export class DatabaseManager {
    private constructor() {
       this.#auth = new DatabaseService(myEnv.database.authUri, 'AuthDB');
       this.#clinic = new DatabaseService(myEnv.database.appUri, 'ClinicDB');
+      this.#audit = new DatabaseService(myEnv.database.auditUri, 'AuditDB');
    }
 
    public static getInstance(): DatabaseManager {
@@ -291,7 +294,11 @@ export class DatabaseManager {
             logger.info(`Initializing all database connections...`);
 
             // Parallel initialization. If either fails, Promise.all rejects immediately, and we move to the catch block immediately
-            await Promise.all([this.#auth.connect(), this.#clinic.connect()]);
+            await Promise.all([
+               this.#auth.connect(),
+               this.#clinic.connect(),
+               this.#audit.connect(),
+            ]);
 
             this.#isInitialized = true;
             logger.info(`All databases are connected and ready`);
@@ -321,6 +328,9 @@ export class DatabaseManager {
    public get clinic(): DatabaseService {
       return this.#clinic;
    }
+   public get audit(): DatabaseService {
+      return this.#audit;
+   }
 
    // Graceful cleanup for all services.
    public async cleanup(): Promise<void> {
@@ -339,12 +349,15 @@ export class DatabaseManager {
       const results = await Promise.allSettled([
          this.#auth.shutdown(),
          this.#clinic.shutdown(),
+         this.#audit.shutdown(),
       ]);
+
+      const dbNames = ['AuthDB', 'ClinicDB', 'AuditDB'];
 
       // Inspecting each outcome — allSettled never rejects, but failures hide here
       results.forEach((result, index) => {
          if (result.status === 'rejected') {
-            const name = index === 0 ? 'AuthDB' : 'ClinicDB';
+            const name = dbNames[index];
             logger.error(
                `[${name}] Failed to shut down cleanly: ${sanitizeError(result.reason)}`
             );

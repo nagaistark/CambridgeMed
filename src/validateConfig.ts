@@ -81,6 +81,7 @@ const ConfigSchema = strictObject({
    database: strictObject({
       appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
       authUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
+      auditUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
       maxPoolSize: stringContainingPositiveInteger,
       serverSelectionTimeoutMS: stringContainingPositiveInteger,
       socketTimeoutMS: stringContainingPositiveInteger,
@@ -145,6 +146,7 @@ const rawConfig = {
    database: {
       appUri: env.DB_APP_URI,
       authUri: env.DB_AUTH_URI,
+      auditUri: env.DB_AUDIT_URI,
       maxPoolSize: env.MAX_POOL_SIZE,
       serverSelectionTimeoutMS: env.DB_SERVER_SELECTION_TIMEOUT_MS,
       socketTimeoutMS: env.SOCKET_TIMEOUT_MS,
@@ -179,7 +181,7 @@ function validateConfig(): Env {
    try {
       return parse(ConfigSchema, rawConfig);
    } catch (err) {
-      logger.error(`Configuration validation error: ${err} — ${env.NODE_ENV}`);
+      logger.error(`Configuration validation error: ${err}`);
       process.exit(1);
    }
 }
