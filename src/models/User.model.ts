@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { allRoles, type UserRole } from '@ssot/user_roles_constants.ts';
-import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
+import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
 
 import {
    email,

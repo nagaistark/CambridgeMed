@@ -1,5 +1,5 @@
-export const MIN_LEGAL_AGE = 18;
-export const MAX_LEGAL_AGE = 130;
+export const MIN_LEGAL_AGE = 18 as const;
+export const MAX_LEGAL_AGE = 130 as const;
 
 export const months = [
    'JAN',

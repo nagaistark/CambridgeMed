@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
-import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
+import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
 import {
    boolean,
    email,

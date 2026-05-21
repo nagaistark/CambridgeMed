@@ -18,6 +18,11 @@ import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
+export const shortDateRegex = /^\d{4}-\d{2}-\d{2}$/;
+export const postalCodeCanadaRegex = /^[A-Za-z]\d[A-Za-z][ ]?\d[A-Za-z]\d$/i;
+export const phoneNANPRegex = /^1?[2-9]\d{2}[2-9]\d{6}$/;
+export const dinRegex = /^\d{8}$/;
+export const snomedRegex = /^[1-9]\d{5,17}$/;
 
 export const baseString = pipe(
    string(`Must be a string.`),
@@ -69,54 +74,46 @@ export const idOrName = union(
    `Must be either an ID or a name`
 );
 
+const validateCalendarDate = check((input: string) => {
+   return DateTime.fromISO(input).isValid;
+}, `Must be a valid calendar date (valibot).`);
+
 export const dateFromString = pipe(
    baseString,
    regex(
       /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}\.\d{1,3}Z)?$/,
       `Must be in either "YYYY-MM-DD" or "YYYY-MM-DDTHH:mm:ss.sssZ" format (valibot).`
    ),
-   check(input => {
-      return DateTime.fromISO(input).isValid;
-   }, `Must be a valid calendar date (valibot)`)
+   validateCalendarDate
 );
 
-// Used specifically for YYYY-MM-DD dates (10 characters only). E.g., birthdays or expiry dates.
+// Used specifically for YYYY-MM-DD dates (10 characters only). E.g., birthdays or expiry dates. Outputs a YYYY-MM-DD string.
 export const dateFromShortString = pipe(
-   baseString,
-   regex(/^\d{4}-\d{2}-\d{2}$/, `Must be a valid calendar date (YYYY-MM-DD).`),
-   check(input => {
-      return DateTime.fromISO(input).isValid;
-   }, `Invalid date format.`)
+   string(),
+   regex(shortDateRegex, `Invalid date format (valibot).`),
+   validateCalendarDate
 );
 
+// Checks Luxon's DateTime object constructed from simple 10-character string against LOCAL now. Outputs the same simple string.
 export const validateExpiryDate = pipe(
    dateFromShortString,
-   transform(input => {
-      // We give our patients the full benefit of their final day of coverage.
-      return DateTime.fromISO(input).endOf('day');
-   }),
-   check(expiry => {
-      return expiry >= DateTime.now();
+   check(input => {
+      return DateTime.fromISO(input).endOf('day') >= DateTime.now();
    }, `The health card has expired.`)
 );
 
 export const validateDOB = pipe(
    dateFromShortString,
-   transform(input => {
-      // Return as a "local" date in Cambridge, ON (which is "America/Toronto", check `date_time_constants.ts`)
-      return DateTime.fromISO(input).startOf('day');
-   }),
-   check(dob => {
-      // Compare against "local" now in Cambridge
+   check(inputStr => {
+      const dob = DateTime.fromISO(inputStr);
       const age = DateTime.now().diff(dob, 'years').years;
       return age >= MIN_LEGAL_AGE;
    }, `The patient must be at least ${MIN_LEGAL_AGE} years old (valibot).`),
-   check(dob => {
-      return dob.year > 1900;
-   }, `The patient must be born after 1900 (valibot).`),
-   transform(dob => {
-      return dob.toISODate(); // Returns simple "YYYY-MM-DD" formatted string.
-   })
+   check(inputStr => {
+      const year = parseInt(inputStr.split('-')[0], 10);
+      return year > 1900;
+   }, `The patient must be born after 1900 (valibot).`)
+   // No transformations inside this schema. Outputs the same simple string as `dateFromShortString`.
 );
 
 export const dateInThePastOrOptionallyToday = pipe(
@@ -172,7 +169,7 @@ export const dateInTheFutureOrOptionallyToday = pipe(
 export const validateCanadianPostalCode = pipe(
    baseString,
    regex(
-      /^[A-Za-z]\d[A-Za-z][ ]?\d[A-Za-z]\d$/i,
+      postalCodeCanadaRegex,
       `Invalid Canadian postal code format (valibot).`
    )
 );
@@ -180,10 +177,15 @@ export const validateCanadianPostalCode = pipe(
 export const validateNANPPhoneNumber = pipe(
    baseString,
    transform(phone => phone.replace(/[^\d]/g, '')),
-   regex(/^1?[2-9]\d{2}[2-9]\d{6}$/, `Must be an NANP phone number (valibot).`)
+   regex(phoneNANPRegex, `Must be an NANP phone number (valibot).`)
 );
 
 export const validateDIN = pipe(
    baseString,
-   regex(/^\d{8}$/, `DIN must be exactly 8 digits (valibot).`)
+   regex(dinRegex, `DIN must be exactly 8 digits (valibot).`)
+);
+
+export const validateSnomed = pipe(
+   baseString,
+   regex(snomedRegex, `Invalid SNOMED code (valibot).`)
 );

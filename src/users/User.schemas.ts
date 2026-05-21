@@ -13,7 +13,7 @@ import {
    string,
    transform,
 } from 'valibot';
-import { nameString } from '@models/User.model.ts';
+import { nameString } from '@utils/valibotSchemaReusables.ts';
 
 // ── Change password ──────────────────────────────────────────────────────────────
 /* currentPassword has no complexity rules. We are verifying against an existing hash, not enforcing creation constraints. maxLength makes sure an over-long payload is rejected before we touch the database. newPassword runs the full complexity suite identical to registration. */

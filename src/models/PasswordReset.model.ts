@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { StrictSchemaDefinition } from '@ssot/mongoose_types.ts';
+import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { hexHashValidator } from '@ssot/node_crypto_constants.ts';
