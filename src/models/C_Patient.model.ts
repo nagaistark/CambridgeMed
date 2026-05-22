@@ -63,6 +63,9 @@ import {
    shortDateRegex,
    postalCodeCanadaRegex,
 } from '@utils/valibotSchemaReusables.ts';
+import { createModelGetter } from '@utils/createLazyGetter.ts';
+import { DatabaseManager } from 'dbConnect.ts';
+import { AuditableResourceType } from '@ssot/audit_constants.ts';
 
 // ── Valibot subschemas ───────────────────────────────────────────────────────────
 export const MedicationSchema = strictObject({
@@ -968,4 +971,18 @@ export const PatientSchema = new mongoose.Schema<IPatientDocument>(
       timestamps: true,
       strict: 'throw',
    }
+);
+
+PatientSchema.index({ 'intakeInfo.demographics.lastName': 1 });
+PatientSchema.index(
+   { 'intakeInfo.contactInformation.phones.number': 1 },
+   { unique: true }
+);
+
+const modelName: Extract<AuditableResourceType, 'Patient'> = 'Patient';
+
+export const getPatientModel = createModelGetter<IPatientDocument>(
+   () => DatabaseManager.getInstance().clinic.connection,
+   modelName,
+   PatientSchema
 );

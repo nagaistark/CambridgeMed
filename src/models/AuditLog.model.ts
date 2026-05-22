@@ -31,10 +31,8 @@ export const AuditLogInputSchema = strictObject({
    ),
 });
 
-export type IAuditLogInput = StringIDToObjectId<
-   InferOutput<typeof AuditLogInputSchema>
->;
-export type IAuditLogDefinition = IAuditLogInput & {
+export type IAuditLogInput = InferOutput<typeof AuditLogInputSchema>;
+export type IAuditLogDefinition = StringIDToObjectId<IAuditLogInput> & {
    occurredAt: Date;
 };
 export type IAuditLogDocument = IAuditLogDefinition & {
