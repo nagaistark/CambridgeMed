@@ -43,3 +43,23 @@ type MongooseFieldDef<T> =
 export type StrictSchemaDefinition_v2<T> = {
    [K in keyof T]-?: MongooseFieldDef<T[K]>;
 };
+
+// v3
+type MongooseFieldDef_v3<T> =
+   NonNullable<T> extends (infer U)[]
+      ? IsPlainObject<NonNullable<U>> extends true
+         ? mongoose.Schema<NonNullable<U>>[]
+         : mongoose.SchemaDefinitionProperty<NonNullable<U>>[]
+      : IsPlainObject<NonNullable<T>> extends true
+        ? // Allow either a bare Schema or a wrapped descriptor with `type: Schema`
+             | mongoose.Schema<NonNullable<T>>
+             | {
+                  type: mongoose.Schema<NonNullable<T>>;
+                  required?: boolean;
+                  default?: undefined;
+               }
+        : mongoose.SchemaDefinitionProperty<NonNullable<T>>;
+
+export type StrictSchemaDefinition_v3<T> = {
+   [K in keyof T]-?: MongooseFieldDef_v3<T[K]>;
+};

@@ -58,7 +58,7 @@ import {
    vaccineDoseUnits,
    vaccineForms,
 } from '@ssot/patient_related_constants.ts';
-import { StrictSchemaDefinition_v2 } from '@utils/mongoose_types.ts';
+import { StrictSchemaDefinition_v3 } from '@utils/mongoose_types.ts';
 import {
    shortDateRegex,
    postalCodeCanadaRegex,
@@ -416,7 +416,7 @@ const CoreIdentifiersDefinition = {
       type: String,
       required: false,
    },
-} satisfies StrictSchemaDefinition_v2<ICoreIdentifiers>;
+} satisfies StrictSchemaDefinition_v3<ICoreIdentifiers>;
 
 const CoreIdentifiersSchema = new mongoose.Schema<ICoreIdentifiers>(
    CoreIdentifiersDefinition,
@@ -445,7 +445,7 @@ const SupplementalInsuranceDefinition = {
          message: `Invalid Date Format (mongoose).`,
       },
    },
-} satisfies StrictSchemaDefinition_v2<ISupplementalInsurance>;
+} satisfies StrictSchemaDefinition_v3<ISupplementalInsurance>;
 
 const SupplementalInsuranceSchema = new mongoose.Schema<ISupplementalInsurance>(
    SupplementalInsuranceDefinition,
@@ -461,7 +461,7 @@ const PreferencesDefinition = {
    interpreterNeeded: {
       type: Boolean,
    },
-} satisfies StrictSchemaDefinition_v2<IPreferences>;
+} satisfies StrictSchemaDefinition_v3<IPreferences>;
 
 const PreferencesSchema = new mongoose.Schema<IPreferences>(
    PreferencesDefinition,
@@ -524,7 +524,7 @@ const DemographicsDefinition = {
       enum: sexes,
       required: true,
    },
-} satisfies StrictSchemaDefinition_v2<IDemographics>;
+} satisfies StrictSchemaDefinition_v3<IDemographics>;
 
 const DemographicsSchema = new mongoose.Schema<IDemographics>(
    DemographicsDefinition,
@@ -542,7 +542,7 @@ const SocialHistoryDefinition = {
    smokingStatus: { type: String, enum: smokingStatuses, required: true },
    alcoholUse: { type: String, enum: alcoholUseLevels, required: true },
    substanceUse: { type: String, enum: substanceUseLevels, required: true },
-} satisfies StrictSchemaDefinition_v2<ISocialHistory>;
+} satisfies StrictSchemaDefinition_v3<ISocialHistory>;
 
 const SocialHistorySchema = new mongoose.Schema<ISocialHistory>(
    SocialHistoryDefinition,
@@ -555,7 +555,7 @@ const FamilyHistoryEntryDefinition = {
    ageAtDiagnosed: { type: Number },
    deceased: { type: Boolean, required: true },
    notes: { type: String },
-} satisfies StrictSchemaDefinition_v2<IFamilyHistoryEntry>;
+} satisfies StrictSchemaDefinition_v3<IFamilyHistoryEntry>;
 
 const FamilyHistoryEntrySchema = new mongoose.Schema<IFamilyHistoryEntry>(
    FamilyHistoryEntryDefinition,
@@ -568,7 +568,7 @@ const AccessibilityNeedsDefinition = {
    hearingImpairment: { type: Boolean },
    visualImpairment: { type: Boolean },
    notes: { type: String },
-} satisfies StrictSchemaDefinition_v2<IAccessibilityNeeds>;
+} satisfies StrictSchemaDefinition_v3<IAccessibilityNeeds>;
 
 const AccessibilityNeedsSchema = new mongoose.Schema<IAccessibilityNeeds>(
    AccessibilityNeedsDefinition,
@@ -609,7 +609,7 @@ const AddressEntryDefinition = {
       type: Boolean,
       required: true,
    },
-} satisfies StrictSchemaDefinition_v2<IAddressEntry>;
+} satisfies StrictSchemaDefinition_v3<IAddressEntry>;
 
 const AddressEntrySchema = new mongoose.Schema<IAddressEntry>(
    AddressEntryDefinition,
@@ -636,7 +636,7 @@ const PhoneEntryDefinition = {
       type: Boolean,
       required: true,
    },
-} satisfies StrictSchemaDefinition_v2<IPhoneEntry>;
+} satisfies StrictSchemaDefinition_v3<IPhoneEntry>;
 
 const PhoneEntrySchema = new mongoose.Schema<IPhoneEntry>(
    PhoneEntryDefinition,
@@ -646,7 +646,7 @@ const PhoneEntrySchema = new mongoose.Schema<IPhoneEntry>(
 const ContactInformationDefinition = {
    addresses: [AddressEntrySchema],
    phones: [PhoneEntrySchema],
-} satisfies StrictSchemaDefinition_v2<IContactInformation>;
+} satisfies StrictSchemaDefinition_v3<IContactInformation>;
 
 const ContactInformationSchema = new mongoose.Schema<IContactInformation>(
    ContactInformationDefinition,
@@ -673,7 +673,7 @@ const EmergencyContactsEntryDefinition = {
          message: `Invalid NANP phone format (mongoose).`,
       },
    },
-} satisfies StrictSchemaDefinition_v2<IEmergencyContactsEntry>;
+} satisfies StrictSchemaDefinition_v3<IEmergencyContactsEntry>;
 
 const EmergencyContactsEntrySchema =
    new mongoose.Schema<IEmergencyContactsEntry>(
@@ -701,7 +701,7 @@ const NextOfKinDefinition = {
          message: `Invalid NANP phone format (mongoose).`,
       },
    },
-} satisfies StrictSchemaDefinition_v2<INextOfKin>;
+} satisfies StrictSchemaDefinition_v3<INextOfKin>;
 
 const NextOfKinSchema = new mongoose.Schema<INextOfKin>(NextOfKinDefinition, {
    _id: false,
@@ -710,15 +710,27 @@ const NextOfKinSchema = new mongoose.Schema<INextOfKin>(NextOfKinDefinition, {
 const IntakeInfoDefinition = {
    coreIdentifiers: CoreIdentifiersSchema,
    supplementalInsurance: SupplementalInsuranceSchema,
-   preferences: PreferencesSchema,
+   preferences: {
+      type: PreferencesSchema,
+      required: false,
+      default: undefined,
+   },
    demographics: DemographicsSchema,
    socialHistory: SocialHistorySchema,
    familyHistory: [FamilyHistoryEntrySchema],
-   accessibilityNeeds: AccessibilityNeedsSchema,
+   accessibilityNeeds: {
+      type: AccessibilityNeedsSchema,
+      required: false,
+      default: undefined,
+   },
    contactInformation: ContactInformationSchema,
    emergencyContacts: [EmergencyContactsEntrySchema],
-   nextOfKin: NextOfKinSchema,
-} satisfies StrictSchemaDefinition_v2<IIntakeInfo>;
+   nextOfKin: {
+      type: NextOfKinSchema,
+      required: false,
+      default: undefined,
+   },
+} satisfies StrictSchemaDefinition_v3<IIntakeInfo>;
 
 const IntakeInfoSchema = new mongoose.Schema<IIntakeInfo>(
    IntakeInfoDefinition,
@@ -755,7 +767,6 @@ const ActiveMedicationsEntryDefinition = {
    },
    snomedCode: {
       type: String,
-      required: true,
       validate: {
          validator: function (snomedStr: string) {
             return snomedRegex.test(snomedStr);
@@ -784,7 +795,7 @@ const ActiveMedicationsEntryDefinition = {
    notes: {
       type: String,
    },
-} satisfies StrictSchemaDefinition_v2<IActiveMedicationsEntry>;
+} satisfies StrictSchemaDefinition_v3<IActiveMedicationsEntry>;
 
 const ActiveMedicationsEntrySchema =
    new mongoose.Schema<IActiveMedicationsEntry>(
@@ -796,8 +807,8 @@ const AllergesEntryDefinition = {
    substance: { type: String, required: true },
    reaction: { type: String, required: true },
    severity: { type: String, enum: medSeverityLevels, required: true },
-   dateDiscovered: { type: Date, required: true },
-} satisfies StrictSchemaDefinition_v2<IAllergiesEntry>;
+   dateDiscovered: { type: Date },
+} satisfies StrictSchemaDefinition_v3<IAllergiesEntry>;
 
 const AllergesEntrySchema = new mongoose.Schema<IAllergiesEntry>(
    AllergesEntryDefinition,
@@ -807,7 +818,7 @@ const AllergesEntrySchema = new mongoose.Schema<IAllergiesEntry>(
 const ImmunizationDoseDefinition = {
    value: { type: Number, required: true },
    unit: { type: String, enum: vaccineDoseUnits, required: true },
-} satisfies StrictSchemaDefinition_v2<IImmunizationDose>;
+} satisfies StrictSchemaDefinition_v3<IImmunizationDose>;
 
 const ImmunizationDoseSchema = new mongoose.Schema<IImmunizationDose>(
    ImmunizationDoseDefinition,
@@ -862,7 +873,7 @@ const ImmunizationsEntryDefinition = {
       },
    },
    notes: { type: String },
-} satisfies StrictSchemaDefinition_v2<IImmunizationsEntry>;
+} satisfies StrictSchemaDefinition_v3<IImmunizationsEntry>;
 
 const ImmunizationsEntrySchema = new mongoose.Schema<IImmunizationsEntry>(
    ImmunizationsEntryDefinition,
@@ -875,7 +886,7 @@ const SurgicalHistoryEntryDefinition = {
    performedBy: { type: String, required: true },
    hospital: { type: String, required: true },
    notes: { type: String },
-} satisfies StrictSchemaDefinition_v2<ISurgicalHistoryEntry>;
+} satisfies StrictSchemaDefinition_v3<ISurgicalHistoryEntry>;
 
 const SurgicalHistoryEntrySchema = new mongoose.Schema<ISurgicalHistoryEntry>(
    SurgicalHistoryEntryDefinition,
@@ -894,8 +905,8 @@ const ConsentsEntryDefinition = {
          validator: function (this: IConsentsEntry, dateCon: string): boolean {
             return this.granted ? !!dateCon : !dateCon;
          },
+         message: `When consent is granted, the date is required (mongoose).`,
       },
-      message: `When consent is granted, the date is required (mongoose).`,
    },
    method: {
       type: String,
@@ -925,7 +936,7 @@ const ConsentsEntryDefinition = {
          message: `When consent is granted, you need to specify who it's recorded by (mongoose).`,
       },
    },
-} satisfies StrictSchemaDefinition_v2<IConsentsEntry>;
+} satisfies StrictSchemaDefinition_v3<IConsentsEntry>;
 
 const ConsentsEntrySchema = new mongoose.Schema<IConsentsEntry>(
    ConsentsEntryDefinition,
@@ -943,7 +954,7 @@ const ClinicalInfoDefinition = {
    immunizations: [ImmunizationsEntrySchema],
    surgicalHistory: [SurgicalHistoryEntrySchema],
    consents: [ConsentsEntrySchema],
-} satisfies StrictSchemaDefinition_v2<IClinicalInfo>;
+} satisfies StrictSchemaDefinition_v3<IClinicalInfo>;
 
 const ClinicalInfoSchema = new mongoose.Schema<IClinicalInfo>(
    ClinicalInfoDefinition,
@@ -963,7 +974,7 @@ const PatientDefinition = {
    },
    intakeInfo: IntakeInfoSchema,
    clinicalInfo: ClinicalInfoSchema,
-} satisfies StrictSchemaDefinition_v2<IPatientDefinition>;
+} satisfies StrictSchemaDefinition_v3<IPatientDefinition>;
 
 export const PatientSchema = new mongoose.Schema<IPatientDocument>(
    PatientDefinition,
