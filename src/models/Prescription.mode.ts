@@ -12,11 +12,11 @@ import {
    positiveInteger,
 } from '@utils/valibotSchemaReusables.ts';
 import { optional, strictObject } from 'valibot';
-import { MedicationSchema } from '@models/C_Patient.model.ts';
+import { medicationVSchema } from '@models/Patient.model.ts';
 
 export const PrescriptionSchema = strictObject({
    patientId: objectIdFormatCheck,
-   medication: MedicationSchema,
+   medication: medicationVSchema,
    dose: strictObject({
       value: positiveInteger,
       unit: makePicklist(medDoseUnits),

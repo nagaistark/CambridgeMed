@@ -8,6 +8,7 @@ import {
    InferOutput,
    optional,
    partialCheck,
+   pick,
    pipe,
    regex,
    strictObject,
@@ -68,7 +69,7 @@ import { DatabaseManager } from 'dbConnect.ts';
 import { AuditableResourceType } from '@ssot/audit_constants.ts';
 
 // ── Valibot subschemas ───────────────────────────────────────────────────────────
-export const MedicationSchema = strictObject({
+export const medicationVSchema = strictObject({
    id: baseString,
    name: baseString, // Brand or Generic name
    din: validateDIN, // Health Canada 8-digit Drug Identification Number
@@ -80,14 +81,14 @@ export const MedicationSchema = strictObject({
    notes: optional(longString),
 });
 
-const AllergySchema = strictObject({
+const allergyVSchema = strictObject({
    substance: baseString,
    reaction: longString,
    severity: makePicklist(medSeverityLevels),
    dateDiscovered: optional(dateInThePastOrOptionallyToday),
 });
 
-const ImmunizationSchema = pipe(
+const immunizationVSchema = pipe(
    strictObject({
       name: baseString,
       din: validateDIN, // Health Canada Vaccine DIN
@@ -133,7 +134,7 @@ const ImmunizationSchema = pipe(
    )
 );
 
-const SurgerySchema = strictObject({
+const surgeryVSchema = strictObject({
    procedure: baseString,
    date: dateInThePastOrOptionallyToday,
    performedBy: idOrName,
@@ -141,7 +142,7 @@ const SurgerySchema = strictObject({
    notes: optional(longString),
 });
 
-const ConsentSchema = pipe(
+const consentVSchema = pipe(
    strictObject({
       type: baseString,
       granted: boolean(),
@@ -165,7 +166,7 @@ const ConsentSchema = pipe(
 );
 
 // ── Main Valibot registration schema ─────────────────────────────────────────────
-export const patientSchema = strictObject({
+export const patientVSchemaFull = strictObject({
    isActive: boolean(),
    primaryDoctorId: objectIdFormatCheck,
 
@@ -328,48 +329,57 @@ export const patientSchema = strictObject({
 
    clinicalInfo: strictObject({
       bloodType: makePicklist(bloodTypes),
-      activeMedications: array(MedicationSchema),
-      allergies: array(AllergySchema),
-      immunizations: array(ImmunizationSchema),
-      surgicalHistory: array(SurgerySchema),
-      consents: array(ConsentSchema),
+      activeMedications: array(medicationVSchema),
+      allergies: array(allergyVSchema),
+      immunizations: array(immunizationVSchema),
+      surgicalHistory: array(surgeryVSchema),
+      consents: array(consentVSchema),
    }),
 });
 
-export type IPatientDefinition = InferOutput<typeof patientSchema>;
+export const patientVSchemaInitial = pick(patientVSchemaFull, [
+   'isActive',
+   'primaryDoctorId',
+   'intakeInfo',
+]);
 
-export type IPatientDocument = IPatientDefinition & {
+export type IPatientDefinitionFull = InferOutput<typeof patientVSchemaFull>;
+export type IPatientDefinitionInit = InferOutput<typeof patientVSchemaInitial>;
+
+export type IPatientDocument = IPatientDefinitionFull & {
    _id: mongoose.Types.ObjectId;
    createdAt: Date;
    updatedAt: Date;
 };
 
 // ── IntakeInfo types ─────────────────────────────────────────────────────────────
-type ICoreIdentifiers = IPatientDefinition['intakeInfo']['coreIdentifiers'];
+type ICoreIdentifiers = IPatientDefinitionFull['intakeInfo']['coreIdentifiers'];
 type ISupplementalInsurance =
-   IPatientDefinition['intakeInfo']['supplementalInsurance'];
+   IPatientDefinitionFull['intakeInfo']['supplementalInsurance'];
 type IPreferences = NonNullable<
-   IPatientDefinition['intakeInfo']['preferences']
+   IPatientDefinitionFull['intakeInfo']['preferences']
 >;
-type IDemographics = IPatientDefinition['intakeInfo']['demographics'];
-type ISocialHistory = IPatientDefinition['intakeInfo']['socialHistory'];
+type IDemographics = IPatientDefinitionFull['intakeInfo']['demographics'];
+type ISocialHistory = IPatientDefinitionFull['intakeInfo']['socialHistory'];
 type IFamilyHistoryEntry = NonNullable<
-   IPatientDefinition['intakeInfo']['familyHistory']
+   IPatientDefinitionFull['intakeInfo']['familyHistory']
 >[number];
 type IAccessibilityNeeds = NonNullable<
-   IPatientDefinition['intakeInfo']['accessibilityNeeds']
+   IPatientDefinitionFull['intakeInfo']['accessibilityNeeds']
 >;
 type IAddressEntry =
-   IPatientDefinition['intakeInfo']['contactInformation']['addresses'][number];
+   IPatientDefinitionFull['intakeInfo']['contactInformation']['addresses'][number];
 type IPhoneEntry =
-   IPatientDefinition['intakeInfo']['contactInformation']['phones'][number];
+   IPatientDefinitionFull['intakeInfo']['contactInformation']['phones'][number];
 type IContactInformation =
-   IPatientDefinition['intakeInfo']['contactInformation'];
+   IPatientDefinitionFull['intakeInfo']['contactInformation'];
 type IEmergencyContactsEntry =
-   IPatientDefinition['intakeInfo']['emergencyContacts'][number];
-type INextOfKin = NonNullable<IPatientDefinition['intakeInfo']['nextOfKin']>;
+   IPatientDefinitionFull['intakeInfo']['emergencyContacts'][number];
+type INextOfKin = NonNullable<
+   IPatientDefinitionFull['intakeInfo']['nextOfKin']
+>;
 
-type IIntakeInfo = IPatientDefinition['intakeInfo'];
+type IIntakeInfo = IPatientDefinitionFull['intakeInfo'];
 
 // ── IntakeInfo subschemas ────────────────────────────────────────────────────────
 const CoreIdentifiersDefinition = {
@@ -740,16 +750,18 @@ const IntakeInfoSchema = new mongoose.Schema<IIntakeInfo>(
 // ── ClinicalInfo types ───────────────────────────────────────────────────────────
 
 type IActiveMedicationsEntry =
-   IPatientDefinition['clinicalInfo']['activeMedications'][number];
-type IAllergiesEntry = IPatientDefinition['clinicalInfo']['allergies'][number];
+   IPatientDefinitionFull['clinicalInfo']['activeMedications'][number];
+type IAllergiesEntry =
+   IPatientDefinitionFull['clinicalInfo']['allergies'][number];
 type IImmunizationDose =
-   IPatientDefinition['clinicalInfo']['immunizations'][number]['dose'];
+   IPatientDefinitionFull['clinicalInfo']['immunizations'][number]['dose'];
 type IImmunizationsEntry =
-   IPatientDefinition['clinicalInfo']['immunizations'][number];
+   IPatientDefinitionFull['clinicalInfo']['immunizations'][number];
 type ISurgicalHistoryEntry =
-   IPatientDefinition['clinicalInfo']['surgicalHistory'][number];
-type IConsentsEntry = IPatientDefinition['clinicalInfo']['consents'][number];
-type IClinicalInfo = IPatientDefinition['clinicalInfo'];
+   IPatientDefinitionFull['clinicalInfo']['surgicalHistory'][number];
+type IConsentsEntry =
+   IPatientDefinitionFull['clinicalInfo']['consents'][number];
+type IClinicalInfo = IPatientDefinitionFull['clinicalInfo'];
 
 // ── ClinicalInfo subschemas ──────────────────────────────────────────────────────
 const ActiveMedicationsEntryDefinition = {
@@ -948,6 +960,7 @@ const ClinicalInfoDefinition = {
       type: String,
       enum: bloodTypes,
       required: true,
+      default: 'unknown',
    },
    activeMedications: [ActiveMedicationsEntrySchema],
    allergies: [AllergesEntrySchema],
@@ -965,16 +978,16 @@ const ClinicalInfoSchema = new mongoose.Schema<IClinicalInfo>(
 const PatientDefinition = {
    isActive: {
       type: Boolean,
-      required: [true, `Specify if Patient is active.`],
+      required: true,
       default: true,
    },
    primaryDoctorId: {
       type: String,
-      required: [true, `Primary Doctor ID is required.`],
+      required: true,
    },
    intakeInfo: IntakeInfoSchema,
    clinicalInfo: ClinicalInfoSchema,
-} satisfies StrictSchemaDefinition_v3<IPatientDefinition>;
+} satisfies StrictSchemaDefinition_v3<IPatientDefinitionFull>;
 
 export const PatientSchema = new mongoose.Schema<IPatientDocument>(
    PatientDefinition,
