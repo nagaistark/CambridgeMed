@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
-import { allRoles, type UserRole } from '@ssot/user_roles_constants.ts';
-import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
+import { allRoles } from '@ssot/user_roles_constants.ts';
+import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
 
 import {
    email,
@@ -21,6 +21,7 @@ import {
    NAME_CHANGE_CAP,
    EMAIL_CHANGE_CAP,
 } from '@ssot/user_change_constants.ts';
+import { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 
 // ── History entry types ──────────────────────────────────────────────────────────
 /* Each entry represents a name or email that was once the live value on this account. `archivedAt` records the moment the entry was archived (explicitly set by application code because subdocuments embedded in arrays do not participate in the parent document's timestamp lifecycle). */
@@ -57,28 +58,25 @@ export const UserRegistrationSchema = strictObject({
 });
 
 // ── Domain types ─────────────────────────────────────────────────────────────────
-export type IUserDefinition = Omit<IUserInitial, 'password'> & {
-   passwordHash: string;
-   role: UserRole; // full union — superadmin must be storable
-   canIssueInvites: boolean;
+export type IUserDefinition = Omit<IUserInitial, 'password'> &
+   Pick<AuthenticatedUser, 'role' | 'permissions'> & {
+      passwordHash: string;
 
-   /* Each array grows by one entry every time the corresponding value changes. Once nameChangesUsed / emailChangesUsed reaches NAME_CHANGE_CAP / EMAIL_CHANGE_CAP, further changes are blocked at the application layer. The counters (incremented atomically alongside the array push) are the SSOT for the cap check. */
-   previousNames: INameHistoryEntry[];
-   previousEmails: IEmailHistoryEntry[];
-   nameChangesUsed: number;
-   emailChangesUsed: number;
+      /* Each array grows by one entry every time the corresponding value changes. Once nameChangesUsed / emailChangesUsed reaches NAME_CHANGE_CAP / EMAIL_CHANGE_CAP, further changes are blocked at the application layer. The counters (incremented atomically alongside the array push) are the SSOT for the cap check. */
+      previousNames: INameHistoryEntry[];
+      previousEmails: IEmailHistoryEntry[];
+      nameChangesUsed: number;
+      emailChangesUsed: number;
 
-   totpSecret: string | null; // AES-256-GCM encrypted, null until enrollment begins
-   isTotpEnabled: boolean; // false until first successful verification post-enrollment
-   totpRecoveryCodes: string[]; // Argon2 hashes of the one-time recovery codes
+      totpSecret: string | null; // AES-256-GCM encrypted, null until enrollment begins
+      isTotpEnabled: boolean; // false until first successful verification post-enrollment
+      totpRecoveryCodes: string[]; // Argon2 hashes of the one-time recovery codes
 
-   totpLastUsedStep: number;
+      totpLastUsedStep: number;
 
-   invitedBy?: mongoose.Types.ObjectId;
-   isActive: boolean;
-
-   /* isVerified removed. Email ownership is proven structurally. */
-};
+      invitedBy?: mongoose.Types.ObjectId;
+      isActive: boolean;
+   };
 
 export type IUserDocument = IUserDefinition & {
    _id: mongoose.Types.ObjectId;
@@ -95,7 +93,7 @@ export type SafeUser = Omit<
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
 export type PublicUser = Pick<
    IUserDocument,
-   '_id' | 'firstName' | 'lastName' | 'email' | 'role' | 'canIssueInvites'
+   '_id' | 'firstName' | 'lastName' | 'email' | 'role' | 'permissions'
 >;
 
 // ── HTTP response envelope types ─────────────────────────────────────────────────
@@ -113,7 +111,7 @@ const nameHistoryEntryDefinition = {
    firstName: { type: String, required: true },
    lastName: { type: String, required: true },
    archivedAt: { type: Date, required: true, default: Date.now },
-} satisfies StrictSchemaDefinition<INameHistoryEntry>;
+} satisfies StrictSchemaDefinition_v4<INameHistoryEntry>;
 
 const NameHistoryEntrySchema = new mongoose.Schema<INameHistoryEntry>(
    nameHistoryEntryDefinition,
@@ -123,7 +121,7 @@ const NameHistoryEntrySchema = new mongoose.Schema<INameHistoryEntry>(
 const emailHistoryEntryDefinition = {
    email: { type: String, required: true },
    archivedAt: { type: Date, required: true, default: Date.now },
-} satisfies StrictSchemaDefinition<IEmailHistoryEntry>;
+} satisfies StrictSchemaDefinition_v4<IEmailHistoryEntry>;
 
 const EmailHistoryEntrySchema = new mongoose.Schema<IEmailHistoryEntry>(
    emailHistoryEntryDefinition,
@@ -169,10 +167,9 @@ const UserDefinition = {
          message: `Role invariant violated: the superadmin role may only exist without an invitedBy reference, and all invited users must have an allowed role.`,
       },
    },
-   canIssueInvites: {
-      type: Boolean,
-      required: [true, `Please specify whether the User can issue invites.`],
-      default: false,
+   permissions: {
+      type: Number,
+      required: [true, `Please specify the permissions that the User has.`],
    },
    previousNames: {
       type: [NameHistoryEntrySchema],
@@ -225,13 +222,14 @@ const UserDefinition = {
       // Optional because the "required" constraint breaks for the superadmin (who isn't invited by anyone)
       type: mongoose.Schema.Types.ObjectId,
       ref: 'User',
+      required: false,
    },
    isActive: {
       type: Boolean,
       default: true,
       required: [true, `Is the user active?`],
    },
-} satisfies StrictSchemaDefinition<IUserDefinition>;
+} satisfies StrictSchemaDefinition_v4<IUserDefinition>;
 
 const UserSchema = new mongoose.Schema<IUserDocument>(UserDefinition, {
    timestamps: true,

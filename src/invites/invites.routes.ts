@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '@middleware/authenticate.ts';
-import { requirePermission } from '@middleware/requirePermission.ts';
+import { requirePermissions } from '@middleware/requirePermission.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import { InviteCreateSchema } from '@models/Invite.model.ts';
 import { UserRegistrationSchema } from '@models/User.model.ts';
@@ -9,14 +9,15 @@ import { revokeInviteController } from '@invites/revokeInvite.controller.ts';
 import { previewInviteController } from '@invites/previewInvite.controller.ts';
 import { listInvitesController } from '@invites/listInvites.controller.ts';
 import { acceptInviteController } from '@invites/acceptInvite.controller.ts';
+import { Permissions } from '@ssot/permissions_constants.ts';
 
 const inviteRouter = Router();
 
-// Protected: must be authenticated AND hold the canIssueInvites permission.
+// Protected: must be authenticated AND hold the ISSUE_INVITES permission.
 inviteRouter.post(
    '/',
    authenticate,
-   requirePermission('canIssueInvites'),
+   requirePermissions(Permissions.ISSUE_INVITES),
    validateBody(InviteCreateSchema),
    createInviteController
 );
@@ -25,7 +26,7 @@ inviteRouter.post(
 inviteRouter.delete(
    '/:id',
    authenticate,
-   requirePermission('canIssueInvites'),
+   requirePermissions(Permissions.ISSUE_INVITES),
    revokeInviteController
 );
 
@@ -33,7 +34,7 @@ inviteRouter.delete(
 inviteRouter.get(
    '/',
    authenticate,
-   requirePermission('canIssueInvites'),
+   requirePermissions(Permissions.ISSUE_INVITES),
    listInvitesController
 );
 

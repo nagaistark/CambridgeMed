@@ -12,6 +12,7 @@ import {
    testPassword,
    testUsername,
 } from '@tests/test.utils.ts';
+import { ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 
 export type SeededUser = {
    user: IUserDocument;
@@ -19,7 +20,7 @@ export type SeededUser = {
 };
 
 type SeedUserOptions = OptionalizeExcept<
-   Pick<IUserDefinition, 'role' | 'canIssueInvites' | 'invitedBy'>,
+   Pick<IUserDefinition, 'role' | 'permissions' | 'invitedBy'>,
    'invitedBy'
 >;
 
@@ -32,7 +33,11 @@ function createSeedUser(username: string, domain: string) {
       const internalPassword = testPassword;
       const passwordHash = await hashPassword(internalPassword);
 
-      const { role = 'doctor', canIssueInvites = false, invitedBy } = opts;
+      const {
+         role = 'doctor',
+         permissions = ROLE_PERMISSIONS.doctor,
+         invitedBy,
+      } = opts;
 
       const userDoc = await getUserModel().create({
          firstName: 'Test',
@@ -40,7 +45,7 @@ function createSeedUser(username: string, domain: string) {
          email,
          passwordHash,
          role,
-         canIssueInvites,
+         permissions,
          invitedBy,
          isActive: true,
       });

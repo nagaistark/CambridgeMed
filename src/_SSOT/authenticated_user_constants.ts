@@ -4,6 +4,6 @@ import type { UserRole } from '@ssot/user_roles_constants.ts';
 export type AuthenticatedUser = {
    sub: string;
    role: UserRole;
-   canIssueInvites: boolean;
+   permissions: number;
    sessionId: string;
 };

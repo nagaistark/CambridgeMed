@@ -17,6 +17,7 @@ import {
    generateStandardHash,
    HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
+import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -85,22 +86,34 @@ async function runRegistrationTransaction(
          }
 
          // ── Create the User document ────────────────────────────────────────────
-         /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role, canIssueInvites, and invitedBy come from the invite document and are not negotiable by the registering user. Mongoose's create() with a session requires the array signature and returns an array of the created documents. We discard the return value because our response carries no user data. */
-         await User.create(
-            [
-               {
-                  firstName,
-                  lastName,
-                  email: claimedInvite.email,
-                  passwordHash,
-                  role: claimedInvite.role,
-                  canIssueInvites: claimedInvite.canIssueInvites,
-                  invitedBy: claimedInvite.issuedBy,
-                  isActive: true,
-               },
-            ],
-            { session }
-         );
+         /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDefinition` minus the fields that a freshly registered user doesn't need to explicitly provide because they have schema defaults). */
+
+         type UserCreationPayload = Omit<
+            IUserDefinition,
+            | 'previousNames'
+            | 'previousEmails'
+            | 'nameChangesUsed'
+            | 'emailChangesUsed'
+            | 'totpSecret'
+            | 'isTotpEnabled'
+            | 'totpRecoveryCodes'
+            | 'totpLastUsedStep'
+         >;
+
+         const payload: UserCreationPayload = {
+            firstName,
+            lastName,
+            email: claimedInvite.email,
+            passwordHash,
+            role: claimedInvite.role,
+            permissions:
+               ROLE_PERMISSIONS[claimedInvite.role] |
+               (claimedInvite.canIssueInvites ? Permissions.ISSUE_INVITES : 0),
+            invitedBy: claimedInvite.issuedBy,
+            isActive: true,
+         };
+
+         await User.create([payload], { session });
 
          outcome = { status: 'success' };
          // withTransaction() commits automatically when the callback resolves.
@@ -165,11 +178,11 @@ export async function acceptInviteController(
       let outcome: TransactionOutcome;
       try {
          outcome = await runRegistrationTransaction(session, {
-            tokenHash,
-            email,
             firstName,
             lastName,
             passwordHash,
+            email,
+            tokenHash,
          });
       } finally {
          await session.endSession();

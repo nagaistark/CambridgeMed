@@ -63,3 +63,35 @@ type MongooseFieldDef_v3<T> =
 export type StrictSchemaDefinition_v3<T> = {
    [K in keyof T]-?: MongooseFieldDef_v3<T[K]>;
 };
+
+// v4
+type RequiredProperty = boolean | [boolean, string];
+
+type ResolveArrayField<U> =
+   IsPlainObject<NonNullable<U>> extends true
+      ? mongoose.Schema<NonNullable<U>>[]
+      : mongoose.SchemaDefinitionProperty<NonNullable<U>>[];
+
+type MongooseFieldDef_v4<T> =
+   NonNullable<T> extends (infer U)[]
+      ? // Array Branch: Allow bare array OR expanded descriptor object
+           | ResolveArrayField<U>
+           | {
+                type: ResolveArrayField<U>;
+                required?: RequiredProperty;
+                default?: any[] | ((...args: any[]) => any[]);
+             }
+      : // Scalar Branch:
+        IsPlainObject<NonNullable<T>> extends true
+        ?
+             | mongoose.Schema<NonNullable<T>>
+             | {
+                  type: mongoose.Schema<NonNullable<T>>;
+                  required?: RequiredProperty;
+                  default?: undefined;
+               }
+        : mongoose.SchemaDefinitionProperty<NonNullable<T>>;
+
+export type StrictSchemaDefinition_v4<T> = {
+   [K in keyof T]-?: MongooseFieldDef_v4<T[K]>;
+};

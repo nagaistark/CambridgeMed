@@ -1,21 +1,23 @@
-import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
+import type { Request, NextFunction } from 'express';
+import type {
+   AuthenticatedRequestHandler,
+   AuthenticatedResponse,
+} from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
+import { PermissionFlag } from '@ssot/permissions_constants.ts';
 
-type PermissionKey = {
-   [K in keyof AuthenticatedUser]: AuthenticatedUser[K] extends boolean
-      ? K
-      : never;
-}[keyof AuthenticatedUser];
+export function requirePermissions(
+   ...flags: PermissionFlag[]
+): AuthenticatedRequestHandler {
+   const required = flags.reduce((acc, flag) => acc | flag, 0);
 
-export function requirePermission(key: PermissionKey): RequestHandler {
-   return (req: Request, res: Response, next: NextFunction): void => {
-      /* The cast is justified by contract: requirePermission is only ever placed after authenticate in a route chain. authenticate guarantees authenticatedUser is populated before calling next(). */
-      const authenticatedRes = res as AuthenticatedResponse;
-      const user = authenticatedRes.locals.authenticatedUser;
+   return (
+      _req: Request,
+      res: AuthenticatedResponse,
+      next: NextFunction
+   ): void => {
+      const user = res.locals.authenticatedUser;
 
-      /* If somehow authenticate didn't run first, we fail safely with a 401 rather than crashing on a property access */
       if (!user) {
          return void res
             .status(401)
@@ -28,7 +30,7 @@ export function requirePermission(key: PermissionKey): RequestHandler {
             );
       }
 
-      if (!user[key]) {
+      if ((user.permissions & required) !== required) {
          return void res
             .status(403)
             .json(

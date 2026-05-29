@@ -7,6 +7,7 @@ import {
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { SetCanIssueInvitesBody } from '@users/User.schemas.ts';
+import { Permissions } from '@ssot/permissions_constants.ts';
 
 type ToggleCanIssueInvitesParams = { id: string };
 
@@ -70,7 +71,11 @@ export async function toggleCanIssueInvitesController(
 
       // ── No-op guard ────────────────────────────────────────────────────────────
       /* Reject if the submitted value matches what's already stored. This prevents burning a database write on a meaningless operation, and gives the caller clear feedback that the request had no effect. */
-      if (targetUser.canIssueInvites === canIssueInvites) {
+
+      const currentlyHas =
+         (targetUser.permissions & Permissions.ISSUE_INVITES) !== 0;
+
+      if (currentlyHas === canIssueInvites) {
          return void res
             .status(400)
             .json(
@@ -82,9 +87,13 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
+      const newPermissions = canIssueInvites
+         ? targetUser.permissions | Permissions.ISSUE_INVITES
+         : targetUser.permissions & ~Permissions.ISSUE_INVITES;
+
       await User.updateOne(
          { _id: targetUser._id },
-         { $set: { canIssueInvites } },
+         { $set: { permissions: newPermissions } },
          { runValidators: true }
       );
 

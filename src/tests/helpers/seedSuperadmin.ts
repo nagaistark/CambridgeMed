@@ -2,6 +2,7 @@ import { hashPassword } from '@utils/hashAndVerify.ts';
 import { getUserModel } from '@models/User.model.ts';
 import type { IUserDocument } from '@models/User.model.ts';
 import { testPassword } from '@tests/test.utils.ts';
+import { Permissions } from '@ssot/permissions_constants.ts';
 
 export async function seedSuperadmin(): Promise<IUserDocument> {
    const User = getUserModel();
@@ -13,7 +14,7 @@ export async function seedSuperadmin(): Promise<IUserDocument> {
       email: 'jascha.stark+superadmin@gmail.com',
       passwordHash,
       role: 'superadmin',
-      canIssueInvites: true,
+      permissions: Permissions.MANAGE_USERS | Permissions.ISSUE_INVITES,
       isActive: true,
    });
 

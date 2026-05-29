@@ -50,7 +50,7 @@ export async function refreshController(
       if (session) {
          // ── Case 1: HAPPY PATH: valid rotation ─────────────────────────────────-
          /* Two reasons we fetch the user record:
-            a) We need role and canIssueInvites to sign the new access token. The session document deliberately does not cache these so they are always fresh. */
+            a) We need role and permissions to sign the new access token. The session document deliberately does not cache these so they are always fresh. */
          const user = await getUserModel().findById(session.userId).lean();
 
          /* b) We check isActive here. If an admin deactivated this account since the session was created, we must not mint new tokens. */
@@ -82,7 +82,7 @@ export async function refreshController(
          const accessToken = await signAccessToken({
             sub: user._id.toString(),
             role: user.role,
-            canIssueInvites: user.canIssueInvites,
+            permissions: user.permissions,
             sessionId: session._id.toString(),
             expirationTime: accessTokenExpirationTime,
          });

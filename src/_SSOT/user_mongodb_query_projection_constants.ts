@@ -1,3 +1,4 @@
+import { SafeInvite } from '@models/Invite.model.ts';
 import type { SafeUser, PublicUser } from '@models/User.model.ts';
 
 /* Field projections defined once at module level. Using MongoDB-level projection means `passwordHash` never travels over the wire from MongoDB to the Node process. */
@@ -7,7 +8,7 @@ export const SAFE_USER_PROJECTION: Record<keyof SafeUser, 1> = {
    firstName: 1,
    lastName: 1,
    role: 1,
-   canIssueInvites: 1,
+   permissions: 1,
    previousNames: 1,
    previousEmails: 1,
    nameChangesUsed: 1,
@@ -26,5 +27,13 @@ export const PUBLIC_USER_PROJECTION: Record<keyof PublicUser, 1> = {
    lastName: 1,
    email: 1,
    role: 1,
-   canIssueInvites: 1,
+   permissions: 1,
 } as const;
+
+export const SAFE_INVITE_PROJECTION: Record<keyof SafeInvite, 1> = {
+   email: 1,
+   role: 1,
+   canIssueInvites: 1,
+   expiresAt: 1,
+   usedAt: 1,
+};

@@ -1,10 +1,12 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getInviteModel } from '@models/Invite.model.ts';
+import { getInviteModel, SafeInvite } from '@models/Invite.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    generateStandardHash,
    HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
+import { buildPreviewInviteResponse } from '@utils/buildResponses.ts';
+import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 // Declare the param shape so `token` is narrowed to `string`:
 type PreviewInviteParams = { token: string };
@@ -34,8 +36,9 @@ export async function previewInviteController(
 
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
-      const Invite = getInviteModel();
-      const invite = await Invite.findOne({ tokenHash }).lean();
+      const invite = (await getInviteModel()
+         .findOne({ tokenHash }, SAFE_INVITE_PROJECTION)
+         .lean()) as SafeInvite | null;
 
       // ── Existence and expiry check ─────────────────────────────────────────────
       /* We check expiresAt even if the document exists, because MongoDB's TTL janitor runs on a background thread and may lag by up to a minute. This ensures the response is always logically correct, not just contingent on when the janitor last ran. */
@@ -65,16 +68,7 @@ export async function previewInviteController(
       }
 
       // ── Return the safe preview ────────────────────────────────────────────────
-      /* We deliberately omit tokenHash, issuedBy, _id, and timestamps. The raw token is already in the URL — there is no reason to echo it back. The frontend uses this response to render a personalised registration form. */
-      return void res.status(200).json({
-         success: true,
-         invite: {
-            email: invite.email,
-            role: invite.role,
-            canIssueInvites: invite.canIssueInvites,
-            expiresAt: invite.expiresAt,
-         },
-      });
+      return void res.status(200).json(buildPreviewInviteResponse(invite));
    } catch (err) {
       next(err);
    }

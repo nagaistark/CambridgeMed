@@ -1,9 +1,11 @@
+import { PreviewInviteResponse, SafeInvite } from '@models/Invite.model.ts';
 import type {
    AuthUserResponse,
    AuthUserResponseLogout,
    IUserDocument,
    SafeUser,
 } from '@models/User.model.ts';
+import { ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
 /* These return the minimal PublicUser shape (there is no need to send the full profile, history arrays, or counters on every token operation.
@@ -31,7 +33,7 @@ export function buildAuthResponse(
             lastName: user.lastName,
             email: user.email,
             role: user.role,
-            canIssueInvites: user.canIssueInvites,
+            permissions: ROLE_PERMISSIONS[user.role],
          },
       };
    }
@@ -53,4 +55,11 @@ export type MeResponse = {
 
 export function buildMeResponse(message: string, user: SafeUser): MeResponse {
    return { success: true, message, user };
+}
+
+// ── Invite preview response ──────────────────────────────────────────────────────
+export function buildPreviewInviteResponse(
+   inv: SafeInvite
+): PreviewInviteResponse {
+   return { success: true, inv };
 }

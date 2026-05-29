@@ -29,7 +29,7 @@ export async function listUsersController(
          return void res.status(200).json({ success: true, users });
       }
 
-      /* Non-superadmin users see the minimal public shape: name, email, role, and canIssueInvites. */
+      /* Non-superadmin users see the minimal public shape: name, email, role, and permissions. */
       const users = (await User.find(
          { invitedBy: { $exists: true } },
          PUBLIC_USER_PROJECTION

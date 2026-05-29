@@ -25,24 +25,24 @@ export const dinRegex = /^\d{8}$/;
 export const snomedRegex = /^[1-9]\d{5,17}$/;
 
 export const baseString = pipe(
-   string(`Must be a string.`),
+   string(`Must be a string (valibot).`),
    trim(),
-   minLength(2, `String should be at least 2 characters long.`),
-   maxLength(baseStringMaxLength, `String is too long.`)
+   minLength(2, `String should be at least 2 characters long (valibot).`),
+   maxLength(baseStringMaxLength, `String is too long (valibot).`)
 );
 
 export const longString = pipe(
-   string(`Must be a string.`),
+   string(`Must be a string (valibot).`),
    trim(),
-   minLength(2, `String should be at least 2 characters long.`),
-   maxLength(longStringMaxLength, `String is too long.`)
+   minLength(2, `String should be at least 2 characters long (valibot).`),
+   maxLength(longStringMaxLength, `String is too long (valibot).`)
 );
 
 export const nameString = pipe(
    baseString,
    regex(
       /^[\p{L} .'\-'']+$/u,
-      `Must not contain invalid or consecutive non-alphanumeric characters in name.`
+      `Must not contain invalid or consecutive non-alphanumeric characters in name (valibot).`
    ),
    transform(name => {
       const words = name
@@ -71,7 +71,7 @@ export const objectIdFormatCheck = pipe(
 
 export const idOrName = union(
    [objectIdFormatCheck, nameString],
-   `Must be either an ID or a name`
+   `Must be either an ID or a name (valibot).`
 );
 
 const validateCalendarDate = check((input: string) => {
@@ -99,7 +99,7 @@ export const validateExpiryDate = pipe(
    dateFromShortString,
    check(input => {
       return DateTime.fromISO(input).endOf('day') >= DateTime.now();
-   }, `The health card has expired.`)
+   }, `The health card has expired (valibot).`)
 );
 
 export const validateDOB = pipe(

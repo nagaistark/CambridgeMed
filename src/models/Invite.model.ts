@@ -51,6 +51,16 @@ export const InviteCreateSchema = strictObject({
 
 export type IInviteCreateBody = InferOutput<typeof InviteCreateSchema>;
 
+export type SafeInvite = Pick<
+   IInviteDefinition,
+   'email' | 'role' | 'canIssueInvites' | 'expiresAt' | 'usedAt'
+>;
+
+export type PreviewInviteResponse = {
+   success: true;
+   inv: SafeInvite;
+};
+
 const InviteDefinition = {
    tokenHash: {
       type: String,

@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 import { getPublicKey } from '@utils/jwtUtils.ts';
 import {
@@ -7,10 +7,12 @@ import {
 } from '@utils/tokenUtils.ts';
 import { allRoles, type UserRole } from '@ssot/user_roles_constants.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
+import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import { CustomSessionPayload } from '@ssot/jwt_payload_constants.ts';
 
 export async function authenticate(
    req: Request,
-   res: Response,
+   res: AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
@@ -39,20 +41,26 @@ export async function authenticate(
       d) Algorithm (is `alg` exactly RS256? This closes the `alg: none` attack vector)
       
       Any failure throws a JOSEError subclass, which next(err) passes to handleJwtError in the error pipeline. We do not handle those errors here — that is the specialist's job. */
+
       const publicKey = await getPublicKey();
-      const { payload } = await jwtVerify(rawToken, publicKey, {
-         algorithms: ['RS256'],
-         audience: ACCESS_TOKEN_AUDIENCE,
-      });
+      const { payload } = await jwtVerify<CustomSessionPayload>(
+         rawToken,
+         publicKey,
+         {
+            algorithms: ['RS256'],
+            audience: ACCESS_TOKEN_AUDIENCE,
+         }
+      );
+      const session: CustomSessionPayload = payload;
 
       // ── Defensive payload narrowing ──────────────────────────────────
-      const { sub, role, canIssueInvites, sessionId } = payload;
+      const { sub, role, permissions, sessionId } = session;
 
       /* The following should never happen, normally. It'd mean we issued a malformed token ourselves. We respond with the same vague 401 to avoid leaking internal details. */
       if (
          typeof sub !== 'string' ||
          !allRoles.includes(role as UserRole) ||
-         typeof canIssueInvites !== 'boolean' ||
+         typeof permissions !== 'number' ||
          typeof sessionId !== 'string'
       ) {
          return void res
@@ -71,7 +79,7 @@ export async function authenticate(
       res.locals.authenticatedUser = {
          sub,
          role: role as UserRole,
-         canIssueInvites,
+         permissions,
          sessionId,
       };
       next();

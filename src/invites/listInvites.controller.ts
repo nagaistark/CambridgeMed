@@ -136,10 +136,7 @@ export async function listInvitesController(
             // Accepted invite: enrich with the invitee's registered name.
             const invitee = acceptedUsersMap.get(invite.email);
 
-            // This should never be null — an accepted invite implies a User
-            // document exists. If it isn't found, we fall back to empty strings
-            // rather than throwing, since this is a list endpoint and one
-            // missing user shouldn't collapse the entire response.
+            /* This should never be null — an accepted invite implies a User document exists. If it isn't found, we fall back to empty strings rather than throwing, since this is a list endpoint and one missing user shouldn't collapse the entire response. */
             const firstName = invitee?.firstName ?? '';
             const lastName = invitee?.lastName ?? '';
 

@@ -1,7 +1,6 @@
 import { SignJWT } from 'jose';
 import type { Response } from 'express';
 import { myEnv } from 'validateConfig.ts';
-import type { UserRole } from '@ssot/user_roles_constants.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
 import {
    generateRandomToken,
@@ -12,6 +11,7 @@ import {
    TOTP_CHALLENGE_COOKIE_NAME,
    TOTP_CHALLENGE_EXPIRY_SECONDS,
 } from '@ssot/totp_constants.ts';
+import { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 /* Single source of truth for cookie names. Imported by the authenticate middleware and the refresh controller. */
@@ -22,11 +22,7 @@ export const REFRESH_TOKEN_COOKIE_NAME = 'refresh_token' as const;
 export const ACCESS_TOKEN_AUDIENCE = 'access' as const;
 
 // ── Access token ─────────────────────────────────────────────────────────────────
-export type AccessTokenPayload = {
-   sub: string; // user._id as a string
-   role: UserRole;
-   canIssueInvites: boolean;
-   sessionId: string; // the Session document's _id as a string
+export type AccessTokenPayload = AuthenticatedUser & {
    expirationTime: number;
 };
 
@@ -36,7 +32,7 @@ export async function signAccessToken(
    const privateKey = await getPrivateKey(); // Here, we use the module-level cache in jwtUtils
    return new SignJWT({
       role: payload.role,
-      canIssueInvites: payload.canIssueInvites,
+      permissions: payload.permissions,
       sessionId: payload.sessionId,
    })
       .setProtectedHeader({ alg: 'RS256' })

@@ -37,7 +37,7 @@ export async function issueSession(
    const accessToken = await signAccessToken({
       sub: user._id.toString(),
       role: user.role,
-      canIssueInvites: user.canIssueInvites,
+      permissions: user.permissions,
       sessionId: sessionDoc._id.toString(),
       expirationTime: accessTokenExpirationTime,
    });
