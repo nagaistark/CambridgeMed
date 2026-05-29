@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
+import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { hexHashValidator } from '@ssot/node_crypto_constants.ts';
@@ -34,7 +34,7 @@ const PasswordResetDefinition = {
       type: Date,
       required: [true, `Expiry date is required.`],
    },
-} satisfies StrictSchemaDefinition<IPasswordResetDefinition>;
+} satisfies StrictSchemaDefinition_v4<IPasswordResetDefinition>;
 
 const PasswordResetSchema = new mongoose.Schema<IPasswordResetDocument>(
    PasswordResetDefinition,

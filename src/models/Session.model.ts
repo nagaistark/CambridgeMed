@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
+import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { hexHashValidator } from '@ssot/node_crypto_constants.ts';
@@ -67,7 +67,7 @@ const SessionDefinition = {
       trim: true,
       maxlength: [512, `User-Agent string is too long.`],
    },
-} satisfies StrictSchemaDefinition<ISessionDefinition>;
+} satisfies StrictSchemaDefinition_v4<ISessionDefinition>;
 
 const SessionSchema = new mongoose.Schema<ISessionDocument>(SessionDefinition, {
    timestamps: true,

@@ -1,6 +1,6 @@
 import mongoose from 'mongoose';
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
-import { StrictSchemaDefinition } from '@utils/mongoose_types.ts';
+import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
 import {
    boolean,
    email,
@@ -100,7 +100,7 @@ const InviteDefinition = {
       ref: 'User',
       required: [true, `Who issued the invite?`],
    },
-} satisfies StrictSchemaDefinition<IInviteDefinition>;
+} satisfies StrictSchemaDefinition_v4<IInviteDefinition>;
 
 const InviteSchema = new mongoose.Schema<IInviteDocument>(InviteDefinition, {
    timestamps: true,

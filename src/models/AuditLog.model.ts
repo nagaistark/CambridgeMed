@@ -6,7 +6,7 @@ import {
    baseString,
 } from '@utils/valibotSchemaReusables.ts';
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
-import { StrictSchemaDefinition_v2 } from '@utils/mongoose_types.ts';
+import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { InferOutput, ip, pipe, strictObject, uuid } from 'valibot';
@@ -80,7 +80,7 @@ const AuditLogMongooseDefinition = {
       type: Date,
       required: true,
    },
-} satisfies StrictSchemaDefinition_v2<IAuditLogDefinition>;
+} satisfies StrictSchemaDefinition_v4<IAuditLogDefinition>;
 
 export const AuditLogMongooseSchema = new mongoose.Schema<IAuditLogDocument>(
    AuditLogMongooseDefinition,
