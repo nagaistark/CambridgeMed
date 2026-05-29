@@ -78,7 +78,7 @@ export async function authenticate(
       /* After all four checks pass (the claims are the right shape), we attach the verified identity to res.locals so every downstream controller can read it without touching the database. This is the authenticated user's passport for the remainder of this request's journey. */
       res.locals.authenticatedUser = {
          sub,
-         role: role as UserRole,
+         role,
          permissions,
          sessionId,
       };
