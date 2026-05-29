@@ -5,7 +5,6 @@ import type {
    IUserDocument,
    SafeUser,
 } from '@models/User.model.ts';
-import { ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
 /* These return the minimal PublicUser shape (there is no need to send the full profile, history arrays, or counters on every token operation.
@@ -33,7 +32,7 @@ export function buildAuthResponse(
             lastName: user.lastName,
             email: user.email,
             role: user.role,
-            permissions: ROLE_PERMISSIONS[user.role],
+            permissions: user.permissions,
          },
       };
    }

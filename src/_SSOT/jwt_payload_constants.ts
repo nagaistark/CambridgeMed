@@ -1,9 +1,6 @@
-import { UserRole } from '@ssot/user_roles_constants.ts';
+import { AuthenticatedUser } from './authenticated_user_constants.ts';
 
-export type CustomSessionPayload = {
-   sub: string;
-   role: UserRole;
-   permissions: number;
-   sessionId: string;
+/* CustomSessionPayload is what `jose` hands back after jwtVerify — AuthenticatedUser's fields plus the standard JWT `exp` claim. Deriving from AuthenticatedUser means any change to the token's core claims propagates here automatically. */
+export type CustomSessionPayload = AuthenticatedUser & {
    exp?: number;
 };
