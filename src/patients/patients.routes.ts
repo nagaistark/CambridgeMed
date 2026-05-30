@@ -14,3 +14,5 @@ patientRouter.post(
    selectPatientCreateSchema, // includes `validateBody` (!)
    createPatientController
 );
+
+export default patientRouter;

@@ -96,7 +96,7 @@ export type PublicUser = Pick<
    '_id' | 'firstName' | 'lastName' | 'email' | 'role' | 'permissions'
 >;
 
-// ── HTTP response envelope types ─────────────────────────────────────────────────
+// ── HTTP response types ──────────────────────────────────────────────────────────
 export type AuthUserResponse = {
    success: true;
    message: string;

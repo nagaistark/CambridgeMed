@@ -5,18 +5,19 @@ import {
    patientVSchemaFull,
    patientVSchemaInitial,
 } from '@models/Patient.model.ts';
-import { ROLE_DOCTOR } from '@ssot/user_roles_constants.ts';
+import { Permissions } from '@ssot/permissions_constants.ts';
 
 export function selectPatientCreateSchema(
    req: Request,
    res: AuthenticatedResponse,
    next: NextFunction
 ): void {
-   const user = res.locals.authenticatedUser;
+   const { permissions } = res.locals.authenticatedUser;
 
    /* Picking the schema based on what the authenticated role is allowed to submit. */
-   const schema =
-      user.role === ROLE_DOCTOR ? patientVSchemaFull : patientVSchemaInitial;
+   const canWriteClinical = (permissions & Permissions.WRITE_CLINICAL) !== 0;
+
+   const schema = canWriteClinical ? patientVSchemaFull : patientVSchemaInitial;
 
    /* validateBody(schema) produces a middleware function. We call that function immediately, passing the current req/res/next through. */
    validateBody(schema)(req, res, next);

@@ -352,34 +352,34 @@ export type IPatientDocument = IPatientDefinitionFull & {
    updatedAt: Date;
 };
 
-// ── IntakeInfo types ─────────────────────────────────────────────────────────────
-type ICoreIdentifiers = IPatientDefinitionFull['intakeInfo']['coreIdentifiers'];
-type ISupplementalInsurance =
-   IPatientDefinitionFull['intakeInfo']['supplementalInsurance'];
-type IPreferences = NonNullable<
-   IPatientDefinitionFull['intakeInfo']['preferences']
->;
-type IDemographics = IPatientDefinitionFull['intakeInfo']['demographics'];
-type ISocialHistory = IPatientDefinitionFull['intakeInfo']['socialHistory'];
-type IFamilyHistoryEntry = NonNullable<
-   IPatientDefinitionFull['intakeInfo']['familyHistory']
->[number];
-type IAccessibilityNeeds = NonNullable<
-   IPatientDefinitionFull['intakeInfo']['accessibilityNeeds']
->;
-type IAddressEntry =
-   IPatientDefinitionFull['intakeInfo']['contactInformation']['addresses'][number];
-type IPhoneEntry =
-   IPatientDefinitionFull['intakeInfo']['contactInformation']['phones'][number];
-type IContactInformation =
-   IPatientDefinitionFull['intakeInfo']['contactInformation'];
-type IEmergencyContactsEntry =
-   IPatientDefinitionFull['intakeInfo']['emergencyContacts'][number];
-type INextOfKin = NonNullable<
-   IPatientDefinitionFull['intakeInfo']['nextOfKin']
->;
+// ── HTTP response types ──────────────────────────────────────────────────────────
+export type PatientCreateFullResponse = {
+   success: true;
+   message: string;
+   patient: IPatientDocument; // Includes clinicalInfo
+};
 
+export type PatientCreateIntakeResponse = {
+   success: true;
+   message: string;
+   patient: Omit<IPatientDocument, 'clinicalInfo'>;
+};
+
+// ── IntakeInfo types ─────────────────────────────────────────────────────────────
 type IIntakeInfo = IPatientDefinitionFull['intakeInfo'];
+
+type ICoreIdentifiers = IIntakeInfo['coreIdentifiers'];
+type ISupplementalInsurance = IIntakeInfo['supplementalInsurance'];
+type IPreferences = NonNullable<IIntakeInfo['preferences']>;
+type IDemographics = IIntakeInfo['demographics'];
+type ISocialHistory = IIntakeInfo['socialHistory'];
+type IFamilyHistoryEntry = NonNullable<IIntakeInfo['familyHistory']>[number];
+type IAccessibilityNeeds = NonNullable<IIntakeInfo['accessibilityNeeds']>;
+type IAddressEntry = IIntakeInfo['contactInformation']['addresses'][number];
+type IPhoneEntry = IIntakeInfo['contactInformation']['phones'][number];
+type IContactInformation = IIntakeInfo['contactInformation'];
+type IEmergencyContactsEntry = IIntakeInfo['emergencyContacts'][number];
+type INextOfKin = NonNullable<IIntakeInfo['nextOfKin']>;
 
 // ── IntakeInfo subschemas ────────────────────────────────────────────────────────
 const CoreIdentifiersDefinition = {
@@ -1000,6 +1000,10 @@ export const PatientSchema = new mongoose.Schema<IPatientDocument>(
 PatientSchema.index({ 'intakeInfo.demographics.lastName': 1 });
 PatientSchema.index(
    { 'intakeInfo.contactInformation.phones.number': 1 },
+   { unique: true }
+);
+PatientSchema.index(
+   { 'intakeInfo.coreIdentifiers.healthCardNumber': 1 },
    { unique: true }
 );
 

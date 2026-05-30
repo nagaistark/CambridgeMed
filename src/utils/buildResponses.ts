@@ -1,4 +1,9 @@
 import { PreviewInviteResponse, SafeInvite } from '@models/Invite.model.ts';
+import {
+   IPatientDocument,
+   PatientCreateFullResponse,
+   PatientCreateIntakeResponse,
+} from '@models/Patient.model.ts';
 import type {
    AuthUserResponse,
    AuthUserResponseLogout,
@@ -61,4 +66,29 @@ export function buildPreviewInviteResponse(
    inv: SafeInvite
 ): PreviewInviteResponse {
    return { success: true, inv };
+}
+
+// ── Patient responses ────────────────────────────────────────────────────────────
+export function buildCreatePatientResponse(
+   patient: IPatientDocument, // Plain object because the caller did `.toObject()`
+   canReadClinical: boolean
+): PatientCreateFullResponse | PatientCreateIntakeResponse {
+   const message = 'Patient created successfully.';
+
+   if (canReadClinical) {
+      /* Full shape: clinicalInfo is already present on the patient parameter */
+      return { success: true, message, patient };
+   }
+
+   /* TypeScript checks that every field of Omit<IPatientDocument, 'clinicalInfo'> is satisfied by this object literal — no destructuring required. */
+   const intakePatient: Omit<IPatientDocument, 'clinicalInfo'> = {
+      _id: patient._id,
+      isActive: patient.isActive,
+      primaryDoctorId: patient.primaryDoctorId,
+      intakeInfo: patient.intakeInfo,
+      createdAt: patient.createdAt,
+      updatedAt: patient.updatedAt,
+   };
+
+   return { success: true, message, patient: intakePatient };
 }
