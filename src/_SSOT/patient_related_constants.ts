@@ -22,7 +22,12 @@ export const housingSituationVariants = [
    'supported',
    'unknown',
 ] as const;
-export const alcoholUseLevels = ['none', 'occasional', 'regular', 'heavy'];
+export const alcoholUseLevels = [
+   'none',
+   'occasional',
+   'regular',
+   'heavy',
+] as const;
 export const substanceUseLevels = [
    'none',
    'occasional',

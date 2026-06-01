@@ -12,6 +12,8 @@ import {
    transform,
    trim,
    union,
+   strictObject,
+   InferOutput,
 } from 'valibot';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
@@ -73,6 +75,12 @@ export const idOrName = union(
    [objectIdFormatCheck, nameString],
    `Must be either an ID or a name (valibot).`
 );
+
+export const MongoIdParamSchema = strictObject({
+   id: objectIdFormatCheck,
+});
+
+export type IMongoIdParam = InferOutput<typeof MongoIdParamSchema>;
 
 const validateCalendarDate = check((input: string) => {
    return DateTime.fromISO(input).isValid;

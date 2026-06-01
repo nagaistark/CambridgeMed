@@ -5,6 +5,14 @@ export type ResponseWithValidatedBody<T> = Response & {
    locals: Express.Locals & { validatedBody: T };
 };
 
+export type ResponseWithValidatedQuery<T> = Response & {
+   locals: Express.Locals & { validatedQuery: T };
+};
+
+export type ResponseWithValidatedParams<T> = Response & {
+   locals: Express.Locals & { validatedParams: T };
+};
+
 export type AuthenticatedResponse = Response & {
    locals: Express.Locals & { authenticatedUser: AuthenticatedUser };
 };
