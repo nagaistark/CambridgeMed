@@ -9,6 +9,7 @@ import { validateParams } from '@middleware/validateParams.ts';
 import { PatientQuerySchema } from '@models/Patient.model.ts';
 import { MongoIdParamSchema } from '@utils/valibotSchemaReusables.ts';
 import { getPatientController } from '@patients/getPatient.controller.ts';
+import { listPatientsController } from '@patients/listPatients.controller.ts';
 
 const patientRouter = Router();
 
@@ -25,8 +26,8 @@ patientRouter.get(
    '/',
    authenticate,
    requirePermissions(Permissions.READ_INTAKE),
-   validateQuery(PatientQuerySchema)
-   // listPatientsController
+   validateQuery(PatientQuerySchema),
+   listPatientsController
 );
 
 patientRouter.get(
