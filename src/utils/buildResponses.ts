@@ -3,6 +3,10 @@ import {
    IPatientDocument,
    PatientCreateFullResponse,
    PatientCreateIntakeResponse,
+   PatientGetFullResponse,
+   PatientGetIntakeResponse,
+   PatientSummary,
+   PatientListResponse,
 } from '@models/Patient.model.ts';
 import type {
    AuthUserResponse,
@@ -91,4 +95,46 @@ export function buildCreatePatientResponse(
    };
 
    return { success: true, message, patient: intakePatient };
+}
+
+export function buildGetPatientResponse(
+   patient: IPatientDocument,
+   canReadClinical: boolean
+): PatientGetFullResponse | PatientGetIntakeResponse {
+   if (canReadClinical) {
+      return { success: true, patient };
+   }
+
+   /* Explicit object construction rather than rest-spread destructuring. The type annotation on intakePatient forces TypeScript to verify that every field of Omit<IPatientDocument, 'clinicalInfo'> is present here. If a new top-level field is added to IPatientDocument, this assignment site fails to compile until it is included — drift is impossible. */
+   const intakePatient: Omit<IPatientDocument, 'clinicalInfo'> = {
+      _id: patient._id,
+      isActive: patient.isActive,
+      primaryDoctorId: patient.primaryDoctorId,
+      intakeInfo: patient.intakeInfo,
+      createdAt: patient.createdAt,
+      updatedAt: patient.updatedAt,
+   };
+
+   return { success: true, patient: intakePatient };
+}
+
+export function buildListPatientsResponse(
+   patients: PatientSummary[],
+   total: number,
+   page: number,
+   limit: number
+): PatientListResponse {
+   const totalPages = Math.ceil(total / limit);
+   return {
+      success: true,
+      patients,
+      pagination: {
+         total,
+         page,
+         limit,
+         totalPages,
+         hasNextPage: page < totalPages,
+         hasPrevPage: page > 1,
+      },
+   };
 }

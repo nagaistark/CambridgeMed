@@ -6,14 +6,18 @@ import {
    check,
    forward,
    InferOutput,
+   intersect,
+   object,
    optional,
    partialCheck,
    pick,
    pipe,
    regex,
    strictObject,
+   transform,
 } from 'valibot';
 import {
+   BasePaginationSchema,
    baseString,
    dateInTheFutureOrOptionallyToday,
    dateInThePastOrOptionallyToday,
@@ -67,6 +71,7 @@ import {
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { AuditableResourceType } from '@ssot/audit_constants.ts';
+import { escapeRegex } from '@utils/escapeRegex.ts';
 
 // ── Valibot subschemas ───────────────────────────────────────────────────────────
 export const medicationVSchema = strictObject({
@@ -292,14 +297,24 @@ export const patientVSchemaFull = strictObject({
 
       contactInformation: strictObject({
          addresses: array(
-            strictObject({
-               street: baseString,
-               city: nameString,
-               province: makePicklist(provincesAndTerritories),
-               postalCode: validateCanadianPostalCode,
-               country: makePicklist(['Canada', 'United States']),
-               isPrimary: boolean(),
-            })
+            pipe(
+               strictObject({
+                  street: baseString,
+                  city: nameString,
+                  province: makePicklist(provincesAndTerritories),
+                  postalCode: validateCanadianPostalCode,
+                  country: makePicklist(['Canada', 'United States']),
+                  isPrimary: boolean(),
+               }),
+               forward(
+                  check(({ country, province }) => {
+                     return country === 'Canada'
+                        ? province !== 'Outside'
+                        : province === 'Outside';
+                  }, `Invalid province for selected country (valibot).`),
+                  ['province']
+               )
+            )
          ),
          phones: array(
             strictObject({
@@ -363,6 +378,46 @@ export type PatientCreateIntakeResponse = {
    success: true;
    message: string;
    patient: Omit<IPatientDocument, 'clinicalInfo'>;
+};
+
+// ── GET response types ───────────────────────────────────────────────────────────
+export type PatientSummary = Pick<
+   IPatientDocument,
+   '_id' | 'isActive' | 'primaryDoctorId' | 'createdAt' | 'updatedAt'
+> & {
+   intakeInfo: {
+      demographics: Pick<
+         IPatientDocument['intakeInfo']['demographics'],
+         'prefix' | 'firstName' | 'lastName' | 'dateOfBirth' | 'deceased'
+      >;
+      coreIdentifiers: Pick<
+         IPatientDocument['intakeInfo']['coreIdentifiers'],
+         'healthCardNumber' | 'chartNumber' | 'enrolledStatus'
+      >;
+   };
+};
+
+export type PatientGetFullResponse = {
+   success: true;
+   patient: IPatientDocument;
+};
+
+export type PatientGetIntakeResponse = {
+   success: true;
+   patient: Omit<IPatientDocument, 'clinicalInfo'>;
+};
+
+export type PatientListResponse = {
+   success: true;
+   patients: PatientSummary[];
+   pagination: {
+      total: number;
+      page: number;
+      limit: number;
+      totalPages: number;
+      hasNextPage: boolean;
+      hasPrevPage: boolean;
+   };
 };
 
 // ── IntakeInfo types ─────────────────────────────────────────────────────────────
@@ -1014,3 +1069,30 @@ export const getPatientModel = createModelGetter<IPatientDocument>(
    modelName,
    PatientSchema
 );
+
+// ── GET /api/patients ────────────────────────────────────────────────────────────
+const ListPatientFilterSchema = object({
+   search: optional(
+      pipe(
+         baseString,
+         transform((val: string): string => {
+            return escapeRegex(val);
+         })
+      )
+   ),
+   includeArchived: optional(
+      pipe(
+         baseString,
+         transform((val: string): boolean => {
+            return val.toLowerCase() === 'true';
+         })
+      )
+   ),
+});
+
+export const PatientQuerySchema = intersect([
+   BasePaginationSchema,
+   ListPatientFilterSchema,
+]);
+
+export type ListPatientsQuery = InferOutput<typeof PatientQuerySchema>;

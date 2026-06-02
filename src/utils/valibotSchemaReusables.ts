@@ -14,6 +14,9 @@ import {
    union,
    strictObject,
    InferOutput,
+   object,
+   fallback,
+   toNumber,
 } from 'valibot';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
@@ -29,14 +32,14 @@ export const snomedRegex = /^[1-9]\d{5,17}$/;
 export const baseString = pipe(
    string(`Must be a string (valibot).`),
    trim(),
-   minLength(2, `String should be at least 2 characters long (valibot).`),
+   minLength(1, `String should be at least 1 character long (valibot).`),
    maxLength(baseStringMaxLength, `String is too long (valibot).`)
 );
 
 export const longString = pipe(
    string(`Must be a string (valibot).`),
    trim(),
-   minLength(2, `String should be at least 2 characters long (valibot).`),
+   minLength(1, `String should be at least 1 character long (valibot).`),
    maxLength(longStringMaxLength, `String is too long (valibot).`)
 );
 
@@ -197,3 +200,26 @@ export const validateSnomed = pipe(
    baseString,
    regex(snomedRegex, `Invalid SNOMED code (valibot).`)
 );
+
+// ── Reusable Pagination Schema (req.query) ───────────────────────────────────────
+/* `object` (not `strictObject`) because URLs can carry arbitrary query params from browser extensions, analytics proxies, or CDN tools. */
+export const BasePaginationSchema = object({
+   page: fallback(
+      pipe(
+         baseString,
+         toNumber(),
+         integer(),
+         minValue(1, `Page must be at least 1 (valibot).`)
+      ),
+      1
+   ),
+   limit: fallback(
+      pipe(
+         baseString,
+         toNumber(),
+         integer(),
+         minValue(1, `Limit must be at least 1 (valibot).`)
+      ),
+      10
+   ),
+});
