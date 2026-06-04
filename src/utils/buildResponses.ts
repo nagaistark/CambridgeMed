@@ -6,7 +6,7 @@ import {
    PatientGetFullResponse,
    PatientGetIntakeResponse,
    PatientSummary,
-   PatientListResponse,
+   PatientCursorListResponse,
 } from '@models/Patient.model.ts';
 import type {
    AuthUserResponse,
@@ -14,6 +14,7 @@ import type {
    IUserDocument,
    SafeUser,
 } from '@models/User.model.ts';
+import { encodeCursor } from '@utils/cursorPagination.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
 /* These return the minimal PublicUser shape (there is no need to send the full profile, history arrays, or counters on every token operation.
@@ -118,23 +119,26 @@ export function buildGetPatientResponse(
    return { success: true, patient: intakePatient };
 }
 
-export function buildListPatientsResponse(
+export function buildCursorPatientsResponse(
    patients: PatientSummary[],
-   total: number,
-   page: number,
    limit: number
-): PatientListResponse {
-   const totalPages = Math.ceil(total / limit);
+): PatientCursorListResponse {
+   // Check if we retrieved that extra "+1" document
+   const hasNextPage = patients.length > limit;
+
+   if (hasNextPage) {
+      patients.pop(); // Remove the extra document so we only return the exact limit
+   }
+
+   // Generate the bookmark based on the very last item in the list
+   const nextCursor =
+      hasNextPage && patients.length > 0
+         ? encodeCursor(patients[patients.length - 1])
+         : null;
+
    return {
       success: true,
       patients,
-      pagination: {
-         total,
-         page,
-         limit,
-         totalPages,
-         hasNextPage: page < totalPages,
-         hasPrevPage: page > 1,
-      },
+      pagination: { nextCursor, limit },
    };
 }

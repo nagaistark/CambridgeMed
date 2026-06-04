@@ -17,6 +17,7 @@ import {
    object,
    fallback,
    toNumber,
+   optional,
 } from 'valibot';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
@@ -203,16 +204,8 @@ export const validateSnomed = pipe(
 
 // ── Reusable Pagination Schema (req.query) ───────────────────────────────────────
 /* `object` (not `strictObject`) because URLs can carry arbitrary query params from browser extensions, analytics proxies, or CDN tools. */
-export const BasePaginationSchema = object({
-   page: fallback(
-      pipe(
-         baseString,
-         toNumber(),
-         integer(),
-         minValue(1, `Page must be at least 1 (valibot).`)
-      ),
-      1
-   ),
+export const CursorPaginationSchema = object({
+   cursor: optional(pipe(string(`Cursor must be a string (valibot).`), trim())),
    limit: fallback(
       pipe(
          baseString,

@@ -17,7 +17,7 @@ import {
    transform,
 } from 'valibot';
 import {
-   BasePaginationSchema,
+   CursorPaginationSchema,
    baseString,
    dateInTheFutureOrOptionallyToday,
    dateInThePastOrOptionallyToday,
@@ -72,6 +72,8 @@ import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { AuditableResourceType } from '@ssot/audit_constants.ts';
 import { escapeRegex } from '@utils/escapeRegex.ts';
+import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { StrictIndexConfig } from '@utils/pathFinder.ts';
 
 // ── Valibot subschemas ───────────────────────────────────────────────────────────
 export const medicationVSchema = strictObject({
@@ -381,16 +383,28 @@ export type PatientCreateIntakeResponse = {
 };
 
 // ── GET response types ───────────────────────────────────────────────────────────
+
+type IntakeInfoKey = keyof Pick<IPatientDocument, 'intakeInfo'>;
+type DemographicsKey = keyof Pick<
+   IPatientDocument['intakeInfo'],
+   'demographics'
+>;
+type CoreIdentifiersKey = keyof Pick<
+   IPatientDocument['intakeInfo'],
+   'coreIdentifiers'
+>;
+
 export type PatientSummary = Pick<
    IPatientDocument,
    '_id' | 'isActive' | 'primaryDoctorId' | 'createdAt' | 'updatedAt'
 > & {
-   intakeInfo: {
-      demographics: Pick<
+   [K in IntakeInfoKey]: {
+      [D in DemographicsKey]: Pick<
          IPatientDocument['intakeInfo']['demographics'],
          'prefix' | 'firstName' | 'lastName' | 'dateOfBirth' | 'deceased'
       >;
-      coreIdentifiers: Pick<
+   } & {
+      [C in CoreIdentifiersKey]: Pick<
          IPatientDocument['intakeInfo']['coreIdentifiers'],
          'healthCardNumber' | 'chartNumber' | 'enrolledStatus'
       >;
@@ -407,16 +421,12 @@ export type PatientGetIntakeResponse = {
    patient: Omit<IPatientDocument, 'clinicalInfo'>;
 };
 
-export type PatientListResponse = {
+export type PatientCursorListResponse = {
    success: true;
    patients: PatientSummary[];
    pagination: {
-      total: number;
-      page: number;
+      nextCursor: string | null;
       limit: number;
-      totalPages: number;
-      hasNextPage: boolean;
-      hasPrevPage: boolean;
    };
 };
 
@@ -1052,14 +1062,31 @@ export const PatientSchema = new mongoose.Schema<IPatientDocument>(
    }
 );
 
-PatientSchema.index({ 'intakeInfo.demographics.lastName': 1 });
+// ── Indexes ──────────────────────────────────────────────────────────────────────
+
+PatientSchema.index({
+   'intakeInfo.demographics.lastName': 1,
+   'intakeInfo.demographics.firstName': 1,
+} satisfies StrictIndexConfig<IPatientDefinitionInit>);
+
 PatientSchema.index(
-   { 'intakeInfo.contactInformation.phones.number': 1 },
+   {
+      'intakeInfo.contactInformation.phones.number': 1,
+      'intakeInfo.coreIdentifiers.healthCardNumber': 1,
+   } satisfies StrictIndexConfig<IPatientDefinitionInit>,
    { unique: true }
 );
+
 PatientSchema.index(
-   { 'intakeInfo.coreIdentifiers.healthCardNumber': 1 },
-   { unique: true }
+   {
+      'intakeInfo.demographics.lastName': 'text',
+      'intakeInfo.demographics.firstName': 'text',
+      'intakeInfo.coreIdentifiers.healthCardNumber': 'text',
+      'intakeInfo.coreIdentifiers.chartNumber': 'text',
+   } satisfies StrictIndexConfig<IPatientDefinitionInit>,
+   {
+      name: 'PatientSearchIndex',
+   }
 );
 
 const modelName: Extract<AuditableResourceType, 'Patient'> = 'Patient';
@@ -1091,8 +1118,15 @@ const ListPatientFilterSchema = object({
 });
 
 export const PatientQuerySchema = intersect([
-   BasePaginationSchema,
+   CursorPaginationSchema,
    ListPatientFilterSchema,
 ]);
 
 export type ListPatientsQuery = InferOutput<typeof PatientQuerySchema>;
+
+export const PATIENT_LIST_SEARCH_FIELDS = [
+   'intakeInfo.demographics.lastName',
+   'intakeInfo.demographics.firstName',
+   'intakeInfo.coreIdentifiers.healthCardNumber',
+   'intakeInfo.coreIdentifiers.chartNumber',
+] as const satisfies ReadonlyArray<keyof typeof LIST_PATIENT_PROJECTION>;
