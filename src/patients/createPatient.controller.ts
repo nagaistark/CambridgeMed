@@ -77,8 +77,8 @@ export async function createPatientController(
          actorRole: role,
          action: 'CREATE',
          resourceType: 'Patient',
-         resourceID: newPatient._id.toString(),
-         patientID: newPatient._id.toString(),
+         resourceIDs: [newPatient._id.toString()],
+         patientIDs: [newPatient._id.toString()],
          ipAddress: req.ip ?? '0.0.0.0',
          requestId,
       });

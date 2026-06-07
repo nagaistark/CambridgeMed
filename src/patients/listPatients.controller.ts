@@ -9,6 +9,7 @@ import { buildCursorPatientsResponse } from '@utils/buildResponses.ts';
 import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import type { ListPatientsQuery } from '@models/Patient.model.ts';
 import { decodeCursor } from '@utils/cursorPagination.ts';
+import { auditLog } from '@services/auditLog.service.ts';
 
 export const PATIENT_SORT_FIELDS = [
    'intakeInfo.demographics.lastName',
@@ -36,11 +37,13 @@ type PatientCursorFilter = {
 };
 
 export async function listPatientsController(
-   _req: Request,
+   req: Request,
    res: AuthenticatedResponse & ResponseWithValidatedQuery<ListPatientsQuery>,
    next: NextFunction
 ): Promise<void> {
    try {
+      const requestId = res.locals.requestId;
+      const { sub, role } = res.locals.authenticatedUser;
       const { limit, search, includeArchived, cursor } =
          res.locals.validatedQuery;
 
@@ -87,6 +90,17 @@ export async function listPatientsController(
          } satisfies Record<SortFieldsTuple[number], 1 | -1>)
          .limit(limit + 1)
          .lean<PatientSummary[]>();
+
+      auditLog.record({
+         actorID: sub,
+         actorRole: role,
+         action: 'READ',
+         resourceType: 'Patient',
+         resourceIDs: patients.map(({ _id }) => _id.toString()),
+         patientIDs: patients.map(({ _id }) => _id.toString()),
+         ipAddress: req.ip ?? '0.0.0.0',
+         requestId,
+      });
 
       return void res
          .status(200)

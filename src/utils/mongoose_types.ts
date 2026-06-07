@@ -78,3 +78,105 @@ export type LeafPaths<T extends object, Prefix extends string = ''> = {
           ? LeafPaths<NonNullable<T[K]>, `${Prefix}${K}.`> // plain object: recurse
           : `${Prefix}${K}`;
 }[keyof T & string];
+
+// vX
+type ExactMongooseType<T> = T extends string
+   ? StringConstructor
+   : T extends number
+     ? NumberConstructor
+     : T extends boolean
+       ? BooleanConstructor
+       : T extends Date
+         ? DateConstructor
+         : T extends mongoose.Types.ObjectId
+           ? typeof mongoose.Schema.Types.ObjectId
+           : T extends mongoose.Types.Decimal128
+             ? typeof mongoose.Schema.Types.Decimal128
+             : T extends Buffer
+               ? typeof mongoose.Schema.Types.Buffer
+               : mongoose.SchemaDefinitionProperty<T>; // Fallback only for complex/unknown types
+
+type ResolveArrayFieldX<U> =
+   IsPlainObject<NonNullable<U>> extends true
+      ? [mongoose.Schema<NonNullable<U>>]
+      : [ExactMongooseType<NonNullable<U>>];
+
+type MongooseFieldDef_vX<T> =
+   NonNullable<T> extends (infer U)[]
+      ? // Array Branch
+           | ResolveArrayFieldX<U>
+           | {
+                type: ResolveArrayFieldX<U>;
+                required?: RequiredProperty;
+                default?: any[] | ((...args: any[]) => any[]);
+             }
+      : // Scalar Branch
+        IsPlainObject<NonNullable<T>> extends true
+        ?
+             | mongoose.Schema<NonNullable<T>>
+             | {
+                  type: mongoose.Schema<NonNullable<T>>;
+                  required?: RequiredProperty;
+                  default?: undefined;
+               }
+        : // Scalar Primitive
+             | ExactMongooseType<NonNullable<T>>
+             | {
+                  type: ExactMongooseType<NonNullable<T>>;
+                  required?: RequiredProperty;
+                  default?: any;
+               };
+
+export type StrictSchemaDefinition_vX<T> = {
+   [K in keyof T]-?: MongooseFieldDef_vX<T[K]>;
+};
+
+// v5
+type RequiredProperty_ = boolean | [boolean, string];
+
+// 1. STRICT MAP: Explicitly bind TS primitives to Mongoose constructors. This prevents Mongoose's generic "Function" type from allowing things like [Boolean] for ObjectIds.
+type StrictTypeMap<T> =
+   NonNullable<T> extends mongoose.Types.ObjectId
+      ? typeof mongoose.Schema.Types.ObjectId
+      : NonNullable<T> extends mongoose.Types.Decimal128
+        ? typeof mongoose.Schema.Types.Decimal128
+        : NonNullable<T> extends string
+          ? typeof String | typeof mongoose.Schema.Types.String
+          : NonNullable<T> extends number
+            ? typeof Number | typeof mongoose.Schema.Types.Number
+            : NonNullable<T> extends boolean
+              ? typeof Boolean | typeof mongoose.Schema.Types.Boolean
+              : NonNullable<T> extends Date
+                ? typeof Date | typeof mongoose.Schema.Types.Date
+                : NonNullable<T> extends Buffer
+                  ? typeof Buffer | typeof mongoose.Schema.Types.Buffer
+                  : IsPlainObject<NonNullable<T>> extends true
+                    ?
+                         | mongoose.Schema<NonNullable<T>>
+                         | StrictSchemaDefinition_v5<NonNullable<T>>
+                    : mongoose.SchemaDefinitionProperty<T>;
+
+// 2. FIELD DEFINITION: Merge our strict 'type' with Mongoose's native options.
+type MongooseFieldDef_v5<T> =
+   NonNullable<T> extends (infer U)[]
+      ? // Array Branch
+           | StrictTypeMap<U>[]
+           | [StrictTypeMap<U>]
+           | (Omit<mongoose.SchemaTypeOptions<U[]>, 'type' | 'required'> & {
+                type: StrictTypeMap<U>[] | [StrictTypeMap<U>];
+                required?: RequiredProperty_;
+             })
+      : // Scalar Branch
+           | StrictTypeMap<T>
+           | (Omit<
+                mongoose.SchemaTypeOptions<NonNullable<T>>,
+                'type' | 'required'
+             > & {
+                type: StrictTypeMap<T>;
+                required?: RequiredProperty_;
+             });
+
+// 3. THE SCHEMA DEFINITION
+export type StrictSchemaDefinition_v5<T> = {
+   [K in keyof T]-?: MongooseFieldDef_v5<T[K]>;
+};

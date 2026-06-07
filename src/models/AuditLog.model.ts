@@ -4,15 +4,29 @@ import { auditableResourceTypes, auditActions } from '@ssot/audit_constants.ts';
 import {
    objectIdFormatCheck,
    baseString,
+   longString,
 } from '@utils/valibotSchemaReusables.ts';
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
-import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
+import { StrictSchemaDefinition_v5 } from '@utils/mongoose_types.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
-import { InferOutput, ip, pipe, strictObject, uuid } from 'valibot';
+import {
+   array,
+   InferOutput,
+   ip,
+   minLength,
+   optional,
+   pipe,
+   strictObject,
+   uuid,
+} from 'valibot';
 
 type StringIDToObjectId<T extends Record<string, unknown>> = {
-   [K in keyof T]: K extends `${string}ID` ? mongoose.Types.ObjectId : T[K];
+   [K in keyof T]: K extends `${string}IDs`
+      ? mongoose.Types.ObjectId[] // plural suffix → array of ObjectIds
+      : K extends `${string}ID`
+        ? mongoose.Types.ObjectId // singular suffix → single ObjectId
+        : T[K];
 };
 
 // ── Service input contract ───────────────────────────────────────────────────────
@@ -21,8 +35,16 @@ export const AuditLogInputSchema = strictObject({
    actorRole: makePicklist(allRoles),
    action: makePicklist(auditActions),
    resourceType: makePicklist(auditableResourceTypes),
-   resourceID: objectIdFormatCheck,
-   patientID: objectIdFormatCheck,
+   resourceIDs: pipe(
+      array(objectIdFormatCheck),
+      minLength(1, `Must include at least one resource ID.`)
+   ),
+   patientIDs: pipe(
+      array(objectIdFormatCheck),
+      minLength(1, `Must include at least one patient ID.`)
+   ),
+
+   searchCriteria: optional(longString), // To capture req.query if applicable
 
    ipAddress: pipe(baseString, ip(`IP Address is badly formatted (valibot).`)),
    requestId: pipe(
@@ -60,13 +82,16 @@ const AuditLogMongooseDefinition = {
       enum: auditableResourceTypes,
       required: true,
    },
-   resourceID: {
-      type: mongoose.Schema.Types.ObjectId,
+   resourceIDs: {
+      type: [mongoose.Schema.Types.ObjectId],
       required: true,
    },
-   patientID: {
-      type: mongoose.Schema.Types.ObjectId,
+   patientIDs: {
+      type: [mongoose.Schema.Types.ObjectId],
       required: true,
+   },
+   searchCriteria: {
+      type: String,
    },
    ipAddress: {
       type: String,
@@ -80,7 +105,7 @@ const AuditLogMongooseDefinition = {
       type: Date,
       required: true,
    },
-} satisfies StrictSchemaDefinition_v4<IAuditLogDefinition>;
+} satisfies StrictSchemaDefinition_v5<IAuditLogDefinition>;
 
 export const AuditLogMongooseSchema = new mongoose.Schema<IAuditLogDocument>(
    AuditLogMongooseDefinition,

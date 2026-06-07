@@ -14,8 +14,13 @@ function record(input: IAuditLogInput): void {
          actorRole: input.actorRole,
          action: input.action,
          resourceType: input.resourceType,
-         resourceID: new mongoose.Types.ObjectId(input.resourceID),
-         patientID: new mongoose.Types.ObjectId(input.patientID),
+         resourceIDs: input.resourceIDs.map(
+            id => new mongoose.Types.ObjectId(id)
+         ),
+         patientIDs: input.patientIDs.map(
+            id => new mongoose.Types.ObjectId(id)
+         ),
+         searchCriteria: input.searchCriteria,
          ipAddress: input.ipAddress,
          requestId: input.requestId,
          occurredAt: new Date(),

@@ -71,7 +71,6 @@ import {
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { AuditableResourceType } from '@ssot/audit_constants.ts';
-import { escapeRegex } from '@utils/escapeRegex.ts';
 import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { StrictIndexConfig } from '@utils/pathFinder.ts';
 
@@ -1099,14 +1098,7 @@ export const getPatientModel = createModelGetter<IPatientDocument>(
 
 // ── GET /api/patients ────────────────────────────────────────────────────────────
 const ListPatientFilterSchema = object({
-   search: optional(
-      pipe(
-         baseString,
-         transform((val: string): string => {
-            return escapeRegex(val);
-         })
-      )
-   ),
+   search: optional(baseString),
    includeArchived: optional(
       pipe(
          baseString,

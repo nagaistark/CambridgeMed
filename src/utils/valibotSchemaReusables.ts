@@ -18,9 +18,11 @@ import {
    fallback,
    toNumber,
    optional,
+   maxValue,
 } from 'valibot';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
+import { paginationLimit } from '@ssot/pagination_constants.ts';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -211,8 +213,9 @@ export const CursorPaginationSchema = object({
          baseString,
          toNumber(),
          integer(),
-         minValue(1, `Limit must be at least 1 (valibot).`)
+         minValue(1, `Limit must be at least 1 (valibot).`),
+         maxValue(paginationLimit, `Limit's too high (valibot).`)
       ),
-      10
+      paginationLimit
    ),
 });

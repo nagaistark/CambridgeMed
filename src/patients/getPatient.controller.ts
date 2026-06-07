@@ -43,8 +43,8 @@ export async function getPatientController(
          actorRole: role,
          action: 'READ',
          resourceType: 'Patient',
-         resourceID: id,
-         patientID: id,
+         resourceIDs: [id],
+         patientIDs: [id],
          ipAddress: req.ip ?? '0.0.0.0',
          requestId,
       });

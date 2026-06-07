@@ -126,14 +126,12 @@ export function buildCursorPatientsResponse(
    // Check if we retrieved that extra "+1" document
    const hasNextPage = patients.length > limit;
 
-   if (hasNextPage) {
-      patients.pop(); // Remove the extra document so we only return the exact limit
-   }
+   const trimmed = hasNextPage ? patients.slice(0, limit) : patients;
 
    // Generate the bookmark based on the very last item in the list
    const nextCursor =
-      hasNextPage && patients.length > 0
-         ? encodeCursor(patients[patients.length - 1])
+      hasNextPage && trimmed.length > 0
+         ? encodeCursor(trimmed[trimmed.length - 1])
          : null;
 
    return {
