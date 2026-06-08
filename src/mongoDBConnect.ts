@@ -93,6 +93,7 @@ export class DatabaseService {
                serverSelectionTimeoutMS:
                   myEnv.database.serverSelectionTimeoutMS,
                socketTimeoutMS: myEnv.database.socketTimeoutMS,
+               heartbeatFrequencyMS: myEnv.database.heartbeatFrequencyMS,
             };
 
             this.#client = new MongoClient(this.#uri, options);
