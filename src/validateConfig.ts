@@ -19,6 +19,7 @@ import {
    url,
    picklist,
    email,
+   forward,
 } from 'valibot';
 import { Buffer } from 'node:buffer';
 
@@ -77,18 +78,26 @@ const ConfigSchema = strictObject({
       ['development', 'production', 'test'],
       `Must be 'development', 'production' or 'test'.`
    ),
-   database: strictObject({
-      appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-      authUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-      auditUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-      maxPoolSize: stringContainingPositiveInteger,
-      serverSelectionTimeoutMS: stringContainingPositiveInteger,
-      socketTimeoutMS: stringContainingPositiveInteger,
-      heartbeatFrequencyMS: stringContainingPositiveInteger,
-      maxRetries: stringContainingPositiveInteger,
-      baseDelay: stringContainingPositiveInteger,
-      gracePeriodMS: stringContainingPositiveInteger,
-   }),
+   database: pipe(
+      strictObject({
+         appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
+         authUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
+         auditUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
+         maxPoolSize: stringContainingPositiveInteger,
+         serverSelectionTimeoutMS: stringContainingPositiveInteger,
+         socketTimeoutMS: stringContainingPositiveInteger,
+         heartbeatFrequencyMS: stringContainingPositiveInteger,
+         maxRetries: stringContainingPositiveInteger,
+         baseDelay: stringContainingPositiveInteger,
+         gracePeriodMS: stringContainingPositiveInteger,
+      }),
+      forward(
+         check(({ heartbeatFrequencyMS, gracePeriodMS }) => {
+            return gracePeriodMS >= heartbeatFrequencyMS * 3;
+         }, `Grace period should be at least a few multiples of the heartbeat frequency.`),
+         ['gracePeriodMS']
+      )
+   ),
    server: strictObject({
       host: nonEmptyReasonablyLongString,
       port: pipe(
