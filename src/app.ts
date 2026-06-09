@@ -19,7 +19,7 @@ import usersRouter from '@users/users.routes.ts';
 import sessionsRouter from '@sessions/sessions.routes.ts';
 import patientRouter from '@patients/patients.routes.ts';
 
-import { DatabaseManager } from 'dbConnect.ts';
+import { DatabaseManager } from 'mongoDBConnect.ts';
 
 import {
    handleValiError,
@@ -185,8 +185,8 @@ app.use(cookieParser());
 // ===== ROUTES ====================================================================
 app.get('/health', limiter, (_req: Request, res: Response) => {
    const dbManager = DatabaseManager.getInstance();
-   const authReady = dbManager.auth.connection?.readyState === 1;
-   const clinicReady = dbManager.clinic.connection?.readyState === 1;
+   const authReady = dbManager.auth.isConnected;
+   const clinicReady = dbManager.clinic.isConnected;
    const healthy = authReady && clinicReady;
 
    res.status(healthy ? 200 : 503).json({

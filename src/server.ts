@@ -9,7 +9,7 @@ import {
    DatabaseManager,
    handleGracefulShutdown,
    sanitizeError,
-} from 'dbConnect.ts';
+} from 'mongoDBConnect.ts';
 
 // ===== GLOBAL PROCESS LISTENERS (Must be first!) =================================
 process.on('uncaughtException', (error: Error) => {

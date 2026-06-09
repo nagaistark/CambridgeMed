@@ -233,6 +233,10 @@ export class DatabaseService {
       }
    }
 
+   public get isConnected(): boolean {
+      return this.#isConnected;
+   }
+
    /* The raw MongoClient. Prefer `db()` for collection access. */
    public get client(): MongoClient | null {
       return this.#client;
