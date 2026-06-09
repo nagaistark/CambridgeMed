@@ -161,16 +161,24 @@ export class DatabaseService {
 
    #delay(ms: number): Promise<void> {
       return new Promise(resolve => {
-         const timeout = setTimeout(resolve, ms);
+         const abortHandler = () => {
+            clearTimeout(timeout);
+            resolve();
+         };
 
-         this.#abortController.signal.addEventListener(
-            'abort',
-            () => {
-               clearTimeout(timeout);
-               resolve();
-            },
-            { once: true }
-         );
+         const timeout = setTimeout(() => {
+            /* If the timer finishes naturally, clean up the unused listener */
+            this.#abortController.signal.removeEventListener(
+               'abort',
+               abortHandler
+            );
+            resolve();
+         }, ms);
+
+         /* Listen for early cancellation */
+         this.#abortController.signal.addEventListener('abort', abortHandler, {
+            once: true,
+         });
       });
    }
 
