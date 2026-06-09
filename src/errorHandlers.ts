@@ -1,7 +1,6 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ValiError, type IssuePathItem } from 'valibot';
-import mongoose from 'mongoose';
-import { MongoNetworkError, MongoServerError } from 'mongodb';
+import { MongoError, MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
 import logger from 'logger.ts';
 // ===== Every possible machine-readable error code (so far) =======================
@@ -19,7 +18,7 @@ export type ErrorCode =
    | 'RATE_LIMITED' // express-rate-limit triggered — tell client to back off
    // ── Server/operational errors (5XX) ──────────────────────────────────
    | 'SERVICE_UNAVAILABLE' // Known infrastructure failure: bad deploy, DB unreachable
-   | 'DATABASE_ERROR' // Mongoose/MongoDB runtime error not caused by client input
+   | 'DATABASE_ERROR' // MongoDB runtime error not caused by client input
    // ── Catch-all (500) ──────────────────────────────────────────────────
    | 'INTERNAL_ERROR'; // Unexpected programmer error — details hidden in production
 
@@ -184,7 +183,7 @@ export function handleValiError(
    // If this isn't a ValiError, it's not our job. Passing it to the next "specialist"
    if (!(err instanceof ValiError)) return next(err);
 
-   const requestId = res.locals['requestId'];
+   const requestId = res.locals.requestId;
 
    // We're only extracting structural information from each issue: PATH (which field failed) and MESSAGE (why it failed)
    const details = err.issues.map(issue => ({
@@ -204,8 +203,8 @@ export function handleValiError(
    // NOTICE that we do NOT call `next()` here. We handled it. The pipeline stops
 }
 
-// ===== The "Mongoose / MongoDB" specialist/handler ===============================
-export function handleMongooseError(
+// ===== The MongoDB specialist/handler ============================================
+export function handleMongoDbError(
    err: unknown,
    _req: Request,
    res: Response,
@@ -213,9 +212,9 @@ export function handleMongooseError(
 ): void {
    /* Pull the correlation ID once, at the top, so every branch below can use it without repeating the same res.locals lookup.
    res.locals is typed as Record<string, any> by Express, so we narrow it manually rather than letting `any` silently propagate. */
-   const requestId = res.locals['requestId'];
+   const requestId = res.locals.requestId;
 
-   // ── 1. MongoNetworkError ────────────────────────────────────────────────
+   // ── MongoNetworkError ─────────────────────────────────────────────────────────
    /* This is a driver-level error: the connection to the database was lost mid-request. It has nothing to do with the client's data — it's a pure infrastructure failure. 503 tells the client "try again later."*/
    if (err instanceof MongoNetworkError) {
       return void res
@@ -223,13 +222,13 @@ export function handleMongooseError(
          .json(
             createErrorResponse(
                'SERVICE_UNAVAILABLE',
-               'A database connectivity issue occurred. Please try again shortly.',
+               `A database connectivity issue occurred. Please try again shortly.`,
                requestId
             )
          );
    }
 
-   // ── 2. Duplicate key error (MongoDB code 11000) ─────────────────────────
+   // ── Duplicate key error (MongoDB code 11000) ──────────────────────────────────
    /* This is also a driver-level error, but caused by client data: the user tried to insert a value that violates a unique index (e.g. an email address that already exists). We check `instanceof MongoServerError` first to confirm it's from the right class before trusting `err.code`, since other objects in JavaScript can also happen to have a `code` property. We deliberately do NOT include err.keyValue in the response because it contains the exact duplicate value the user tried to insert. */
    if (err instanceof MongoServerError && err.code === 11000) {
       return void res
@@ -237,77 +236,14 @@ export function handleMongooseError(
          .json(
             createErrorResponse(
                'CONFLICT',
-               'A record with that value already exists.',
+               `A record with that value already exists.`,
                requestId
             )
          );
    }
 
-   // ── 3. CastError ────────────────────────────────────────────────────────
-   /* Mongoose couldn't convert the client's value to the type the schema expects — the classic case being a malformed MongoDB ObjectId. `err.path` tells us *which field* failed (safe to expose), err.value is the raw input that caused the failure (unsafe — discard it). This is always a client mistake, so 400 Bad Request is correct. */
-   if (err instanceof mongoose.Error.CastError) {
-      return void res
-         .status(400)
-         .json(
-            createErrorResponse(
-               'VALIDATION_ERROR',
-               `Invalid value provided for field '${err.path}'.`,
-               requestId
-            )
-         );
-   }
-
-   // ── 4. ValidationError ──────────────────────────────────────────────────
-   /* The value was the right type but failed a schema constraint (required, minLength, a custom validator, etc.). err.errors is a plain object — not an array — keyed by field name. Object.values() gives us the individual ValidatorError instances to map over. Again, we extract only `path` and `message`, discarding `value`. */
-   if (err instanceof mongoose.Error.ValidationError) {
-      const details = Object.values(err.errors).map(validatorError => ({
-         path: validatorError.path,
-         message: validatorError.message,
-      }));
-
-      return void res
-         .status(422)
-         .json(
-            createErrorResponse(
-               'VALIDATION_ERROR',
-               'The submitted data failed validation.',
-               requestId,
-               details
-            )
-         );
-   }
-
-   // ── 5. DocumentNotFoundError ────────────────────────────────────────────
-   /* Only thrown when a query uses .orFail(), which tells Mongoose to throw instead of returning null when no document matches. Without .orFail(), a missing document just returns null and the route handler deals with it. */
-   if (err instanceof mongoose.Error.DocumentNotFoundError) {
-      return void res
-         .status(404)
-         .json(
-            createErrorResponse(
-               'NOT_FOUND',
-               'The requested resource was not found.',
-               requestId
-            )
-         );
-   }
-
-   // ── 6. VersionError ─────────────────────────────────────────────────────
-   /* Thrown when optimistic concurrency control detects a conflict: two requests tried to modify the same document, and one of them read a version that no longer exists by the time it tried to write. The correct client response is to re-fetch the document and retry. */
-   if (err instanceof mongoose.Error.VersionError) {
-      return void res
-         .status(409)
-         .json(
-            createErrorResponse(
-               'CONFLICT',
-               'The resource was modified by another request. Please re-fetch and retry.',
-               requestId
-            )
-         );
-   }
-
-   // ── 7. Broad Mongoose catch-all ─────────────────────────────────────────
-   /* If we've reached here and the error is still a Mongoose error, it's something we didn't specifically anticipate — an internal Mongoose issue that is not the client's fault. We log nothing here (the catch-all handler at the end of the pipeline will log it), and we return a deliberately vague 500. DATABASE_ERROR signals to the client that something went wrong at the infrastructure level. */
-   if (err instanceof mongoose.Error) {
+   // Broad catch-all for any other driver-level error we didn't anticipate.
+   if (err instanceof MongoError) {
       return void res
          .status(500)
          .json(
@@ -319,8 +255,8 @@ export function handleMongooseError(
          );
    }
 
-   // ── Not our responsibility ──────────────────────────────────────────────
-   /* This error isn't Mongoose or MongoDB related. Pass it to the next specialist in the pipeline without touching it. */
+   // ── Not our responsibility ────────────────────────────────────────────────────
+   /* This error isn't MongoDB related. Pass it to the next specialist in the pipeline without touching it. */
    return next(err);
 }
 
@@ -334,7 +270,7 @@ export function handleJwtError(
    // If the error isn't from JOSE, pass it along.
    if (!(err instanceof joseErrors.JOSEError)) return next(err);
 
-   const requestId = res.locals['requestId'];
+   const requestId = res.locals.requestId;
 
    /* JWTExpired is a NORMAL, EXPECTED lifecycle event — the access token ran out and the client needs to hit /api/auth/refresh. */
    if (err instanceof joseErrors.JWTExpired) {
@@ -364,7 +300,7 @@ export function handleHttpError(
    res: Response,
    next: NextFunction
 ): void {
-   const requestId = res.locals['requestId'];
+   const requestId = res.locals.requestId;
 
    // Most specific first: body parser error
    if (isBodyParserError(err)) {
@@ -465,7 +401,7 @@ export function handleEnoentError(
    // Passing it to the next specialist if it's not our responsibility
    if (!isEnoentError(err)) return next(err);
 
-   const requestId = res.locals['requestId'];
+   const requestId = res.locals.requestId;
 
    /* We log the real filesystem path here — on the server, in the logs, where it belongs. This is invaluable for diagnosing deployment issues. `err.path` tells us exactly which file was missing and where Node expected to find it. We intentionally do not include this in the response below. */
    logger.error(
@@ -492,7 +428,7 @@ export function handleCatchAll(
    res: Response,
    next: NextFunction
 ): void {
-   const requestId = res.locals['requestId'];
+   const requestId = res.locals.requestId;
 
    // ── The `res.headersSent` guard ─────────────────────────────────────────
    /* If headers have already been flushed to the client — because a route handler started streaming a response before something threw — we cannot send a new response. Calling next(err) here hands control to Express's own built-in final handler, which will close the connection cleanly. Without this guard, attempting res.json() would itself throw an error, compounding the original problem. */

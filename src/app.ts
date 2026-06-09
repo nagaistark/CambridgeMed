@@ -23,7 +23,7 @@ import { DatabaseManager } from 'mongoDBConnect.ts';
 
 import {
    handleValiError,
-   handleMongooseError,
+   handleMongoDbError,
    handleJwtError,
    handleHttpError,
    handleEnoentError,
@@ -231,7 +231,7 @@ app.use('/{*splat}', (req: Request, res: Response) => {
 
 // ── Error handlers (order is critical → most specific first, catch-all last) ──
 app.use(handleValiError); // 1. Valibot schema failures
-app.use(handleMongooseError); // 2. Mongoose / MongoDB errors
+app.use(handleMongoDbError); // 2. Mongoose / MongoDB errors
 app.use(handleJwtError); // 3. jose JWT errors
 app.use(handleHttpError); // 4. Known HTTP errors (status/statusCode)
 app.use(handleEnoentError); // 5. Filesystem errors from sendFile
