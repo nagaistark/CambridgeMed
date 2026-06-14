@@ -23,6 +23,8 @@ import {
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
 import { paginationLimit } from '@ssot/pagination_constants.ts';
+import { HEX64_REGEX } from '@ssot/node_crypto_constants.ts';
+import { ObjectId } from 'mongodb';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -72,18 +74,23 @@ export const positiveInteger = pipe(
    minValue(1, `Must be a positive integer number (valibot).`)
 );
 
-export const objectIdFormatCheck = pipe(
+export const objectIdStringCheck = pipe(
    baseString,
    regex(/^[a-f\d]{24}$/i, `Must be a valid ObjectId format (valibot).`)
 );
 
+export const objectIdSchema = pipe(
+   objectIdStringCheck,
+   transform((str: string): ObjectId => new ObjectId(str))
+);
+
 export const idOrName = union(
-   [objectIdFormatCheck, nameString],
+   [objectIdStringCheck, nameString],
    `Must be either an ID or a name (valibot).`
 );
 
 export const MongoIdParamSchema = strictObject({
-   id: objectIdFormatCheck,
+   id: objectIdStringCheck,
 });
 
 export type IMongoIdParam = InferOutput<typeof MongoIdParamSchema>;
@@ -202,6 +209,11 @@ export const validateDIN = pipe(
 export const validateSnomed = pipe(
    baseString,
    regex(snomedRegex, `Invalid SNOMED code (valibot).`)
+);
+
+export const Sha256HexString = pipe(
+   string(),
+   regex(HEX64_REGEX, `Invalid SHA256 hash.`)
 );
 
 // ── Reusable Pagination Schema (req.query) ───────────────────────────────────────

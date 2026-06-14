@@ -6,18 +6,18 @@ const TOKEN_BYTE_SIZE = 48 as const;
 const CRYPTO_HASH_ALGO = 'sha256' as const;
 
 export function generateRandomToken(): string {
-   return randomBytes(TOKEN_BYTE_SIZE).toString('hex');
+   return randomBytes(TOKEN_BYTE_SIZE).toString('hex'); // outputs a 96-character long string
 }
 
 export function generateStandardHash(input: string): string {
-   return createHash(CRYPTO_HASH_ALGO).update(input).digest('hex');
+   return createHash(CRYPTO_HASH_ALGO).update(input).digest('hex'); // outputs a 64-character long string
 }
 
 // Validates the raw token (96 chars)
 export const HEX96_REGEX = /^[a-f0-9]{96}$/i;
 
 // Validates a stored hash (64 chars)
-const HEX64_REGEX = /^[a-f0-9]{64}$/i;
+export const HEX64_REGEX = /^[a-f0-9]{64}$/i;
 
 export const hexHashValidator = {
    validator: (str: string) => {
