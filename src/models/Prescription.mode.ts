@@ -6,24 +6,24 @@ import {
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
 import {
    baseString,
-   dateInThePastOrOptionallyToday,
+   stringDateInThePastOrOptionallyToday,
    idOrName,
-   objectIdFormatCheck,
+   objectIdStringCheck,
    positiveInteger,
 } from '@utils/valibotSchemaReusables.ts';
 import { optional, strictObject } from 'valibot';
 import { medicationVSchema } from '@models/Patient.model.ts';
 
 export const PrescriptionSchema = strictObject({
-   patientId: objectIdFormatCheck,
+   patientId: objectIdStringCheck,
    medication: medicationVSchema,
    dose: strictObject({
       value: positiveInteger,
       unit: makePicklist(medDoseUnits),
    }),
    frequency: makePicklist(medFrequencies),
-   startDate: dateInThePastOrOptionallyToday,
-   endDate: optional(dateInThePastOrOptionallyToday),
+   startDate: stringDateInThePastOrOptionallyToday,
+   endDate: optional(stringDateInThePastOrOptionallyToday),
    status: makePicklist(medicationStatuses),
    instructions: optional(baseString),
    prescribedBy: idOrName,

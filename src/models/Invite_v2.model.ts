@@ -1,9 +1,9 @@
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
 import {
-   dateInTheFutureOrOptionallyToday,
-   dateInThePastOrOptionallyToday,
-   objectIdSchema,
+   jsDateInTheFuture,
+   jsDateInThePast,
+   objectIdInstance,
    Sha256HexString,
 } from '@utils/valibotSchemaReusables.ts';
 import { Collection } from 'mongodb';
@@ -13,7 +13,6 @@ import {
    date,
    email,
    InferOutput,
-   intersect,
    maxLength,
    nonEmpty,
    nullable,
@@ -37,18 +36,16 @@ export const InviteInputVSchema = strictObject({
    canIssueInvites: boolean(),
 });
 
-export const InviteDocumentVSchema = intersect([
-   InviteInputVSchema,
-   strictObject({
-      _id: objectIdSchema,
-      tokenHash: Sha256HexString,
-      usedAt: nullable(dateInThePastOrOptionallyToday),
-      expiresAt: dateInTheFutureOrOptionallyToday,
-      issuedBy: objectIdSchema,
-      createdAt: date(`createdAt must be a valid JS Date object.`),
-      updatedAt: date(`updatedAt must be a valid JS Date object.`),
-   }),
-]);
+export const InviteDocumentVSchema = strictObject({
+   ...InviteInputVSchema.entries,
+   _id: objectIdInstance,
+   tokenHash: Sha256HexString,
+   usedAt: nullable(jsDateInThePast),
+   expiresAt: jsDateInTheFuture,
+   issuedBy: objectIdInstance,
+   createdAt: date(`createdAt must be a valid JS Date object.`),
+   updatedAt: date(`updatedAt must be a valid JS Date object.`),
+});
 
 export type IInviteInput = InferOutput<typeof InviteInputVSchema>;
 export type IInviteDocument = InferOutput<typeof InviteDocumentVSchema>;

@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import { allRoles } from '@ssot/user_roles_constants.ts';
 import { auditableResourceTypes, auditActions } from '@ssot/audit_constants.ts';
 import {
-   objectIdFormatCheck,
+   objectIdStringCheck,
    baseString,
    longString,
 } from '@utils/valibotSchemaReusables.ts';
@@ -31,16 +31,16 @@ type StringIDToObjectId<T extends Record<string, unknown>> = {
 
 // ── Service input contract ───────────────────────────────────────────────────────
 export const AuditLogInputSchema = strictObject({
-   actorID: objectIdFormatCheck,
+   actorID: objectIdStringCheck,
    actorRole: makePicklist(allRoles),
    action: makePicklist(auditActions),
    resourceType: makePicklist(auditableResourceTypes),
    resourceIDs: pipe(
-      array(objectIdFormatCheck),
+      array(objectIdStringCheck),
       minLength(1, `Must include at least one resource ID.`)
    ),
    patientIDs: pipe(
-      array(objectIdFormatCheck),
+      array(objectIdStringCheck),
       minLength(1, `Must include at least one patient ID.`)
    ),
 

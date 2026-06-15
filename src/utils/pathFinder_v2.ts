@@ -1,4 +1,10 @@
-import type { ObjectId, Decimal128, Binary, Timestamp } from 'mongodb';
+import type {
+   ObjectId,
+   Decimal128,
+   Binary,
+   Timestamp,
+   IndexDirection,
+} from 'mongodb';
 
 /* 1. The Recursion Depth Limiter. */
 type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
@@ -45,7 +51,7 @@ export type MongoIndexPaths<T, D extends number = 5> =
               }[keyof NonNullable<T> & string]
             : never;
 
-/* 4. The Native Index Helper. Expanded slightly to cover native MongoDB index types like hashed and geospatial, which the native driver supports natively via IndexSpecification. */
-export type StrictIndexConfig<T> = Partial<
-   Record<MongoIndexPaths<T>, 1 | -1 | 'text' | 'hashed' | '2dsphere' | '2d'>
->;
+/* 4. Strict config utilizing MongoDB's native IndexDirection types. */
+export type StrictIndexConfig<T> = {
+   [K in MongoIndexPaths<T>]?: IndexDirection;
+};

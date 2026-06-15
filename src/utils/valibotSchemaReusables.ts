@@ -19,6 +19,8 @@ import {
    toNumber,
    optional,
    maxValue,
+   instance,
+   date,
 } from 'valibot';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
@@ -84,6 +86,11 @@ export const objectIdSchema = pipe(
    transform((str: string): ObjectId => new ObjectId(str))
 );
 
+export const objectIdInstance = instance(
+   ObjectId,
+   `Must be an ObjectId instance (valibot).`
+);
+
 export const idOrName = union(
    [objectIdStringCheck, nameString],
    `Must be either an ID or a name (valibot).`
@@ -137,7 +144,7 @@ export const validateDOB = pipe(
    // No transformations inside this schema. Outputs the same simple string as `dateFromShortString`.
 );
 
-export const dateInThePastOrOptionallyToday = pipe(
+export const stringDateInThePastOrOptionallyToday = pipe(
    // Accepts both short (YYYY-MM-DD — 10 characters) and long (YYYY-MM-DDTHH:mm:ss.sssZ — 24 characters) date strings.
    dateFromString,
 
@@ -163,7 +170,7 @@ export const dateInThePastOrOptionallyToday = pipe(
    })
 );
 
-export const dateInTheFutureOrOptionallyToday = pipe(
+export const stringDateInTheFutureOrOptionallyToday = pipe(
    // Accepts both short (YYYY-MM-DD — 10 characters) and long (YYYY-MM-DDTHH:mm:ss.sssZ — 24 characters) date strings.
    dateFromString,
    check(input => {
@@ -185,6 +192,20 @@ export const dateInTheFutureOrOptionallyToday = pipe(
       const output = input.length === 10 ? fromIso.endOf('day') : fromIso;
       return output.toJSDate();
    })
+);
+
+export const jsDateInThePast = pipe(
+   date(`Must be a valid Date object (valibot).`),
+   check((date: Date) => {
+      return date <= new Date();
+   }, `Date cannot be in the future (valibot).`)
+);
+
+export const jsDateInTheFuture = pipe(
+   date(`Must be a valid Date object (valibot).`),
+   check((date: Date) => {
+      return date >= new Date();
+   }, `Date cannot be in the past (valibot).`)
 );
 
 export const validateCanadianPostalCode = pipe(
