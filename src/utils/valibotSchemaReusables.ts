@@ -81,7 +81,7 @@ export const objectIdStringCheck = pipe(
    regex(/^[a-f\d]{24}$/i, `Must be a valid ObjectId format (valibot).`)
 );
 
-export const objectIdSchema = pipe(
+export const objectIdFromString = pipe(
    objectIdStringCheck,
    transform((str: string): ObjectId => new ObjectId(str))
 );
