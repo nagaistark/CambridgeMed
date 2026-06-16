@@ -98,7 +98,6 @@ export class DatabaseService {
                serverSelectionTimeoutMS:
                   myEnv.database.serverSelectionTimeoutMS,
                socketTimeoutMS: myEnv.database.socketTimeoutMS,
-               autoIndex: myEnv.database.autoIndex,
             };
 
             this.#connection = mongoose.createConnection(this.#uri, options);

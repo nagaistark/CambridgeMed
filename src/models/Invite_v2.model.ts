@@ -1,5 +1,6 @@
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
+import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import {
    jsDateInTheFuture,
    jsDateInThePast,
@@ -65,3 +66,9 @@ export function getInviteCollection(): Collection<IInviteDocument> {
       .auth.db()
       .collection<IInviteDocument>('invites');
 }
+
+export const inviteIndexes = [
+   { key: { email: 1 } },
+   { key: { tokenHash: 1 }, unique: true },
+   { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
+] satisfies readonly TypedIndexDescription<IInviteDocument>[];

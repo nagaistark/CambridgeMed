@@ -10,6 +10,7 @@ import {
    handleGracefulShutdown,
    sanitizeError,
 } from 'mongoDBConnect.ts';
+import { initializeDatabaseIndexes } from 'initializeDatabaseIndexes.ts';
 
 // ===== GLOBAL PROCESS LISTENERS (Must be first!) =================================
 process.on('uncaughtException', (error: Error) => {
@@ -36,9 +37,10 @@ const host: string = myEnv.server.host;
 
 // ===== SERVER BOOTSTRAP ==========================================================
 /* The order of operations:
-   Step 1 — JWT keys:  pure memory, instant, cheap to check
-   Step 2 — Database:  network I/O, slow, pointless if Step 1 failed
-   Step 3 — HTTP server: no point listening for requests until Steps 1 & 2 pass */
+   Step 1 — JWT keys: pure memory, instant, cheap to check
+   Step 2 — Database: network I/O, slow, pointless if Step 1 failed
+   Step 3 — Database: ensuring indexes
+   Step 4 — HTTP server: no point listening for requests until Steps 1 & 2 pass */
 let server!: Server;
 
 const startServer = async (): Promise<void> => {
@@ -54,7 +56,10 @@ const startServer = async (): Promise<void> => {
       const dbManager = DatabaseManager.getInstance();
       await dbManager.initialize();
 
-      // Step 3: Starting the HTTP server
+      // Step 3: Ensuring indexes
+      await initializeDatabaseIndexes();
+
+      // Step 4: Starting the HTTP server
       server = await new Promise<Server>((resolve, reject) => {
          const s = app.listen(port, host, () => resolve(s));
          s.once('error', reject);
