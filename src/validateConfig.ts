@@ -54,7 +54,7 @@ const pemPublicKey = pipe(
    }, 'JWT_PUBLIC_KEY does not look like a valid SPKI PEM public key')
 );
 
-const stringContainingPositiveInteger = pipe(
+const stringContainingpositiveIntegerInputString = pipe(
    nonEmptyReasonablyLongString,
    digits(),
    transform(Number),
@@ -83,13 +83,13 @@ const ConfigSchema = strictObject({
          appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
          authUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
          auditUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-         maxPoolSize: stringContainingPositiveInteger,
-         serverSelectionTimeoutMS: stringContainingPositiveInteger,
-         socketTimeoutMS: stringContainingPositiveInteger,
-         heartbeatFrequencyMS: stringContainingPositiveInteger,
-         maxRetries: stringContainingPositiveInteger,
-         baseDelay: stringContainingPositiveInteger,
-         gracePeriodMS: stringContainingPositiveInteger,
+         maxPoolSize: stringContainingpositiveIntegerInputString,
+         serverSelectionTimeoutMS: stringContainingpositiveIntegerInputString,
+         socketTimeoutMS: stringContainingpositiveIntegerInputString,
+         heartbeatFrequencyMS: stringContainingpositiveIntegerInputString,
+         maxRetries: stringContainingpositiveIntegerInputString,
+         baseDelay: stringContainingpositiveIntegerInputString,
+         gracePeriodMS: stringContainingpositiveIntegerInputString,
       }),
       forward(
          check(({ heartbeatFrequencyMS, gracePeriodMS }) => {
@@ -101,7 +101,7 @@ const ConfigSchema = strictObject({
    server: strictObject({
       host: nonEmptyReasonablyLongString,
       port: pipe(
-         stringContainingPositiveInteger,
+         stringContainingpositiveIntegerInputString,
          check(v => {
             return v <= 65535;
          })

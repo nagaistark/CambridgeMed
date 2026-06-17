@@ -23,10 +23,12 @@ import {
    date,
 } from 'valibot';
 import { DateTime } from 'luxon';
+import { ObjectId } from 'mongodb';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
 import { paginationLimit } from '@ssot/pagination_constants.ts';
 import { HEX64_REGEX } from '@ssot/node_crypto_constants.ts';
-import { ObjectId } from 'mongodb';
+import { argon2Regex } from '@ssot/argon2_config_constants.ts';
+import { recoveryCodeRegex, totpSecretRegex } from '@ssot/totp_constants.ts';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -37,24 +39,24 @@ export const dinRegex = /^\d{8}$/;
 export const snomedRegex = /^[1-9]\d{5,17}$/;
 
 export const baseString = pipe(
-   string(`Must be a string (valibot).`),
+   string(`Must be a string (baseString).`),
    trim(),
-   minLength(1, `String should be at least 1 character long (valibot).`),
-   maxLength(baseStringMaxLength, `String is too long (valibot).`)
+   minLength(1, `String should be at least 1 character long (baseString).`),
+   maxLength(baseStringMaxLength, `String is too long (baseString).`)
 );
 
 export const longString = pipe(
-   string(`Must be a string (valibot).`),
+   string(`Must be a string (longString).`),
    trim(),
-   minLength(1, `String should be at least 1 character long (valibot).`),
-   maxLength(longStringMaxLength, `String is too long (valibot).`)
+   minLength(1, `String should be at least 1 character long (longString).`),
+   maxLength(longStringMaxLength, `String is too long (longString).`)
 );
 
 export const nameString = pipe(
    baseString,
    regex(
       /^[\p{L} .'\-'']+$/u,
-      `Must not contain invalid or consecutive non-alphanumeric characters in name (valibot).`
+      `Must not contain invalid or consecutive non-alphanumeric characters in name (nameString).`
    ),
    transform(name => {
       const words = name
@@ -68,17 +70,24 @@ export const nameString = pipe(
    })
 );
 
-export const positiveInteger = pipe(
-   baseString,
-   transform(val => parseInt(val, 10)),
+export const positiveIntegerNumber = pipe(
    number(`Must be a number (valibot)`),
    integer(`Must be an integer (valibot)`),
    minValue(1, `Must be a positive integer number (valibot).`)
 );
 
+export const positiveIntegerInputString = pipe(
+   baseString,
+   transform(val => parseInt(val, 10)),
+   positiveIntegerNumber
+);
+
 export const objectIdStringCheck = pipe(
    baseString,
-   regex(/^[a-f\d]{24}$/i, `Must be a valid ObjectId format (valibot).`)
+   regex(
+      /^[a-f\d]{24}$/i,
+      `Must be a valid ObjectId format (objectIdStringCheck).`
+   )
 );
 
 export const objectIdFromString = pipe(
@@ -88,12 +97,12 @@ export const objectIdFromString = pipe(
 
 export const objectIdInstance = instance(
    ObjectId,
-   `Must be an ObjectId instance (valibot).`
+   `Must be an ObjectId instance (objectIdInstance).`
 );
 
 export const idOrName = union(
    [objectIdStringCheck, nameString],
-   `Must be either an ID or a name (valibot).`
+   `Must be either an ID or a name (idOrName).`
 );
 
 export const MongoIdParamSchema = strictObject({
@@ -104,7 +113,7 @@ export type IMongoIdParam = InferOutput<typeof MongoIdParamSchema>;
 
 const validateCalendarDate = check((input: string) => {
    return DateTime.fromISO(input).isValid;
-}, `Must be a valid calendar date (valibot).`);
+}, `Must be a valid calendar date (validateCalendarDate).`);
 
 export const dateFromString = pipe(
    baseString,
@@ -195,52 +204,73 @@ export const stringDateInTheFutureOrOptionallyToday = pipe(
 );
 
 export const jsDateInThePast = pipe(
-   date(`Must be a valid Date object (valibot).`),
+   date(`Must be a valid Date object (jsDateInThePast).`),
    check((date: Date) => {
       return date <= new Date();
-   }, `Date cannot be in the future (valibot).`)
+   }, `Date cannot be in the future (jsDateInThePast).`)
 );
 
 export const jsDateInTheFuture = pipe(
-   date(`Must be a valid Date object (valibot).`),
+   date(`Must be a valid Date object (jsDateInTheFuture).`),
    check((date: Date) => {
       return date >= new Date();
-   }, `Date cannot be in the past (valibot).`)
+   }, `Date cannot be in the past (jsDateInTheFuture).`)
 );
 
 export const validateCanadianPostalCode = pipe(
    baseString,
    regex(
       postalCodeCanadaRegex,
-      `Invalid Canadian postal code format (valibot).`
+      `Invalid Canadian postal code format (validateCanadianPostalCode).`
    )
 );
 
 export const validateNANPPhoneNumber = pipe(
    baseString,
    transform(phone => phone.replace(/[^\d]/g, '')),
-   regex(phoneNANPRegex, `Must be an NANP phone number (valibot).`)
+   regex(
+      phoneNANPRegex,
+      `Must be an NANP phone number (validateNANPPhoneNumber).`
+   )
 );
 
 export const validateDIN = pipe(
    baseString,
-   regex(dinRegex, `DIN must be exactly 8 digits (valibot).`)
+   regex(dinRegex, `DIN must be exactly 8 digits (validateDIN).`)
 );
 
 export const validateSnomed = pipe(
    baseString,
-   regex(snomedRegex, `Invalid SNOMED code (valibot).`)
+   regex(snomedRegex, `Invalid SNOMED code (validateSnomed).`)
 );
 
 export const Sha256HexString = pipe(
-   string(),
-   regex(HEX64_REGEX, `Invalid SHA256 hash.`)
+   string(`Must be a string to start with (Sha256HexString).`),
+   regex(HEX64_REGEX, `Invalid SHA256 hash (Sha256HexString).`)
+);
+
+export const Argon2HashString = pipe(
+   string(`Must be a string to start with (Argon2HashString).`),
+   regex(argon2Regex, `Invalid Argon2 hash (Argon2HashString).`)
+);
+
+// ── TOTP-related checks ──────────────────────────────────────────────────────────
+export const totpSecret = pipe(
+   string(`Must be a string (totpSecret).`),
+   regex(totpSecretRegex, `Invalid encrypted TOTP secret format (totpSecret).`)
+);
+
+export const recoveryCode = pipe(
+   string(`Must be a string (recoveryCode).`),
+   regex(recoveryCodeRegex, `Invalid recovery code format (recoveryCode).`)
 );
 
 // ── Reusable Pagination Schema (req.query) ───────────────────────────────────────
 /* `object` (not `strictObject`) because URLs can carry arbitrary query params from browser extensions, analytics proxies, or CDN tools. */
 export const CursorPaginationSchema = object({
-   cursor: optional(pipe(string(`Cursor must be a string (valibot).`), trim())),
+   cursor: optional(
+      pipe(string(`Cursor must be a string (CursorPaginationSchema).`), trim())
+   ),
    limit: fallback(
       pipe(
          baseString,

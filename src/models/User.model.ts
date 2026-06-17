@@ -70,7 +70,7 @@ export type IUserDefinition = Omit<IUserInitial, 'password'> &
 
       totpSecret: string | null; // AES-256-GCM encrypted, null until enrollment begins
       isTotpEnabled: boolean; // false until first successful verification post-enrollment
-      totpRecoveryCodes: string[]; // Argon2 hashes of the one-time recovery codes
+      totpRecoveryCodes: string[]; // hashes of the one-time recovery codes
 
       totpLastUsedStep: number;
 
@@ -84,7 +84,7 @@ export type IUserDocument = IUserDefinition & {
    updatedAt: Date;
 };
 
-/* The SAFE, full (except `passwordHash`) projection for self-view (GET /api/auth/me) and superadmin views. */
+/* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection for self-view (GET /api/auth/me) and superadmin views. */
 export type SafeUser = Omit<
    IUserDocument,
    'passwordHash' | 'totpSecret' | 'totpRecoveryCodes' | 'totpLastUsedStep'

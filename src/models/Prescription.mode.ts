@@ -9,7 +9,7 @@ import {
    stringDateInThePastOrOptionallyToday,
    idOrName,
    objectIdStringCheck,
-   positiveInteger,
+   positiveIntegerInputString,
 } from '@utils/valibotSchemaReusables.ts';
 import { optional, strictObject } from 'valibot';
 import { medicationVSchema } from '@models/Patient.model.ts';
@@ -18,7 +18,7 @@ export const PrescriptionSchema = strictObject({
    patientId: objectIdStringCheck,
    medication: medicationVSchema,
    dose: strictObject({
-      value: positiveInteger,
+      value: positiveIntegerInputString,
       unit: makePicklist(medDoseUnits),
    }),
    frequency: makePicklist(medFrequencies),

@@ -5,7 +5,7 @@ import { getUserModel } from '@models/User.model.ts';
 import { encryptTotpSecret } from '@utils/totpCrypto.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import { TOTP_ISSUER } from '@ssot/totp_constants.ts';
+import { TOTP_ISSUER, TOTP_SECRET_BYTES } from '@ssot/totp_constants.ts';
 
 export async function enrollTotpController(
    _req: Request,
@@ -41,7 +41,7 @@ export async function enrollTotpController(
 
       // ── Generate and persist the new secret ────────────────────────────────────
       /* If the user previously started enrollment without confirming, we simply overwrite the old pending secret. Since isTotpEnabled is still false, the previous secret was never "live" — overwriting is safe. */
-      const rawSecret = generateSecret();
+      const rawSecret = generateSecret({ length: TOTP_SECRET_BYTES });
       const encryptedSecret = encryptTotpSecret(rawSecret);
 
       await User.updateOne(

@@ -27,7 +27,7 @@ import {
    nameString,
    objectIdStringCheck,
    phoneNANPRegex,
-   positiveInteger,
+   positiveIntegerInputString,
    snomedRegex,
    validateCanadianPostalCode,
    validateDIN,
@@ -104,7 +104,7 @@ const immunizationVSchema = pipe(
       route: makePicklist(vaccineDeliveryRoutes),
       site: optional(makePicklist(vaccineDeliverySites)),
       dose: strictObject({
-         value: positiveInteger,
+         value: positiveIntegerInputString,
          unit: makePicklist(vaccineDoseUnits),
       }),
       dateAdministered: stringDateInThePastOrOptionallyToday,
@@ -279,7 +279,7 @@ export const patientVSchemaFull = strictObject({
             strictObject({
                relationship: makePicklist(familyRelationships),
                condition: baseString,
-               ageAtDiagnosed: optional(positiveInteger),
+               ageAtDiagnosed: optional(positiveIntegerInputString),
                deceased: boolean(),
                notes: optional(longString),
             })

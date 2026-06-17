@@ -1,9 +1,12 @@
-import type { UserRole } from '@ssot/user_roles_constants.ts';
+import { allRoles } from '@ssot/user_roles_constants.ts';
+import { positiveIntegerInputString } from '@utils/valibotSchemaReusables.ts';
+import { InferOutput, picklist, strictObject, string } from 'valibot';
 
-// To the future me: all the keys whose value type is boolean are collected by the `PermissionKey` type!
-export type AuthenticatedUser = {
-   sub: string;
-   role: UserRole;
-   permissions: number;
-   sessionId: string;
-};
+export const AUTHENTICATED_USER = strictObject({
+   sub: string(),
+   role: picklist(allRoles),
+   permissions: positiveIntegerInputString,
+   sessionId: string(),
+});
+
+export type AuthenticatedUser = InferOutput<typeof AUTHENTICATED_USER>;
