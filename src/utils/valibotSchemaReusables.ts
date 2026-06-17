@@ -82,6 +82,18 @@ export const positiveIntegerInputString = pipe(
    positiveIntegerNumber
 );
 
+export const nonNegativeIntegerNumber = pipe(
+   number(`Must be a number (valibot)`),
+   integer(`Must be an integer (valibot)`),
+   minValue(0, `Must be a non-negative integer number (valibot).`)
+);
+
+export const nonNegativeIntegerInputString = pipe(
+   baseString,
+   transform(val => parseInt(val, 10)),
+   nonNegativeIntegerNumber
+);
+
 export const objectIdStringCheck = pipe(
    baseString,
    regex(

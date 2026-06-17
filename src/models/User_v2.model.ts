@@ -3,6 +3,7 @@ import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
 import {
    Argon2HashString,
    nameString,
+   nonNegativeIntegerNumber,
    objectIdInstance,
    positiveIntegerNumber,
    Sha256HexString,
@@ -70,8 +71,8 @@ export const UserDocumentVSchema = strictObject({
    passwordHash: Argon2HashString,
    previousNames: array(NameHistoryEntrySubVSchema),
    previousEmails: array(EmailHistoryEntrySubVSchema),
-   nameChangesUsed: positiveIntegerNumber,
-   emailChangesUsed: positiveIntegerNumber,
+   nameChangesUsed: nonNegativeIntegerNumber,
+   emailChangesUsed: nonNegativeIntegerNumber,
    totpSecret: nullable(totpSecret),
    isTotpEnabled: boolean(),
    totpRecoveryCodes: pipe(
