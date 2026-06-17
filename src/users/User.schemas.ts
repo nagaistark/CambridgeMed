@@ -1,7 +1,6 @@
 import {
    boolean,
    check,
-   email,
    InferOutput,
    maxLength,
    minLength,
@@ -11,13 +10,12 @@ import {
    regex,
    strictObject,
    string,
-   transform,
 } from 'valibot';
-import { nameString } from '@utils/valibotSchemaReusables.ts';
+import { nameString, validateEmail } from '@utils/valibotSchemaReusables.ts';
 
 // ── Change password ──────────────────────────────────────────────────────────────
 /* currentPassword has no complexity rules. We are verifying against an existing hash, not enforcing creation constraints. maxLength makes sure an over-long payload is rejected before we touch the database. newPassword runs the full complexity suite identical to registration. */
-export const ChangePasswordSchema = pipe(
+export const ChangePasswordVSchema = pipe(
    strictObject({
       currentPassword: pipe(
          string(`Must be a string.`),
@@ -38,11 +36,11 @@ export const ChangePasswordSchema = pipe(
    }, `New password must be different from your current password.`)
 );
 
-export type ChangePasswordBody = InferOutput<typeof ChangePasswordSchema>;
+export type ChangePasswordBody = InferOutput<typeof ChangePasswordVSchema>;
 
 // ── Change name ──────────────────────────────────────────────────────────────────
 /* Both fields are optional individually, but the pipe-level `check` enforces that at least one is present. This allows a user to change only their first name, only their last name, or both in a single request. */
-export const ChangeNameSchema = pipe(
+export const ChangeNameVSchema = pipe(
    strictObject({
       firstName: optional(nameString),
       lastName: optional(nameString),
@@ -52,38 +50,32 @@ export const ChangeNameSchema = pipe(
    }, `At least one of firstName or lastName must be provided.`)
 );
 
-export type ChangeNameBody = InferOutput<typeof ChangeNameSchema>;
+export type ChangeNameBody = InferOutput<typeof ChangeNameVSchema>;
 
 // ── Initiate email change ─────────────────────────────────────────────────────
 /* Identical pipeline to the registration email field: format validation, length cap, and a lowercase transform. The equality check against the user's current email (new !== old) is enforced in the controller, not here, because the schema has no access to the authenticated user's record. */
-export const InitiateEmailChangeSchema = strictObject({
-   newEmail: pipe(
-      string(`Must be a string.`),
-      nonEmpty(`Please enter your new email address.`),
-      email(`Incorrectly formatted email.`),
-      maxLength(64, `Your email is too long.`),
-      transform(str => str.toLowerCase())
-   ),
+export const InitiateEmailChangeVSchema = strictObject({
+   newEmail: validateEmail,
 });
 
 export type InitiateEmailChangeBody = InferOutput<
-   typeof InitiateEmailChangeSchema
+   typeof InitiateEmailChangeVSchema
 >;
 
 // ── canIssueInvites (PATCH /api/users/:id/can-issue-invites) ─────────────────────
 /* Accepts an explicit boolean rather than toggling blindly. A toggle is a read-modify-write where the "modify" step depends on what was just read — two simultaneous PATCH requests by the superadmin could toggle twice and land back at the original value. An explicit value has no such race: the last writer wins with a known, intended outcome. */
-export const SetCanIssueInvitesSchema = strictObject({
+export const SetCanIssueInvitesVSchema = strictObject({
    canIssueInvites: boolean(`Must be a boolean.`),
 });
 
 export type SetCanIssueInvitesBody = InferOutput<
-   typeof SetCanIssueInvitesSchema
+   typeof SetCanIssueInvitesVSchema
 >;
 
 // ── isActive (PATCH /api/users/:id/is-active) ────────────────────────────────────
 /* Same explicit-value pattern for the same reason. */
-export const SetIsActiveSchema = strictObject({
+export const SetIsActiveVSchema = strictObject({
    isActive: boolean(`Must be a boolean.`),
 });
 
-export type SetIsActiveBody = InferOutput<typeof SetIsActiveSchema>;
+export type SetIsActiveBody = InferOutput<typeof SetIsActiveVSchema>;

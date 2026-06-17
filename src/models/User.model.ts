@@ -1,20 +1,16 @@
 import mongoose from 'mongoose';
 import { allRoles } from '@ssot/user_roles_constants.ts';
 import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
-
 import {
-   email,
    InferOutput,
    maxLength,
    minLength,
-   nonEmpty,
    pipe,
    regex,
    strictObject,
    string,
-   transform,
 } from 'valibot';
-import { nameString } from '@utils/valibotSchemaReusables.ts';
+import { nameString, validateEmail } from '@utils/valibotSchemaReusables.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import {
@@ -40,13 +36,7 @@ export type IUserInitial = InferOutput<typeof UserRegistrationSchema>;
 export const UserRegistrationSchema = strictObject({
    firstName: nameString,
    lastName: nameString,
-   email: pipe(
-      string(`Must be a string.`),
-      nonEmpty(`Please enter your email.`),
-      email(`Incorrectly formatted email.`),
-      maxLength(64, `Your email is too long.`),
-      transform(str => str.toLowerCase())
-   ),
+   email: validateEmail,
    password: pipe(
       string(`Must be a string.`),
       minLength(8, `Password must be at least 8 characters.`),

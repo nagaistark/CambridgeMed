@@ -1,5 +1,6 @@
 import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
+import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import {
    Argon2HashString,
    nameString,
@@ -8,17 +9,18 @@ import {
    positiveIntegerNumber,
    Sha256HexString,
    totpSecret,
+   validateEmail,
 } from '@utils/valibotSchemaReusables.ts';
+import { Collection } from 'mongodb';
+import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    array,
    boolean,
    date,
-   email,
    InferOutput,
    length,
    maxLength,
    minLength,
-   nonEmpty,
    nullable,
    omit,
    optional,
@@ -27,7 +29,6 @@ import {
    regex,
    strictObject,
    string,
-   transform,
 } from 'valibot';
 
 // ── Valibot registration schema ──────────────────────────────────────────────────
@@ -35,13 +36,7 @@ import {
 export const UserInputVSchema = strictObject({
    firstName: nameString,
    lastName: nameString,
-   email: pipe(
-      string(`Must be a string.`),
-      nonEmpty(`Please enter your email.`),
-      email(`Incorrectly formatted email.`),
-      maxLength(64, `Your email is too long.`),
-      transform(str => str.toLowerCase())
-   ),
+   email: validateEmail,
    password: pipe(
       string(`Must be a string.`),
       minLength(8, `Password must be at least 8 characters.`),
@@ -89,8 +84,17 @@ export const UserDocumentVSchema = strictObject({
    updatedAt: date(`updatedAt must be a valid JS Date object.`),
 });
 
-// type IUserInput = InferOutput<typeof UserInputVSchema>;
 type IUserDocument = InferOutput<typeof UserDocumentVSchema>;
+
+export function getUserCollection(): Collection<IUserDocument> {
+   return DatabaseManager.getInstance()
+      .auth.db()
+      .collection<IUserDocument>('users');
+}
+
+export const userIndexes = [
+   { key: { email: 1 }, unique: true },
+] satisfies readonly TypedIndexDescription<IUserDocument>[];
 
 // ── Types Used in MongoDB Projections ────────────────────────────────────────────
 /* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection for self-view (GET /api/auth/me) and superadmin views. */

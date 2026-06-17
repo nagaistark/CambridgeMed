@@ -6,33 +6,14 @@ import {
    jsDateInThePast,
    objectIdInstance,
    Sha256HexString,
+   validateEmail,
 } from '@utils/valibotSchemaReusables.ts';
 import { Collection } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
-import {
-   boolean,
-   date,
-   email,
-   InferOutput,
-   maxLength,
-   nonEmpty,
-   nullable,
-   pipe,
-   strictObject,
-   string,
-   transform,
-} from 'valibot';
+import { boolean, date, InferOutput, nullable, strictObject } from 'valibot';
 
 export const InviteInputVSchema = strictObject({
-   email: pipe(
-      string(`Must be a string.`),
-      nonEmpty(`Please enter your email.`),
-      email(`Incorrectly formatted email.`),
-      maxLength(64, `Your email is too long.`),
-      transform(str => {
-         return str.toLowerCase();
-      })
-   ),
+   email: validateEmail,
    role: makePicklist(allowedRoles), // Allowed Roles only, never a superadmin
    canIssueInvites: boolean(),
 });
@@ -48,7 +29,6 @@ export const InviteDocumentVSchema = strictObject({
    updatedAt: date(`updatedAt must be a valid JS Date object.`),
 });
 
-export type IInviteInput = InferOutput<typeof InviteInputVSchema>;
 export type IInviteDocument = InferOutput<typeof InviteDocumentVSchema>;
 
 export type SafeInvite = Pick<

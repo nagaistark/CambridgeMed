@@ -1,21 +1,12 @@
 import mongoose from 'mongoose';
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import { StrictSchemaDefinition_v4 } from '@utils/mongoose_types.ts';
-import {
-   boolean,
-   email,
-   InferOutput,
-   maxLength,
-   nonEmpty,
-   pipe,
-   strictObject,
-   string,
-   transform,
-} from 'valibot';
+import { boolean, InferOutput, strictObject } from 'valibot';
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
 import { DatabaseManager } from 'dbConnect.ts';
 import { createModelGetter } from '@utils/createLazyGetter.ts';
 import { hexHashValidator } from '@ssot/node_crypto_constants.ts';
+import { validateEmail } from '@utils/valibotSchemaReusables.ts';
 
 // This is what the inviter puts in
 type IInviteInitial = InferOutput<typeof InviteCreateSchema>;
@@ -36,15 +27,7 @@ export type IInviteDocument = IInviteDefinition & {
 };
 
 export const InviteCreateSchema = strictObject({
-   email: pipe(
-      string(`Must be a string.`),
-      nonEmpty(`Please enter your email.`),
-      email(`Incorrectly formatted email.`),
-      maxLength(64, `Your email is too long.`),
-      transform(str => {
-         return str.toLowerCase();
-      })
-   ),
+   email: validateEmail,
    role: makePicklist(allowedRoles), // Allowed Roles only, never a superadmin
    canIssueInvites: boolean(),
 });

@@ -21,6 +21,8 @@ import {
    maxValue,
    instance,
    date,
+   ip,
+   email,
 } from 'valibot';
 import { DateTime } from 'luxon';
 import { ObjectId } from 'mongodb';
@@ -244,6 +246,17 @@ export const validateNANPPhoneNumber = pipe(
       phoneNANPRegex,
       `Must be an NANP phone number (validateNANPPhoneNumber).`
    )
+);
+
+export const validateEmail = pipe(
+   baseString,
+   email(`Incorrectly formatted email (validateEmail).`),
+   transform(str => str.toLowerCase())
+);
+
+export const validateIPAddress = pipe(
+   baseString,
+   ip(`Invalid IP Address format (validateIPAddress).`)
 );
 
 export const validateDIN = pipe(

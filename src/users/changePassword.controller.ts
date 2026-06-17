@@ -53,7 +53,7 @@ export async function changePasswordController(
       }
 
       // ── Step 2: hash the new password before opening the transaction ───────────
-      /* Hashing optimistically up front. If anything downstream fails, the hash is discarded. The same-password case is already caught by the cross-field `check` in ChangePasswordSchema. No duplicate `verifyPassword` call is needed here. */
+      /* Hashing optimistically up front. If anything downstream fails, the hash is discarded. The same-password case is already caught by the cross-field `check` in ChangePasswordVSchema. No duplicate `verifyPassword` call is needed here. */
       const newPasswordHash = await hashPassword(newPassword);
 
       // ── Step 3: atomic update + session destruction ────────────────────────────
