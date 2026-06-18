@@ -84,7 +84,7 @@ export const UserDocumentVSchema = strictObject({
    updatedAt: date(`updatedAt must be a valid JS Date object.`),
 });
 
-type IUserDocument = InferOutput<typeof UserDocumentVSchema>;
+export type IUserDocument = InferOutput<typeof UserDocumentVSchema>;
 
 export function getUserCollection(): Collection<IUserDocument> {
    return DatabaseManager.getInstance()

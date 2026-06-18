@@ -31,14 +31,14 @@ export const InviteDocumentVSchema = strictObject({
 
 export type IInviteDocument = InferOutput<typeof InviteDocumentVSchema>;
 
-export type SafeInvite = Pick<
+export type ISafeInvite = Pick<
    IInviteDocument,
    'email' | 'role' | 'canIssueInvites' | 'expiresAt' | 'usedAt'
 >;
 
-export type PreviewInviteResponse = {
+export type IPreviewInviteResponse = {
    success: true;
-   inv: SafeInvite;
+   inv: ISafeInvite;
 };
 
 export function getInviteCollection(): Collection<IInviteDocument> {

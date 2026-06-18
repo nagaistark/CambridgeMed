@@ -1,4 +1,7 @@
-import { PreviewInviteResponse, SafeInvite } from '@models/Invite.model.ts';
+import {
+   IPreviewInviteResponse,
+   ISafeInvite,
+} from '@models/Invite_v2.model.ts';
 import {
    IPatientDocument,
    PatientCreateFullResponse,
@@ -13,7 +16,7 @@ import type {
    AuthUserResponseLogout,
    IUserDocument,
    SafeUser,
-} from '@models/User.model.ts';
+} from '@models/User_v2.model.ts';
 import { encodeCursor } from '@utils/cursorPagination.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
@@ -68,8 +71,8 @@ export function buildMeResponse(message: string, user: SafeUser): MeResponse {
 
 // ── Invite preview response ──────────────────────────────────────────────────────
 export function buildPreviewInviteResponse(
-   inv: SafeInvite
-): PreviewInviteResponse {
+   inv: ISafeInvite
+): IPreviewInviteResponse {
    return { success: true, inv };
 }
 
