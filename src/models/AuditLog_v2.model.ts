@@ -6,7 +6,7 @@ import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import {
    baseString,
    longString,
-   objectIdFromString,
+   stringToObjectId,
    objectIdInstance,
 } from '@utils/valibotSchemaReusables.ts';
 import { Collection } from 'mongodb';
@@ -26,16 +26,16 @@ import {
 } from 'valibot';
 
 export const AuditLogInputVSchema = strictObject({
-   actorID: objectIdFromString,
+   actorID: stringToObjectId,
    actorRole: makePicklist(allRoles),
    action: makePicklist(auditActions),
    resourceType: makePicklist(auditableResourceTypes),
    resourceIDs: pipe(
-      array(objectIdFromString),
+      array(stringToObjectId),
       minLength(1, `Must include at least one resource ID.`)
    ),
    patientIDs: pipe(
-      array(objectIdFromString),
+      array(stringToObjectId),
       minLength(1, `Must include at least one patient ID.`)
    ),
 

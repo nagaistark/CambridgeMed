@@ -8,7 +8,7 @@ import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import {
    Argon2HashString,
    nameString,
-   nonNegativeIntegerNumber,
+   nonNegativeIntegerDocument,
    objectIdInstance,
    Sha256HexString,
    totpSecret,
@@ -82,8 +82,8 @@ export const UserDocumentVSchema = strictObject({
          `Email change count cannot exceed the cap of ${EMAIL_CHANGE_CAP}.`
       )
    ),
-   nameChangesUsed: nonNegativeIntegerNumber,
-   emailChangesUsed: nonNegativeIntegerNumber,
+   nameChangesUsed: nonNegativeIntegerDocument,
+   emailChangesUsed: nonNegativeIntegerDocument,
    totpSecret: nullable(totpSecret),
    isTotpEnabled: boolean(),
    totpRecoveryCodes: pipe(
@@ -93,7 +93,7 @@ export const UserDocumentVSchema = strictObject({
          `Must contain exactly ${TOTP_RECOVERY_CODE_COUNT} codes.`
       )
    ),
-   totpLastUsedStep: nonNegativeIntegerNumber,
+   totpLastUsedStep: nonNegativeIntegerDocument,
    invitedBy: optional(objectIdInstance),
    isActive: boolean(),
    createdAt: date(`createdAt must be a valid JS Date object.`),
