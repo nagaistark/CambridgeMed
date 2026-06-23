@@ -1,6 +1,7 @@
 import { auditableResourceTypes, auditActions } from '@ssot/audit_constants.ts';
 import { allRoles } from '@ssot/user_roles_constants.ts';
 import { makePicklist } from '@utils/arrayToValPicklist.ts';
+import { ExtractKeysMatching } from '@utils/helperTypes.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import {
    baseString,
@@ -13,6 +14,8 @@ import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    array,
    date,
+   GenericSchema,
+   InferInput,
    InferOutput,
    ip,
    minLength,
@@ -45,8 +48,27 @@ export const AuditLogInputVSchema = strictObject({
    ),
 });
 
+type IAuditLogInput = InferInput<typeof AuditLogInputVSchema>;
+type IAuditLogInputIDKeys = ExtractKeysMatching<
+   IAuditLogInput,
+   `${string}IDs` | `${string}ID`
+>;
+
+const nativeIdFields = {
+   actorID: objectIdInstance,
+   resourceIDs: pipe(
+      array(objectIdInstance),
+      minLength(1, `Must include at least one resource ID.`)
+   ),
+   patientIDs: pipe(
+      array(objectIdInstance),
+      minLength(1, `Must include at least one patient ID.`)
+   ),
+} satisfies Record<IAuditLogInputIDKeys, GenericSchema>;
+
 export const AuditLogDocumentVSchema = strictObject({
    ...AuditLogInputVSchema.entries,
+   ...nativeIdFields, // overriding the plain string-formatted IDs from the InputVSchema with actual ObjectId's.
    _id: objectIdInstance,
    occurredAt: date(`occurredAt must be a valid JS Date object.`),
 });
@@ -56,7 +78,7 @@ type IAuditLogDocument = InferOutput<typeof AuditLogDocumentVSchema>;
 export function getAuditLogCollection(): Collection<IAuditLogDocument> {
    return DatabaseManager.getInstance()
       .audit.db()
-      .collection<IAuditLogDocument>('auditLogs');
+      .collection<IAuditLogDocument>('auditlogs');
 }
 
 export const auditLogIndexes = [

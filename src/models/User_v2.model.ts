@@ -1,12 +1,15 @@
 import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
+import {
+   EMAIL_CHANGE_CAP,
+   NAME_CHANGE_CAP,
+} from '@ssot/user_change_constants.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import {
    Argon2HashString,
    nameString,
    nonNegativeIntegerNumber,
    objectIdInstance,
-   positiveIntegerNumber,
    Sha256HexString,
    totpSecret,
    validateEmail,
@@ -59,13 +62,26 @@ const EmailHistoryEntrySubVSchema = strictObject({
    archivedAt: date(`archivedAt must be a valid JS Date object.`),
 });
 
+// ── Schema against which to check the shape of the data before writing to disk ───
 export const UserDocumentVSchema = strictObject({
    ...omit(UserInputVSchema, ['password']).entries,
    ...pick(AUTHENTICATED_USER, ['role', 'permissions']).entries,
    _id: objectIdInstance,
    passwordHash: Argon2HashString,
-   previousNames: array(NameHistoryEntrySubVSchema),
-   previousEmails: array(EmailHistoryEntrySubVSchema),
+   previousNames: pipe(
+      array(NameHistoryEntrySubVSchema),
+      maxLength(
+         NAME_CHANGE_CAP,
+         `Name change count cannot exceed the cap of ${NAME_CHANGE_CAP}.`
+      )
+   ),
+   previousEmails: pipe(
+      array(EmailHistoryEntrySubVSchema),
+      maxLength(
+         EMAIL_CHANGE_CAP,
+         `Email change count cannot exceed the cap of ${EMAIL_CHANGE_CAP}.`
+      )
+   ),
    nameChangesUsed: nonNegativeIntegerNumber,
    emailChangesUsed: nonNegativeIntegerNumber,
    totpSecret: nullable(totpSecret),
@@ -77,7 +93,7 @@ export const UserDocumentVSchema = strictObject({
          `Must contain exactly ${TOTP_RECOVERY_CODE_COUNT} codes.`
       )
    ),
-   totpLastUsedStep: positiveIntegerNumber,
+   totpLastUsedStep: nonNegativeIntegerNumber,
    invitedBy: optional(objectIdInstance),
    isActive: boolean(),
    createdAt: date(`createdAt must be a valid JS Date object.`),

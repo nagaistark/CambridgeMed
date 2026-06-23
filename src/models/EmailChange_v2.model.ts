@@ -32,7 +32,7 @@ type IEmailChangeDocument = InferOutput<typeof EmailChangeDocumentVSchema>;
 export function getEmailChangeCollection(): Collection<IEmailChangeDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<IEmailChangeDocument>('emailChanges');
+      .collection<IEmailChangeDocument>('emailchanges');
 }
 
 export const emailChangeIndexes = [
