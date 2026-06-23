@@ -22,12 +22,11 @@ import {
    stringDateInTheFutureOrOptionallyToday,
    stringDateInThePastOrOptionallyToday,
    dinRegex,
-   idOrName,
    longString,
    nameString,
-   objectIdStringCheck,
+   objectIdInput,
    phoneNANPRegex,
-   positiveIntegerInputString,
+   positiveIntegerInput,
    snomedRegex,
    validateCanadianPostalCode,
    validateDIN,
@@ -104,7 +103,7 @@ const immunizationVSchema = pipe(
       route: makePicklist(vaccineDeliveryRoutes),
       site: optional(makePicklist(vaccineDeliverySites)),
       dose: strictObject({
-         value: positiveIntegerInputString,
+         value: positiveIntegerInput,
          unit: makePicklist(vaccineDoseUnits),
       }),
       dateAdministered: stringDateInThePastOrOptionallyToday,
@@ -143,7 +142,7 @@ const immunizationVSchema = pipe(
 const surgeryVSchema = strictObject({
    procedure: baseString,
    date: stringDateInThePastOrOptionallyToday,
-   performedBy: idOrName,
+   performedBy: nameString,
    hospital: nameString,
    notes: optional(longString),
 });
@@ -154,7 +153,7 @@ const consentVSchema = pipe(
       granted: boolean(),
       date: optional(stringDateInThePastOrOptionallyToday),
       method: optional(makePicklist(consentCollectingMethods)),
-      recordedBy: optional(objectIdStringCheck),
+      recordedBy: optional(objectIdInput),
    }),
 
    forward(
@@ -174,7 +173,7 @@ const consentVSchema = pipe(
 // ── Main Valibot registration schema ─────────────────────────────────────────────
 export const patientVSchemaFull = strictObject({
    isActive: boolean(),
-   primaryDoctorId: objectIdStringCheck,
+   primaryDoctorId: objectIdInput,
 
    intakeInfo: strictObject({
       coreIdentifiers: pipe(
@@ -190,7 +189,7 @@ export const patientVSchemaFull = strictObject({
                   `Must be 10 letters, numbers, or hyphens (valibot).`
                )
             ),
-            internalProviderId: optional(idOrName),
+            internalProviderId: optional(objectIdInput),
             externalProviderId: optional(baseString),
             enrolledStatus: optional(makePicklist(enrollmentStatuses)),
             enrollmentDate: optional(stringDateInThePastOrOptionallyToday),
@@ -279,7 +278,7 @@ export const patientVSchemaFull = strictObject({
             strictObject({
                relationship: makePicklist(familyRelationships),
                condition: baseString,
-               ageAtDiagnosed: optional(positiveIntegerInputString),
+               ageAtDiagnosed: optional(positiveIntegerInput),
                deceased: boolean(),
                notes: optional(longString),
             })
