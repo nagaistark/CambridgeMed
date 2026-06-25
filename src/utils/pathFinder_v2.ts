@@ -55,3 +55,7 @@ export type MongoIndexPaths<T, D extends number = 5> =
 export type StrictIndexConfig<T> = {
    [K in MongoIndexPaths<T>]?: IndexDirection;
 };
+
+export type PathMap<T, V> = {
+   [K in MongoIndexPaths<T>]?: V;
+};
