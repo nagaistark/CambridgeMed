@@ -67,18 +67,36 @@ export type RequiredKeys<T> = {
    [K in keyof T]-?: Pick<T, K> extends Required<Pick<T, K>> ? K : never;
 }[keyof T];
 
-/* 2. Traverse and collect ONLY paths where every segment is strictly required */
-type MongoRequiredPaths<T, D extends number = 5> = [D] extends [never]
+/* 2. Traverse and collect ONLY paths where every segment is strictly required. Standard Object Paths (Stops at Arrays) for Valibot schemas, forms, and general field-level configs */
+export type StandardPaths<T, D extends number = 5> = [D] extends [never]
    ? never
-   : NonNullable<T> extends readonly (infer U)[]
-     ? MongoRequiredPaths<U, D>
-     : NonNullable<T> extends MongoPrimitive
+   : NonNullable<T> extends MongoPrimitive
+     ? never
+     : NonNullable<T> extends readonly unknown[] // Treat arrays as leaf nodes; do not traverse inside
+       ? never
+       : NonNullable<T> extends object
+         ? {
+              [K in keyof NonNullable<T> & string]:
+                 | K
+                 | (StandardPaths<NonNullable<T>[K], Prev[D]> extends infer P
+                      ? P extends never
+                         ? never
+                         : `${K}.${P & string}`
+                      : never);
+           }[keyof NonNullable<T> & string]
+         : never;
+
+export type StandardRequiredPaths<T, D extends number = 5> = [D] extends [never]
+   ? never
+   : NonNullable<T> extends MongoPrimitive
+     ? never
+     : NonNullable<T> extends readonly unknown[] // Stop here as well
        ? never
        : NonNullable<T> extends object
          ? {
               [K in RequiredKeys<NonNullable<T>> & string]:
                  | K
-                 | (MongoRequiredPaths<
+                 | (StandardRequiredPaths<
                       NonNullable<T>[K],
                       Prev[D]
                    > extends infer P
@@ -90,17 +108,17 @@ type MongoRequiredPaths<T, D extends number = 5> = [D] extends [never]
          : never;
 
 /* 3. The optional paths are simply all paths MINUS the required paths */
-type MongoOptionalPaths<T, D extends number = 5> = Exclude<
-   MongoIndexPaths<T, D>,
-   MongoRequiredPaths<T, D>
+export type StandardOptionalPaths<T, D extends number = 5> = Exclude<
+   StandardPaths<T, D>,
+   StandardRequiredPaths<T, D>
 >;
 
 /* 4. A standard utility to flatten intersecting types for clean IDE hover hints */
-type Prettify<T> = {
-   [K in keyof T]: T[K];
-} & {};
+export type Prettify<T> = { [K in keyof T]: T[K] } & {};
 
 /* 5. The PathMap that preserves the optonality structure */
 export type PathMap_PresOpt<T, V> = Prettify<
-   { [K in MongoRequiredPaths<T>]: V } & { [K in MongoOptionalPaths<T>]?: V }
+   { [K in StandardRequiredPaths<T>]: V } & {
+      [K in StandardOptionalPaths<T>]?: V;
+   }
 >;
