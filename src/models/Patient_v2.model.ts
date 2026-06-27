@@ -71,7 +71,7 @@ const CoreIdentifiersDocumentVSchema = pipe(
       externalProviderId: optional(baseString),
       enrolledStatus: optional(makePicklist(enrollmentStatuses)),
       enrollmentDate: optional(jsDateInThePast),
-      enrollmentTerminationDate: optional(jsDateInTheFuture),
+      enrollmentTerminationDate: optional(jsDateInThePast),
       enrollmentTerminationReason: optional(baseString),
    }),
    forward(
@@ -97,7 +97,7 @@ const CoreIdentifiersDocumentVSchema = pipe(
             }
             return true;
          },
-         `Enrollment Termination Date are Reason are required when the patient status is "Inactive".`
+         `Enrollment Termination Date and Reason are required when the patient status is "Inactive".`
       ),
       ['enrollmentTerminationDate']
    )
@@ -463,7 +463,7 @@ const coreIdentifiersShape = {
    externalProviderId: optional(baseString),
    enrolledStatus: optional(makePicklist(enrollmentStatuses)),
    enrollmentDate: optional(stringDateInThePastOrOptionallyToday),
-   enrollmentTerminationDate: optional(stringDateInTheFutureOrOptionallyToday),
+   enrollmentTerminationDate: optional(stringDateInThePastOrOptionallyToday),
    enrollmentTerminationReason: optional(baseString),
 } satisfies CoreIdentifiersPaths;
 
@@ -648,7 +648,7 @@ export const PatientInputVSchema = strictObject({
                   }
                   return true;
                },
-               `Enrollment Termination Date are Reason are required when the patient status is "Inactive".`
+               `Enrollment Termination Date and Reason are required when the patient status is "Inactive".`
             ),
             ['enrollmentTerminationDate']
          )
