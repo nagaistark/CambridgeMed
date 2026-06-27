@@ -62,63 +62,33 @@ export type PathMap<T, V> = {
 };
 
 // ── Tool that preserves the exact optionality structure of original type ─────────
-/* 1. Extract keys that are strictly required (omits keys with '?') */
+/* 1. Extract keys that are strictly required */
 export type RequiredKeys<T> = {
    [K in keyof T]-?: Pick<T, K> extends Required<Pick<T, K>> ? K : never;
 }[keyof T];
 
-/* 2. Traverse and collect ONLY paths where every segment is strictly required. Standard Object Paths (Stops at Arrays) for Valibot schemas, forms, and general field-level configs */
-export type StandardPaths<T, D extends number = 5> = [D] extends [never]
-   ? never
-   : NonNullable<T> extends MongoPrimitive
-     ? never
-     : NonNullable<T> extends readonly unknown[] // Treat arrays as leaf nodes; do not traverse inside
-       ? never
-       : NonNullable<T> extends object
-         ? {
-              [K in keyof NonNullable<T> & string]:
-                 | K
-                 | (StandardPaths<NonNullable<T>[K], Prev[D]> extends infer P
-                      ? P extends never
-                         ? never
-                         : `${K}.${P & string}`
-                      : never);
-           }[keyof NonNullable<T> & string]
-         : never;
+/* 2. Extract keys that are optional */
+export type OptionalKeys<T> = Exclude<keyof T, RequiredKeys<T>>;
 
-export type StandardRequiredPaths<T, D extends number = 5> = [D] extends [never]
-   ? never
-   : NonNullable<T> extends MongoPrimitive
-     ? never
-     : NonNullable<T> extends readonly unknown[] // Stop here as well
-       ? never
-       : NonNullable<T> extends object
-         ? {
-              [K in RequiredKeys<NonNullable<T>> & string]:
-                 | K
-                 | (StandardRequiredPaths<
-                      NonNullable<T>[K],
-                      Prev[D]
-                   > extends infer P
-                      ? P extends never
-                         ? never
-                         : `${K}.${P & string}`
-                      : never);
-           }[RequiredKeys<NonNullable<T>> & string]
-         : never;
-
-/* 3. The optional paths are simply all paths MINUS the required paths */
-export type StandardOptionalPaths<T, D extends number = 5> = Exclude<
-   StandardPaths<T, D>,
-   StandardRequiredPaths<T, D>
->;
-
-/* 4. A standard utility to flatten intersecting types for clean IDE hover hints */
+/* 3. A standard utility to flatten intersecting types for clean IDE hover hints */
 export type Prettify<T> = { [K in keyof T]: T[K] } & {};
 
-/* 5. The PathMap that preserves the optonality structure */
+/* 4. Safety Guard: Prevents mapping over arrays or primitives if passed by mistake */
+type ValidObjectTarget<T> =
+   NonNullable<T> extends MongoPrimitive | readonly unknown[]
+      ? never
+      : NonNullable<T>;
+
+/* 5. The PathMap that preserves the optionality structure (Shallow, NO dot notation) */
 export type PathMap_PresOpt<T, V> = Prettify<
-   { [K in StandardRequiredPaths<T>]: V } & {
-      [K in StandardOptionalPaths<T>]?: V;
+   { [K in RequiredKeys<ValidObjectTarget<T>>]: V } & {
+      [K in OptionalKeys<ValidObjectTarget<T>>]?: V;
    }
 >;
+
+// ── The "All Required" Configuration Map ─────────────────────────────────────────
+
+/* Makes all immediate keys strictly required (Shallow, NO dot notation) */
+export type PathMap_AllReq<T, V> = Prettify<{
+   [K in keyof ValidObjectTarget<T>]-?: V; // The -? modifier strips optionality
+}>;

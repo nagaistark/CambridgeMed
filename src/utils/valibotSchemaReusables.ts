@@ -89,6 +89,14 @@ export const validateNANPPhoneNumber = pipe(
    )
 );
 
+export const chartNumberValidator = pipe(
+   baseString,
+   regex(
+      /^[A-Za-z0-9-]{10}$/,
+      `Must be 10 letters, numbers, or hyphens (valibot).`
+   )
+);
+
 export const validateEmail = pipe(
    baseString,
    email(`Incorrectly formatted email (validateEmail).`),
