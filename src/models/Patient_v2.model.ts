@@ -239,13 +239,10 @@ const AllergiesEntryDocumentVSchema = array(
    })
 );
 
-const immunizationDoseDocumentVSchema = array(
-   strictObject({
-      value: positiveIntegerDocument,
-      unit: makePicklist(vaccineDoseUnits),
-   })
-);
-
+const immunizationDoseDocumentVSchema = strictObject({
+   value: positiveIntegerDocument,
+   unit: makePicklist(vaccineDoseUnits),
+});
 const ImmunizationsEntryDocumentVSchema = array(
    pipe(
       strictObject({

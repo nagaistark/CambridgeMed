@@ -73,9 +73,9 @@ export type OptionalKeys<T> = Exclude<keyof T, RequiredKeys<T>>;
 /* 3. A standard utility to flatten intersecting types for clean IDE hover hints */
 export type Prettify<T> = { [K in keyof T]: T[K] } & {};
 
-/* 4. Safety Guard: Prevents mapping over arrays or primitives if passed by mistake */
+/* 4. Safety Guard: Prevents mapping over arrays or native globals if passed by mistake. (MongoPrimitive is removed here to avoid the empty interface trap where unresolved types degrade to {} and swallow valid objects). */
 type ValidObjectTarget<T> =
-   NonNullable<T> extends MongoPrimitive | readonly unknown[]
+   NonNullable<T> extends readonly unknown[] | Date | RegExp
       ? never
       : NonNullable<T>;
 
