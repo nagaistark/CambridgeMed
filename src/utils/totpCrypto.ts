@@ -6,6 +6,7 @@ import {
    randomBytes,
 } from 'node:crypto';
 import { myEnv } from 'validateConfig.ts';
+import { Redacted } from 'effect';
 import {
    AES_KEY_BYTE_LENGTH,
    CIPHER_ALGORITHM,
@@ -22,7 +23,7 @@ import {
 const ENCRYPTION_KEY: Buffer = Buffer.from(
    hkdfSync(
       'sha256',
-      myEnv.totpEncryptionKey,
+      Redacted.value(myEnv.totpEncryptionKey),
       Buffer.alloc(0), // empty salt: RFC 5869 §3.1 says this is fine when the IKM is already a strong key
       'cambridge-med:totp:secret-encryption:v1',
       AES_KEY_BYTE_LENGTH
@@ -32,7 +33,7 @@ const ENCRYPTION_KEY: Buffer = Buffer.from(
 const HMAC_KEY: Buffer = Buffer.from(
    hkdfSync(
       'sha256',
-      myEnv.totpEncryptionKey,
+      Redacted.value(myEnv.totpEncryptionKey),
       Buffer.alloc(0),
       'cambridge-med:totp:recovery-code-hmac:v1',
       HMAC_KEY_BYTE_LENGTH

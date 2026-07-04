@@ -1,10 +1,11 @@
 import { Resend } from 'resend';
 import { myEnv } from 'validateConfig.ts';
+import { Redacted } from 'effect';
 import type { AllowedUserRole } from '@ssot/user_roles_constants.ts';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 
 /* Instantiated once at module load. Resend is stateless between calls, so a single shared instance is correct and efficient. */
-const resend = new Resend(myEnv.resend.apiKey);
+const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
 
 export type IInviteEmailParams = {
    to: string;

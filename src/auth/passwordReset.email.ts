@@ -1,5 +1,6 @@
 import { Resend } from 'resend';
 import { myEnv } from 'validateConfig.ts';
+import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import type { IPasswordResetDefinition } from '@models/PasswordReset.model.ts';
 import type { IUserDefinition } from '@models/User.model.ts';
@@ -12,7 +13,7 @@ export type IPasswordResetEmailParams = Pick<
       resetUrl: string;
    };
 
-const resend = new Resend(myEnv.resend.apiKey);
+const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
 
 export async function sendPasswordResetEmail(
    params: IPasswordResetEmailParams

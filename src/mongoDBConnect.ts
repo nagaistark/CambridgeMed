@@ -2,6 +2,7 @@ import { myEnv } from 'validateConfig.ts';
 import logger from 'logger.ts';
 import { MongoClient, MongoClientOptions, Db } from 'mongodb';
 import { Server } from 'node:http';
+import { Redacted } from 'effect';
 
 export function sanitizeError(input: unknown): {
    message: string;
@@ -35,7 +36,7 @@ export class DatabaseService {
    #client: MongoClient | null = null;
    #isConnected: boolean = false;
    #isShuttingDownIntentionally: boolean = false;
-   readonly #uri: string;
+   readonly #uri: Redacted.Redacted<string>;
    readonly #name: string;
 
    readonly #maxRetries: number = myEnv.database.maxRetries;
@@ -48,7 +49,7 @@ export class DatabaseService {
    /* Differentiates "we lost a previously healthy connection" from "we never connected". */
    #hasEverConnected: boolean = false;
 
-   constructor(uri: string, name: string) {
+   constructor(uri: Redacted.Redacted<string>, name: string) {
       this.#uri = uri;
       this.#name = name;
    }
@@ -96,7 +97,7 @@ export class DatabaseService {
                heartbeatFrequencyMS: myEnv.database.heartbeatFrequencyMS,
             };
 
-            this.#client = new MongoClient(this.#uri, options);
+            this.#client = new MongoClient(Redacted.value(this.#uri), options);
             this.#attachListeners(this.#client);
 
             /* This can hang for up to `serverSelectionTimeoutMS` milliseconds. */

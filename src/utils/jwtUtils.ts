@@ -1,5 +1,6 @@
 import { SignJWT, jwtVerify, importPKCS8, importSPKI } from 'jose';
 import { myEnv } from 'validateConfig.ts';
+import { Redacted } from 'effect';
 
 //== JWT KEY VALIDATION ────────────────────────────────────────────────────────────────
 /* Confirming two things before the server accepts any traffic:
@@ -11,7 +12,10 @@ let _cachedPublicKey: CryptoKey | null = null;
 
 export async function getPrivateKey(): Promise<CryptoKey> {
    if (!_cachedPrivateKey) {
-      _cachedPrivateKey = await importPKCS8(myEnv.jwt.privateKey, 'RS256');
+      _cachedPrivateKey = await importPKCS8(
+         Redacted.value(myEnv.jwt.privateKey),
+         'RS256'
+      );
    }
    return _cachedPrivateKey;
 }

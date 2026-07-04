@@ -1,5 +1,6 @@
 import argon2, { Options } from 'argon2';
 import { myEnv } from 'validateConfig.ts';
+import { Redacted } from 'effect';
 
 export const ARGON2_CONFIG: Options & { type: 2 } = {
    type: argon2.argon2id,
@@ -8,7 +9,7 @@ export const ARGON2_CONFIG: Options & { type: 2 } = {
    timeCost: 3, // iterations
    parallelism: 4, // threads
    hashLength: 32,
-   secret: myEnv.argon2Secret,
+   secret: Redacted.value(myEnv.argon2Secret),
 };
 
 export const argon2Regex =

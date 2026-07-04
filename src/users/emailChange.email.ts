@@ -1,5 +1,6 @@
 import { myEnv } from 'validateConfig.ts';
 import { Resend } from 'resend';
+import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import { IEmailChangeDefinition } from '@models/EmailChange.model.ts';
 import { IUserDefinition } from '@models/User.model.ts';
@@ -13,7 +14,7 @@ export type IEmailChangeEmailParams = Pick<
       cancelUrl: string;
    };
 
-const resend = new Resend(myEnv.resend.apiKey);
+const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
 
 /* Sends two emails as a single logical operation. Both must succeed. If either fails, the error propagates to the caller, which is responsible for rolling back the EmailChange document. */
 export async function sendEmailChangeEmails(
