@@ -22,7 +22,7 @@ const dinRegex = /^\d{8}$/;
 const snomedRegex = /^[1-9]\d{5,17}$/;
 
 // ===== BASICS ====================================================================
-const customTrim = Schema.transform(
+export const customTrim = Schema.transform(
    Schema.String,
    Schema.String.pipe(Schema.trimmed()),
    {
@@ -75,7 +75,7 @@ export const nameString = Schema.transform(
    }
 );
 
-export const positiveInteger = Schema.transform(
+export const positiveIntegerStringToNumber = Schema.transform(
    baseString.pipe(
       Schema.pattern(/^[0-9]+$/, {
          message: () => `Must be a numeric string (positiveInteger).`,
@@ -85,6 +85,7 @@ export const positiveInteger = Schema.transform(
       Schema.filter(num => Number.isSafeInteger(num), {
          message: () => `Value is not a safe JavaScript integer.`,
       }),
+      Schema.int({ message: () => `Must be an integer.` }),
       Schema.positive({ message: () => `Must be a positive number.` })
    ),
    {
@@ -94,7 +95,7 @@ export const positiveInteger = Schema.transform(
    }
 );
 
-export const nonNegativeInteger = Schema.transform(
+export const nonNegativeIntegerStringToNumber = Schema.transform(
    baseString.pipe(
       Schema.pattern(/^[0-9]+$/, {
          message: () => `Must be a numeric string (nonNegativeInteger).`,

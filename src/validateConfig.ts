@@ -1,154 +1,211 @@
 import 'dotenv/config';
 import { env } from 'node:process';
+import { Buffer } from 'node:buffer';
+import { Schema, ParseResult, Either } from 'effect';
 import logger from 'logger.ts';
 import {
-   strictObject,
-   pipe,
-   string,
-   transform,
-   array,
-   parse,
-   InferOutput,
-   minLength,
-   trim,
-   maxLength,
-   check,
-   regex,
-   digits,
-   number,
-   url,
-   picklist,
-   email,
-   forward,
-} from 'valibot';
-import { Buffer } from 'node:buffer';
+   clinicStaffEmail,
+   customTrim,
+   positiveIntegerStringToNumber,
+} from '@utils/effectSchemaReusables.ts';
 
-const nonEmptyReasonablyLongString = pipe(
-   string('Variable is not a string'),
-   trim(),
-   minLength(1),
-   maxLength(512)
+// ===== BASIC LEAF SCHEMAS ========================================================
+const nonEmptyReasonablyLongString = customTrim.pipe(
+   Schema.minLength(1, { message: () => 'Variable is empty or missing.' }),
+   Schema.maxLength(512, {
+      message: () => 'Variable exceeds the maximum allowed length (512).',
+   })
 );
 
-const pemPrivateKey = pipe(
-   string('JWT_PRIVATE_KEY must be a string.'),
-   minLength(1, 'JWT_PRIVATE_KEY cannot be empty.'),
-   maxLength(2048),
-   check(str => {
-      return (
+/* Deliberately NOT built on `customTrim`. A PEM key's format is anchored on a literal trailing '\n' after '-----END ... KEY-----' — trimming it would silently strip the very character the shape-check below requires. */
+const boundedString = Schema.String.pipe(
+   Schema.minLength(1, { message: () => 'Variable is empty or missing.' }),
+   Schema.maxLength(4096, {
+      message: () => 'Variable exceeds the maximum allowed length.',
+   })
+);
+
+const portNumber = positiveIntegerStringToNumber.pipe(
+   Schema.filter((port: number) => port <= 65535, {
+      message: () => 'Port must be between 1 and 65535.',
+   })
+);
+
+// ===== SECRETS (wrapped in Redacted — see note below the schema) ================
+const mongoConnectionUriPattern =
+   /^mongodb(\+srv)?:\/\/(?:[^:@]+:[^:@]+@)?[^/]+(?:\/[^?]*)?(?:\?.*)?$/;
+
+const mongoConnectionUri = nonEmptyReasonablyLongString.pipe(
+   Schema.pattern(mongoConnectionUriPattern, {
+      message: () =>
+         `Connection string doesn't conform to the expected MongoDB URI pattern.`,
+   })
+);
+
+/* Connection strings embed credentials (`user:pass@host`), so they're redacted just
+   like the other secrets below — a stray `logger.info(myEnv.database.appUri)`
+   anywhere downstream now prints `<redacted>` instead of a password. */
+const redactedMongoConnectionUri = Schema.Redacted(mongoConnectionUri);
+
+const pemPrivateKey = boundedString.pipe(
+   Schema.filter(
+      (str: string) =>
          str.startsWith('-----BEGIN PRIVATE KEY-----') &&
-         str.endsWith('-----END PRIVATE KEY-----\n')
-      );
-   }, 'JWT_PRIVATE_KEY does not look like a valid PKCS#8 PEM private key.')
+         str.endsWith('-----END PRIVATE KEY-----\n'),
+      {
+         message: () =>
+            `JWT_PRIVATE_KEY does not look like a valid PKCS#8 PEM private key.`,
+      }
+   )
 );
+const redactedPemPrivateKey = Schema.Redacted(pemPrivateKey);
 
-const pemPublicKey = pipe(
-   string('JWT_PUBLIC_KEY must be a string.'),
-   minLength(1, 'JWT_PUBLIC_KEY cannot be empty.'),
-   maxLength(2048),
-   check(str => {
-      return (
+/* The public key is, by definition, public. Redacting it would just be theatre. */
+const pemPublicKey = boundedString.pipe(
+   Schema.filter(
+      (str: string) =>
          str.startsWith('-----BEGIN PUBLIC KEY-----') &&
-         str.endsWith('-----END PUBLIC KEY-----\n')
-      );
-   }, 'JWT_PUBLIC_KEY does not look like a valid SPKI PEM public key')
+         str.endsWith('-----END PUBLIC KEY-----\n'),
+      {
+         message: () =>
+            `JWT_PUBLIC_KEY does not look like a valid SPKI PEM public key.`,
+      }
+   )
 );
 
-const stringContainingpositiveIntegerInput = pipe(
+const resendApiKey = nonEmptyReasonablyLongString.pipe(
+   Schema.pattern(/^[a-zA-Z0-9\-._]{36}$/, {
+      message: () => `String doesn't conform to the Resend API key pattern.`,
+   })
+);
+const redactedResendApiKey = Schema.Redacted(resendApiKey);
+
+/* 32 bytes (256 bits) is a reasonable minimum for a pepper that strengthens every password hash in the system — matches the rigor already applied to totpEncryptionKey below. */
+const argon2SecretBuffer = Schema.transform(
    nonEmptyReasonablyLongString,
-   digits(),
-   transform(Number),
-   number(`Must be a numeric value`),
-   check(val => val > 0 && val <= Number.MAX_SAFE_INTEGER)
+   Schema.instanceOf(Buffer),
+   {
+      strict: true,
+      decode: (str: string) => Buffer.from(str, 'utf8'),
+      encode: (buf: Buffer) => buf.toString('utf8'),
+   }
+).pipe(
+   Schema.filter((buf: Buffer) => buf.length >= 32, {
+      message: () =>
+         `ARGON2_SECRET must be at least 32 bytes long once UTF-8 encoded.`,
+   })
+);
+const redactedArgon2Secret = Schema.Redacted(argon2SecretBuffer);
+
+const httpUrl = Schema.transformOrFail(
+   nonEmptyReasonablyLongString,
+   Schema.String,
+   {
+      strict: true,
+      decode: (str, _options, ast) => {
+         try {
+            new URL(str);
+            return ParseResult.succeed(str);
+         } catch {
+            return ParseResult.fail(
+               new ParseResult.Type(ast, str, `The URL is badly formatted.`)
+            );
+         }
+      },
+      encode: str => ParseResult.succeed(str),
+   }
 );
 
-const mongoConnStrPattern = regex(
-   /^mongodb(\+srv)?:\/\/(?:[^:@]+:[^:@]+@)?[^/]+(?:\/[^?]*)?(?:\?.*)?$/,
-   `Connection string doesn't conform to the pattern.`
+const base64Exact32Bytes = Schema.transformOrFail(
+   customTrim,
+   Schema.instanceOf(Buffer),
+   {
+      strict: true,
+      decode: (str, _options, ast) => {
+         const buf = Buffer.from(str, 'base64');
+         return buf.length === 32
+            ? ParseResult.succeed(buf)
+            : ParseResult.fail(
+                 new ParseResult.Type(
+                    ast,
+                    str,
+                    `TOTP_ENCRYPTION_KEY must be a base64 string that decodes to exactly 32 bytes.`
+                 )
+              );
+      },
+      encode: buf => ParseResult.succeed(buf.toString('base64')),
+   }
+);
+const redactedTotpKey = Schema.Redacted(base64Exact32Bytes);
+
+const commaSeparatedOrigins = Schema.transform(
+   nonEmptyReasonablyLongString,
+   Schema.Array(Schema.String),
+   {
+      strict: true,
+      decode: (str: string) =>
+         str
+            .split(',')
+            .map(v => v.trim())
+            .filter(Boolean),
+      encode: (arr: readonly string[]) => arr.join(','),
+   }
+).pipe(
+   Schema.filter((arr: readonly string[]) => arr.length > 0, {
+      message: () => 'At least one CORS origin must be specified.',
+   })
 );
 
-const resendApiKeys = pipe(
-   string(`Must be a string.`),
-   trim(),
-   regex(/^[a-zA-Z0-9\-._]{36}$/, `String doesn't conform to the pattern.`)
+// ===== COMPOSITE SCHEMA ===========================================================
+const DatabaseConfigSchema = Schema.Struct({
+   appUri: redactedMongoConnectionUri,
+   authUri: redactedMongoConnectionUri,
+   auditUri: redactedMongoConnectionUri,
+   maxPoolSize: positiveIntegerStringToNumber,
+   serverSelectionTimeoutMS: positiveIntegerStringToNumber,
+   socketTimeoutMS: positiveIntegerStringToNumber,
+   heartbeatFrequencyMS: positiveIntegerStringToNumber,
+   maxRetries: positiveIntegerStringToNumber,
+   baseDelay: positiveIntegerStringToNumber,
+   gracePeriodMS: positiveIntegerStringToNumber,
+}).pipe(
+   /* This is the "two dials that must stay in proportion" check — the grace period is meaningless as a safety margin unless it's a multiple of how often we're even allowed to notice a problem (heartbeatFrequencyMS). */
+   Schema.filter(
+      ({ heartbeatFrequencyMS, gracePeriodMS }) =>
+         gracePeriodMS >= heartbeatFrequencyMS * 3,
+      {
+         message: () =>
+            `GRACE_PERIOD_MS should be at least three times HEARTBEAT_FREQUENCY_MS.`,
+      }
+   )
 );
 
-const ConfigSchema = strictObject({
-   environment: picklist(
-      ['development', 'production', 'test'],
-      `Must be 'development', 'production' or 'test'.`
-   ),
-   database: pipe(
-      strictObject({
-         appUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-         authUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-         auditUri: pipe(nonEmptyReasonablyLongString, mongoConnStrPattern),
-         maxPoolSize: stringContainingpositiveIntegerInput,
-         serverSelectionTimeoutMS: stringContainingpositiveIntegerInput,
-         socketTimeoutMS: stringContainingpositiveIntegerInput,
-         heartbeatFrequencyMS: stringContainingpositiveIntegerInput,
-         maxRetries: stringContainingpositiveIntegerInput,
-         baseDelay: stringContainingpositiveIntegerInput,
-         gracePeriodMS: stringContainingpositiveIntegerInput,
-      }),
-      forward(
-         check(({ heartbeatFrequencyMS, gracePeriodMS }) => {
-            return gracePeriodMS >= heartbeatFrequencyMS * 3;
-         }, `Grace period should be at least a few multiples of the heartbeat frequency.`),
-         ['gracePeriodMS']
-      )
-   ),
-   server: strictObject({
+const ConfigSchema = Schema.Struct({
+   environment: Schema.Literal('development', 'production', 'test'),
+   database: DatabaseConfigSchema,
+   server: Schema.Struct({
       host: nonEmptyReasonablyLongString,
-      port: pipe(
-         stringContainingpositiveIntegerInput,
-         check(v => {
-            return v <= 65535;
-         })
-      ),
+      port: portNumber,
    }),
-   cors: strictObject({
-      origins: pipe(
-         nonEmptyReasonablyLongString,
-         transform(v =>
-            v
-               .split(',')
-               .map(v => v.trim())
-               .filter(Boolean)
-         ),
-         array(string())
-      ),
+   cors: Schema.Struct({
+      origins: commaSeparatedOrigins,
    }),
-   jwt: strictObject({
-      privateKey: pemPrivateKey,
+   jwt: Schema.Struct({
+      privateKey: redactedPemPrivateKey,
       publicKey: pemPublicKey,
    }),
-   resend: strictObject({
-      apiKey: resendApiKeys,
-      from: pipe(
-         nonEmptyReasonablyLongString,
-         email(`Email is badly formatted.`)
-      ),
+   resend: Schema.Struct({
+      apiKey: redactedResendApiKey,
+      from: clinicStaffEmail,
    }),
-   argon2Secret: pipe(
-      nonEmptyReasonablyLongString,
-      transform(str => Buffer.from(str))
-   ),
-   appBaseUrl: pipe(
-      nonEmptyReasonablyLongString,
-      url(`The URL is badly formatted.`)
-   ),
-   totpEncryptionKey: pipe(
-      string(`TOTP_ENCRYPTION_KEY must be a string.`),
-      trim(),
-      check(str => {
-         const buf = Buffer.from(str, 'base64');
-         return buf.length === 32;
-      }, `TOTP_ENCRYPTION_KEY must be a base64 string that decodes to exactly 32 bytes.`),
-      transform(str => Buffer.from(str, 'base64'))
-   ),
+   argon2Secret: redactedArgon2Secret,
+   appBaseUrl: httpUrl,
+   totpEncryptionKey: redactedTotpKey,
 });
 
+export type Env = Schema.Schema.Type<typeof ConfigSchema>;
+
+// ===== VALIDATION ENTRY POINT ====================================================
 const rawConfig = {
    environment: env.NODE_ENV,
    database: {
@@ -183,15 +240,29 @@ const rawConfig = {
    totpEncryptionKey: env.TOTP_ENCRYPTION_KEY,
 };
 
-type Env = InferOutput<typeof ConfigSchema>;
+/* Combined with Redacted above, there are now two independent layers between a bad secret and your log stream: the formatter doesn't expose values, and even if it somehow did, Redacted values print as `<redacted>` regardless of what wraps them. */
+function formatConfigErrors(error: ParseResult.ParseError): string {
+   return ParseResult.ArrayFormatter.formatErrorSync(error)
+      .map(
+         issue => `  • [${issue.path.join('.') || '(root)'}] ${issue.message}`
+      )
+      .join('\n');
+}
 
 function validateConfig(): Env {
-   try {
-      return parse(ConfigSchema, rawConfig);
-   } catch (err) {
-      logger.error(`Configuration validation error: ${err}`);
-      process.exit(1);
+   const result = Schema.decodeUnknownEither(ConfigSchema)(rawConfig, {
+      onExcessProperty: 'error', // the Effect equivalent of Valibot's strictObject
+      errors: 'all', // report every problem in one pass, not just the first
+   });
+
+   if (Either.isLeft(result)) {
+      logger.error(
+         `Configuration validation failed. The server cannot start until these are fixed:\n${formatConfigErrors(result.left)}`
+      );
+      return process.exit(1);
    }
+
+   return result.right;
 }
 
 export const myEnv: Env = validateConfig();
