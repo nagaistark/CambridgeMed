@@ -3,35 +3,62 @@ import { env } from 'node:process';
 import { Buffer } from 'node:buffer';
 import { Schema, ParseResult, Either } from 'effect';
 import logger from 'logger.ts';
-import {
-   clinicStaffEmail,
-   customTrim,
-   positiveIntegerStringToNumber,
-} from '@utils/effectSchemaReusables.ts';
 
 // ===== BASIC LEAF SCHEMAS ========================================================
-const nonEmptyReasonablyLongString = customTrim.pipe(
-   Schema.minLength(1, { message: () => 'Variable is empty or missing.' }),
+/* Same pattern already used in effectSchemaReusables.ts's `customTrim` — kept identical here on purpose so this file reads the same way as the rest of the codebase. */
+const trimmedString = Schema.transform(
+   Schema.String,
+   Schema.String.pipe(Schema.trimmed()),
+   {
+      decode: (str: string) => str.trim(),
+      encode: (str: string) => str,
+   }
+);
+
+const nonEmptyReasonablyLongString = trimmedString.pipe(
+   Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
    Schema.maxLength(512, {
-      message: () => 'Variable exceeds the maximum allowed length (512).',
+      message: () => `Variable exceeds the maximum allowed length (512).`,
    })
 );
 
-/* Deliberately NOT built on `customTrim`. A PEM key's format is anchored on a literal trailing '\n' after '-----END ... KEY-----' — trimming it would silently strip the very character the shape-check below requires. */
+/* Deliberately NOT built on `trimmedString`. A PEM key's format is anchored on a literal trailing '\n' after '-----END ... KEY-----' — trimming it would silently strip the very character the shape-check below requires. */
 const boundedString = Schema.String.pipe(
-   Schema.minLength(1, { message: () => 'Variable is empty or missing.' }),
+   Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
    Schema.maxLength(4096, {
-      message: () => 'Variable exceeds the maximum allowed length.',
+      message: () => `Variable exceeds the maximum allowed length.`,
    })
 );
 
-const portNumber = positiveIntegerStringToNumber.pipe(
+/* String -> positive integer, in one bidirectional codec instead of a chain of independent checks. `digits`-only pattern first (so `Number("  ")` or `Number("")` never sneaks a NaN through), then the transform, then a safe-integer filter on the *decoded* side — mirrors the original digits() -> transform(Number) -> number() -> check() pipeline but as a single declared shape instead of four. */
+const positiveIntegerString = Schema.transform(
+   nonEmptyReasonablyLongString.pipe(
+      Schema.pattern(/^[0-9]+$/, {
+         message: () => `Must contain only digits.`,
+      })
+   ),
+   Schema.Number.pipe(
+      Schema.int(),
+      Schema.positive({ message: () => `Must be a positive integer.` })
+   ),
+   {
+      strict: true,
+      decode: (str: string) => Number(str),
+      encode: (num: number) => String(num),
+   }
+).pipe(
+   Schema.filter((num: number) => Number.isSafeInteger(num), {
+      message: () => `Value exceeds the safely representable integer range.`,
+   })
+);
+
+const portNumber = positiveIntegerString.pipe(
    Schema.filter((port: number) => port <= 65535, {
-      message: () => 'Port must be between 1 and 65535.',
+      message: () => `Port must be between 1 and 65535.`,
    })
 );
 
-// ===== SECRETS (wrapped in Redacted — see note below the schema) ================
+// ===== SECRETS (wrapped in Redacted) =============================================
 const mongoConnectionUriPattern =
    /^mongodb(\+srv)?:\/\/(?:[^:@]+:[^:@]+@)?[^/]+(?:\/[^?]*)?(?:\?.*)?$/;
 
@@ -42,9 +69,7 @@ const mongoConnectionUri = nonEmptyReasonablyLongString.pipe(
    })
 );
 
-/* Connection strings embed credentials (`user:pass@host`), so they're redacted just
-   like the other secrets below — a stray `logger.info(myEnv.database.appUri)`
-   anywhere downstream now prints `<redacted>` instead of a password. */
+/* Connection strings embed credentials (`user:pass@host`), so they're redacted just like the other secrets below — a stray `logger.info(myEnv.database.appUri)` anywhere downstream now prints `<redacted>` instead of a password. */
 const redactedMongoConnectionUri = Schema.Redacted(mongoConnectionUri);
 
 const pemPrivateKey = boundedString.pipe(
@@ -79,6 +104,14 @@ const resendApiKey = nonEmptyReasonablyLongString.pipe(
    })
 );
 const redactedResendApiKey = Schema.Redacted(resendApiKey);
+
+/* A conservative, dependency-free email check. */
+const emailAddress = nonEmptyReasonablyLongString.pipe(
+   Schema.pattern(
+      /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/,
+      { message: () => `Email is badly formatted.` }
+   )
+);
 
 /* 32 bytes (256 bits) is a reasonable minimum for a pepper that strengthens every password hash in the system — matches the rigor already applied to totpEncryptionKey below. */
 const argon2SecretBuffer = Schema.transform(
@@ -117,7 +150,7 @@ const httpUrl = Schema.transformOrFail(
 );
 
 const base64Exact32Bytes = Schema.transformOrFail(
-   customTrim,
+   trimmedString,
    Schema.instanceOf(Buffer),
    {
       strict: true,
@@ -152,24 +185,24 @@ const commaSeparatedOrigins = Schema.transform(
    }
 ).pipe(
    Schema.filter((arr: readonly string[]) => arr.length > 0, {
-      message: () => 'At least one CORS origin must be specified.',
+      message: () => `At least one CORS origin must be specified.`,
    })
 );
 
-// ===== COMPOSITE SCHEMA ===========================================================
+// ===== COMPOSITE SCHEMA ==========================================================
 const DatabaseConfigSchema = Schema.Struct({
    appUri: redactedMongoConnectionUri,
    authUri: redactedMongoConnectionUri,
    auditUri: redactedMongoConnectionUri,
-   maxPoolSize: positiveIntegerStringToNumber,
-   serverSelectionTimeoutMS: positiveIntegerStringToNumber,
-   socketTimeoutMS: positiveIntegerStringToNumber,
-   heartbeatFrequencyMS: positiveIntegerStringToNumber,
-   maxRetries: positiveIntegerStringToNumber,
-   baseDelay: positiveIntegerStringToNumber,
-   gracePeriodMS: positiveIntegerStringToNumber,
+   maxPoolSize: positiveIntegerString,
+   serverSelectionTimeoutMS: positiveIntegerString,
+   socketTimeoutMS: positiveIntegerString,
+   heartbeatFrequencyMS: positiveIntegerString,
+   maxRetries: positiveIntegerString,
+   baseDelay: positiveIntegerString,
+   gracePeriodMS: positiveIntegerString,
 }).pipe(
-   /* This is the "two dials that must stay in proportion" check — the grace period is meaningless as a safety margin unless it's a multiple of how often we're even allowed to notice a problem (heartbeatFrequencyMS). */
+   /* This is the "two dials that must stay in proportion" check — the grace period is meaningless as a safety margin unless it's a multiple of how often we're even allowed to notice a problem (heartbeatFrequencyMS). Effect Schema's Struct-level filter is the direct equivalent of Valibot's forward(check(...), [...]) — same cross-field logic, no separate helper. */
    Schema.filter(
       ({ heartbeatFrequencyMS, gracePeriodMS }) =>
          gracePeriodMS >= heartbeatFrequencyMS * 3,
@@ -196,7 +229,7 @@ const ConfigSchema = Schema.Struct({
    }),
    resend: Schema.Struct({
       apiKey: redactedResendApiKey,
-      from: clinicStaffEmail,
+      from: emailAddress,
    }),
    argon2Secret: redactedArgon2Secret,
    appBaseUrl: httpUrl,
@@ -240,7 +273,7 @@ const rawConfig = {
    totpEncryptionKey: env.TOTP_ENCRYPTION_KEY,
 };
 
-/* Combined with Redacted above, there are now two independent layers between a bad secret and your log stream: the formatter doesn't expose values, and even if it somehow did, Redacted values print as `<redacted>` regardless of what wraps them. */
+/* ArrayFormatter walks the issue tree and gives back only `{ path, message }` per issue — it never echoes the raw offending value back at you. Combined with Redacted above, there are now two independent layers between a bad secret and your log stream: the formatter doesn't expose values, and even if it somehow did, Redacted values print as `<redacted>` regardless of what wraps them. */
 function formatConfigErrors(error: ParseResult.ParseError): string {
    return ParseResult.ArrayFormatter.formatErrorSync(error)
       .map(
