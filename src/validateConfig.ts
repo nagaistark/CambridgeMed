@@ -7,7 +7,9 @@ import logger from 'logger.ts';
 // ===== BASIC LEAF SCHEMAS ========================================================
 /* Same pattern already used in effectSchemaReusables.ts's `customTrim` — kept identical here on purpose so this file reads the same way as the rest of the codebase. */
 const trimmedString = Schema.transform(
-   Schema.String,
+   Schema.String.annotations({
+      message: () => `Must be a string.`,
+   }),
    Schema.String.pipe(Schema.trimmed()),
    {
       decode: (str: string) => str.trim(),

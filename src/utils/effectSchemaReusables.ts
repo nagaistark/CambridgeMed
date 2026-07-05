@@ -23,7 +23,9 @@ const snomedRegex = /^[1-9]\d{5,17}$/;
 
 // ===== BASICS ====================================================================
 export const customTrim = Schema.transform(
-   Schema.String,
+   Schema.String.annotations({
+      message: () => `Must be a string.`,
+   }),
    Schema.String.pipe(Schema.trimmed()),
    {
       decode: (str: string) => str.trim(),
