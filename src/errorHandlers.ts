@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { ValiError, type IssuePathItem } from 'valibot';
+import { ParseResult, Runtime, Cause } from 'effect';
 import { MongoError, MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
 import logger from 'logger.ts';
@@ -173,34 +173,102 @@ function isOperationalError(err: unknown): boolean {
 
 // ===== "SPECIALISTS" in the pipeline. Each only touches the errors it recognizes =
 
-// ===== The "ValiError" specialist/handler ========================================
-export function handleValiError(
+// ===== The Effect Schema validation specialist/handler ===========================
+export function handleParseError(
    err: unknown,
    _req: Request,
    res: Response,
    next: NextFunction
 ): void {
-   // If this isn't a ValiError, it's not our job. Passing it to the next "specialist"
-   if (!(err instanceof ValiError)) return next(err);
+   // If this isn't a ParseError, it's not our job. Passing it to the next "specialist".
+   if (!ParseResult.isParseError(err)) return next(err);
 
    const requestId = res.locals.requestId;
 
-   // We're only extracting structural information from each issue: PATH (which field failed) and MESSAGE (why it failed)
-   const details = err.issues.map(issue => ({
-      // IssuePathItem is Valibot's own union of all possible path item types
-      path: issue.path?.map((p: IssuePathItem) => String(p.key)) ?? [],
-      message: issue.message,
-   }));
-
-   const response = createErrorResponse(
-      'VALIDATION_ERROR',
-      `The request data failed validation.`,
-      requestId,
-      details
+   /* ArrayFormatter gives back only { _tag, path, message } per issue — same structural shape as the old { path, message } we built from ValiError. path is a ReadonlyArray<PropertyKey>, so String(...) covers string/number/symbol keys uniformly, matching the original's String(p.key). */
+   const details = ParseResult.ArrayFormatter.formatErrorSync(err).map(
+      issue => ({
+         path: issue.path.map(String),
+         message: issue.message,
+      })
    );
 
-   return void res.status(422).json(response);
-   // NOTICE that we do NOT call `next()` here. We handled it. The pipeline stops
+   return void res
+      .status(422)
+      .json(
+         createErrorResponse(
+            'VALIDATION_ERROR',
+            `The request data failed validation.`,
+            requestId,
+            details
+         )
+      );
+}
+
+// ===== The Effect tagged-error specialist/handler ================================
+/* The generic contract any custom domain error must satisfy to be automatically converted into an HTTP response here. Nothing Effect-specific about the shape itself — pairing `status`/`code` directly on the error is what lets this ONE specialist handle every current and future tagged error without this file ever needing to know their names. Define your errors like:
+   class NotFoundError extends Data.TaggedError('NotFoundError')<{
+      message: string;
+      status: number;
+      code: 'NOT_FOUND';
+   }> {}
+
+...and either `throw new NotFoundError({...})` directly in a plain async handler, or `Effect.fail(new NotFoundError({...}))` inside an Effect program — both are recognized below. */
+interface AppErrorShape {
+   readonly _tag: string;
+   readonly status: number;
+   readonly code: ErrorCode;
+}
+
+function isAppError(value: unknown): value is Error & AppErrorShape {
+   if (!(value instanceof Error)) return false;
+   if (!('_tag' in value) || typeof value._tag !== 'string') return false;
+   if (!('status' in value) || typeof value.status !== 'number') return false;
+   if (!('code' in value) || typeof value.code !== 'string') return false;
+   return true;
+}
+
+export function handleEffectFailure(
+   err: unknown,
+   _req: Request,
+   res: Response,
+   next: NextFunction
+): void {
+   const requestId = res.locals.requestId;
+
+   /* Case 1: the error escaped Effect.runPromise/runFork, wrapped in a FiberFailure. */
+   if (Runtime.isFiberFailure(err)) {
+      const cause = err[Runtime.FiberFailureCauseId];
+
+      /* Cause.isFailType narrows to "this was an Effect.fail(...), a value the program's error TYPE explicitly declared" — as opposed to a Die (an uncaught throw / defect) or an Interrupt. Only Fail values are safe to treat as expected, application-level errors. A Die means a bug escaped from inside an Effect program; even if it happens to look like one of our tagged errors, it wasn't declared through Effect.fail and must NOT be short-circuited into a clean response — it needs the full stack-trace treatment from the catch-all. */
+      if (!Cause.isFailType(cause)) {
+         /* Squash to recover the REAL underlying defect (not Effect's synthetic wrapper) so downstream logging shows the true stack trace. */
+         return next(Cause.squash(cause));
+      }
+
+      const squashed = Cause.squash(cause);
+
+      if (isAppError(squashed)) {
+         return void res
+            .status(squashed.status)
+            .json(
+               createErrorResponse(squashed.code, squashed.message, requestId)
+            );
+      }
+
+      /* A typed failure we don't have a convention for yet (e.g. a bare ParseError from Schema.decodeUnknown used inside an Effect program) — decline, forward the unwrapped value to the next specialist. */
+      return next(squashed);
+   }
+
+   /* Case 2: a tagged error thrown directly, no Effect runtime involved at all. */
+   if (isAppError(err)) {
+      return void res
+         .status(err.status)
+         .json(createErrorResponse(err.code, err.message, requestId));
+   }
+
+   /* Not ours — not a FiberFailure, not a recognized tagged error. */
+   return next(err);
 }
 
 // ===== The MongoDB specialist/handler ============================================
