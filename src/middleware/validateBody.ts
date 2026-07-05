@@ -1,16 +1,20 @@
+import { ParseResult, Schema } from 'effect';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
-import { type GenericSchema, type InferOutput, parse } from 'valibot';
 
-export function validateBody<T extends GenericSchema>(
-   schema: T
+export function validateBody<A, I>(
+   schema: Schema.Schema<A, I, never>
 ): RequestHandler {
    return (req: Request, res: Response, next: NextFunction): void => {
-      try {
-         const result: InferOutput<T> = parse(schema, req.body);
-         res.locals['validatedBody'] = result;
-         next();
-      } catch (err) {
-         next(err);
+      const result = Schema.decodeUnknownEither(schema, { errors: 'all' })(
+         req.body
+      );
+      if (result._tag === 'Left') {
+         return void res.status(400).json({
+            error: 'Validation failed',
+            issues: ParseResult.ArrayFormatter.formatErrorSync(result.left),
+         });
       }
+      res.locals['validatedBody'] = result.right;
+      next();
    };
 }
