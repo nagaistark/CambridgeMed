@@ -126,7 +126,7 @@ const normalizedString = Schema.transform(
 );
 
 // ===== OBJECTID ==================================================================
-const objectIdInstance = Schema.instanceOf(ObjectId, {
+export const objectIdInstance = Schema.instanceOf(ObjectId, {
    message: () => `Must be a valid ObjectId instance (objectIdInstance).`,
 });
 

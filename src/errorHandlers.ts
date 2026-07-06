@@ -3,6 +3,7 @@ import { ParseResult, Runtime, Cause } from 'effect';
 import { MongoError, MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
 import logger from 'logger.ts';
+
 // ===== Every possible machine-readable error code (so far) =======================
 export type ErrorCode =
    // ───── Client errors (4XX) ────────────────────────────────────────────────────
@@ -21,6 +22,20 @@ export type ErrorCode =
    | 'DATABASE_ERROR' // MongoDB runtime error not caused by client input
    // ── Catch-all (500) ──────────────────────────────────────────────────
    | 'INTERNAL_ERROR'; // Unexpected programmer error — details hidden in production
+
+const VALID_ERROR_CODES = new Set<ErrorCode>([
+   'VALIDATION_ERROR',
+   'INVALID_JSON',
+   'NOT_FOUND',
+   'METHOD_NOT_ALLOWED',
+   'CONFLICT',
+   'UNAUTHORIZED',
+   'FORBIDDEN',
+   'RATE_LIMITED',
+   'SERVICE_UNAVAILABLE',
+   'DATABASE_ERROR',
+   'INTERNAL_ERROR',
+]);
 
 // ===== CANONICAL RESPONSE SHAPE ==================================================
 interface ApiErrorResponse {
@@ -225,7 +240,7 @@ function isAppError(value: unknown): value is Error & AppErrorShape {
    if (!('_tag' in value) || typeof value._tag !== 'string') return false;
    if (!('status' in value) || typeof value.status !== 'number') return false;
    if (!('code' in value) || typeof value.code !== 'string') return false;
-   return true;
+   return VALID_ERROR_CODES.has(value.code as never) === false ? false : true;
 }
 
 export function handleEffectFailure(

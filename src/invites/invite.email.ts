@@ -3,6 +3,7 @@ import { myEnv } from 'validateConfig.ts';
 import { Redacted } from 'effect';
 import type { AllowedUserRole } from '@ssot/user_roles_constants.ts';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
+import { escapeHtml } from '@utils/escapeHTML.ts';
 
 /* Instantiated once at module load. Resend is stateless between calls, so a single shared instance is correct and efficient. */
 const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
@@ -30,7 +31,7 @@ export async function sendInviteEmail(
       expiresAt,
    } = params;
 
-   const issuerFullName = `${issuerFirstName} ${issuerLastName}`;
+   const issuerFullName = `${escapeHtml(issuerFirstName)} ${escapeHtml(issuerLastName)}`;
    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
    const expiryFormatted = expiresAt.toLocaleDateString(LOCALE, {

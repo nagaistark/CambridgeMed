@@ -4,6 +4,7 @@ import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import type { IPasswordResetDefinition } from '@models/PasswordReset.model.ts';
 import type { IUserDefinition } from '@models/User.model.ts';
+import { escapeHtml } from '@utils/escapeHTML.ts';
 
 export type IPasswordResetEmailParams = Pick<
    IUserDefinition,
@@ -36,7 +37,7 @@ export async function sendPasswordResetEmail(
       to: email,
       subject: `Reset your CambridgeMed password`,
       text: [
-         `Hi ${firstName},`,
+         `Hi ${escapeHtml(firstName)},`,
          ``,
          `We received a request to reset the password for your CambridgeMed account.`,
          ``,

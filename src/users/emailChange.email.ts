@@ -4,6 +4,7 @@ import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import { IEmailChangeDefinition } from '@models/EmailChange.model.ts';
 import { IUserDefinition } from '@models/User.model.ts';
+import { escapeHtml } from '@utils/escapeHTML.ts';
 
 export type IEmailChangeEmailParams = Pick<
    IEmailChangeDefinition,
@@ -74,7 +75,7 @@ export async function sendEmailChangeEmails(
       to: newEmail,
       subject: `Confirm your new email address for CambridgeMed`,
       text: [
-         `${confirmTemplate.greeting} ${firstName},`,
+         `${confirmTemplate.greeting} ${escapeHtml(firstName)},`,
          ``,
          `${confirmTemplate.intro} ${newEmail}.`,
          ``,

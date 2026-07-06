@@ -5,7 +5,7 @@ import { getSessionModel } from '@models/Session.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'dbConnect.ts';
+import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
