@@ -65,7 +65,7 @@ export async function sendInviteEmail(
    } {
       const text = [
          `${issuerFullName} ${template.intro} ${roleLabel}.`,
-         `${canIssueInvites ? template.privilege : null}.`,
+         ...(canIssueInvites ? [`${template.privilege}.`] : []),
          '',
          template.link,
          registrationUrl,
@@ -73,9 +73,7 @@ export async function sendInviteEmail(
          `${template.exp} ${expiryFormatted}.`,
          '',
          `${template.otherwise}.`,
-      ]
-         .filter((line): line is string => line !== null)
-         .join('\n');
+      ].join('\n');
 
       const html = `<!DOCTYPE html>
       <html lang="en">

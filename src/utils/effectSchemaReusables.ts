@@ -149,7 +149,7 @@ export const stringToObjectId = Schema.transformOrFail(
                new ParseResult.Type(
                   ast,
                   str,
-                  `Failed to construct ObjectId from "${str}"`
+                  `Failed to construct ObjectId: input is not a valid 24-character hex string.`
                ),
          }),
       encode: objId => ParseResult.succeed(objId.toHexString()),

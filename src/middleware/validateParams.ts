@@ -1,4 +1,4 @@
-import { ParseResult, Schema } from 'effect';
+import { Schema } from 'effect';
 import type { Request, Response, NextFunction, RequestHandler } from 'express';
 
 export function validateParams<A, I>(
@@ -9,12 +9,9 @@ export function validateParams<A, I>(
          req.params
       );
       if (result._tag === 'Left') {
-         return void res.status(400).json({
-            error: 'Validation failed',
-            issues: ParseResult.ArrayFormatter.formatErrorSync(result.left),
-         });
+         return next(result.left);
       }
-      res.locals['validatedBody'] = result.right;
+      res.locals['validatedParams'] = result.right;
       next();
    };
 }
