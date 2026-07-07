@@ -5,6 +5,7 @@ import { ParseResult, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
+import { recoveryCodeRegex, totpSecretRegex } from '@ssot/totp_constants.ts';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -349,5 +350,18 @@ export const argon2HashString = customTrim.pipe(
 export const ipAddress = baseString.pipe(
    Schema.pattern(ipRegex, {
       message: () => `Invalid IP Address format (ipAddress).`,
+   })
+);
+
+// ===== TOTP-RELATED CHECKS =======================================================
+export const totpSecretCheck = baseString.pipe(
+   Schema.pattern(totpSecretRegex, {
+      message: () => `Invalid encrypted TOTP secret format (totpSecretCheck).`,
+   })
+);
+
+export const recoveryCodeCheck = baseString.pipe(
+   Schema.pattern(recoveryCodeRegex, {
+      message: () => `Invalid recovery code format (recoveryCodeCheck).`,
    })
 );
