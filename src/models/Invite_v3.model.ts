@@ -1,10 +1,10 @@
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import {
    clinicStaffEmail,
-   fullDateInTheFuture,
-   fullDateInThePast,
    objectIdInstance,
    sha256HexString,
+   validDateInTheFuture,
+   validDateInThePast,
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
@@ -21,14 +21,14 @@ export const InviteDocumentSchema = Schema.Struct({
    ...InviteInputSchema.fields,
    _id: objectIdInstance,
    tokenHash: sha256HexString,
-   usedAt: Schema.NullOr(fullDateInThePast),
-   expiresAt: fullDateInTheFuture,
+   usedAt: Schema.NullOr(validDateInThePast),
+   expiresAt: validDateInTheFuture,
    issuedBy: objectIdInstance,
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
 });
 
-type IInviteDocument = Schema.Schema.Type<typeof InviteDocumentSchema>;
+export type IInviteDocument = Schema.Schema.Type<typeof InviteDocumentSchema>;
 
 export type ISafeInvite = Pick<
    IInviteDocument,

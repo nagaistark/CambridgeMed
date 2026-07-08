@@ -1,15 +1,17 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { DatabaseManager } from 'dbConnect.ts';
+
+import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
-   getUserModel,
-   type IUserInitial,
-   type IUserDefinition,
-} from '@models/User.model.ts';
+   getUserCollection,
+   IUserDocument,
+   IUserInput,
+   UserDocumentSchema,
+} from '@models/User_v3.model.ts';
 import {
-   getInviteModel,
-   type IInviteDefinition,
-} from '@models/Invite.model.ts';
+   getInviteCollection,
+   type IInviteDocument,
+} from '@models/Invite_v3.model.ts';
+
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
@@ -18,6 +20,8 @@ import {
    HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
 import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
+import { ClientSession, ObjectId } from 'mongodb';
+import { Schema } from 'effect';
 
 type AcceptInviteParams = { token: string };
 
@@ -43,13 +47,13 @@ class TransactionAbortError extends Error {
 The 'invalid_token' default inside this function is genuinely justified: it is the function's honest fallback for the case where withTransaction() aborts without the callback having had the chance to set a more specific outcome — for example, if findOneAndUpdate returns null. */
 
 type RegistrationParams = Pick<
-   IUserDefinition,
+   IUserDocument,
    'firstName' | 'lastName' | 'passwordHash'
 > &
-   Pick<IInviteDefinition, 'email' | 'tokenHash'>;
+   Pick<IInviteDocument, 'email' | 'tokenHash'>;
 
 async function runRegistrationTransaction(
-   session: mongoose.ClientSession,
+   session: ClientSession,
    params: RegistrationParams
 ): Promise<TransactionOutcome> {
    const { tokenHash, email, firstName, lastName, passwordHash } = params;
@@ -57,8 +61,9 @@ async function runRegistrationTransaction(
 
    try {
       await session.withTransaction(async () => {
-         const Invite = getInviteModel();
-         const User = getUserModel();
+         const inviteCollection = getInviteCollection();
+         const userCollection = getUserCollection();
+         const now = new Date();
 
          // ── Atomic claim ────────────────────────────────────────────────────────
          /* The filter's three conditions must ALL be true simultaneously:
@@ -67,11 +72,12 @@ async function runRegistrationTransaction(
             - expiresAt > now   → not expired, regardless of TTL janitor lag
    
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
-         const claimedInvite = await Invite.findOneAndUpdate(
-            { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
-            { $set: { usedAt: new Date() } },
-            { new: true, session }
-         ).lean();
+         const claimedInvite: IInviteDocument | null =
+            await inviteCollection.findOneAndUpdate(
+               { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
+               { $set: { usedAt: new Date() } },
+               { returnDocument: 'after', session }
+            );
 
          if (!claimedInvite) {
             throw new TransactionAbortError({ status: 'invalid_token' });
@@ -86,21 +92,9 @@ async function runRegistrationTransaction(
          }
 
          // ── Create the User document ────────────────────────────────────────────
-         /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDefinition` minus the fields that a freshly registered user doesn't need to explicitly provide because they have schema defaults). */
-
-         type UserCreationPayload = Omit<
-            IUserDefinition,
-            | 'previousNames'
-            | 'previousEmails'
-            | 'nameChangesUsed'
-            | 'emailChangesUsed'
-            | 'totpSecret'
-            | 'isTotpEnabled'
-            | 'totpRecoveryCodes'
-            | 'totpLastUsedStep'
-         >;
-
-         const payload: UserCreationPayload = {
+         /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDocument`). */
+         const payload: IUserDocument = {
+            _id: new ObjectId(),
             firstName,
             lastName,
             email: claimedInvite.email,
@@ -109,11 +103,24 @@ async function runRegistrationTransaction(
             permissions:
                ROLE_PERMISSIONS[claimedInvite.role] |
                (claimedInvite.canIssueInvites ? Permissions.ISSUE_INVITES : 0),
+            previousNames: [],
+            previousEmails: [],
+            nameChangesUsed: 0,
+            emailChangesUsed: 0,
+            isTotpEnabled: false,
+            totpSecret: null,
+            totpRecoveryCodes: [],
+            totpLastUsedStep: 0,
             invitedBy: claimedInvite.issuedBy,
             isActive: true,
+            createdAt: now,
+            updatedAt: now,
          };
 
-         await User.create([payload], { session });
+         await userCollection.insertOne(
+            Schema.decodeUnknownSync(UserDocumentSchema)(payload),
+            { session }
+         );
 
          outcome = { status: 'success' };
          // withTransaction() commits automatically when the callback resolves.
@@ -133,7 +140,7 @@ async function runRegistrationTransaction(
 // ── Controller ───────────────────────────────────────────────────────────────────
 export async function acceptInviteController(
    req: Request<AcceptInviteParams>,
-   res: ResponseWithValidatedBody<IUserInitial>,
+   res: ResponseWithValidatedBody<IUserInput>,
    next: NextFunction
 ): Promise<void> {
    try {
@@ -162,9 +169,9 @@ export async function acceptInviteController(
       // ── Step 3: Derive the token hash ──────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
 
-      // ── Step 4: Acquire the auth connection ────────────────────────────────────
+      // ── Step 4: Acquire the native client and start a session (synchronous!) ───
       /* The server bootstrap guarantees this is never null, and any unexpected throw here is caught by the outer try/catch. */
-      const authConnection = DatabaseManager.getInstance().auth.connection;
+      const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(
             `Auth database connection unavailable during invite acceptance.`
@@ -172,7 +179,7 @@ export async function acceptInviteController(
       }
 
       // ── Step 5: Run the transaction ────────────────────────────────────────────
-      const session = await authConnection.startSession();
+      const session = authConnection.startSession();
 
       /* The try/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
       let outcome: TransactionOutcome;

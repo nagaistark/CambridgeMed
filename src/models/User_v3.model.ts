@@ -1,4 +1,4 @@
-import { AUTHENTICATED_USER_V2 } from '@ssot/authenticated_user_constants.ts';
+import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
 import {
    EMAIL_CHANGE_CAP,
@@ -9,7 +9,7 @@ import {
    baseString,
    clinicStaffEmail,
    nameString,
-   nonNegativeIntegerStringToNumber,
+   nonNegativeInteger,
    objectIdInstance,
    sha256HexString,
    totpSecretCheck,
@@ -43,7 +43,7 @@ export const UserInputSchema = Schema.Struct({
 /* Document schema: composed from the SAME field atoms, extended with server-generated fields. No duplication of firstName/lastName/email rules. */
 export const UserDocumentSchema = Schema.Struct({
    ...UserInputSchema.omit('password').fields,
-   ...AUTHENTICATED_USER_V2.pick('role', 'permissions').fields,
+   ...AUTHENTICATED_USER.pick('role', 'permissions').fields,
    _id: objectIdInstance,
    passwordHash: argon2HashString,
    previousNames: Schema.Array(
@@ -58,8 +58,8 @@ export const UserDocumentSchema = Schema.Struct({
          archivedAt: Schema.ValidDateFromSelf,
       })
    ).pipe(Schema.maxItems(EMAIL_CHANGE_CAP)),
-   nameChangesUsed: nonNegativeIntegerStringToNumber,
-   emailChangesUsed: nonNegativeIntegerStringToNumber,
+   nameChangesUsed: nonNegativeInteger,
+   emailChangesUsed: nonNegativeInteger,
 
    isTotpEnabled: Schema.Boolean,
    totpSecret: Schema.NullOr(totpSecretCheck).annotations({
@@ -75,9 +75,7 @@ export const UserDocumentSchema = Schema.Struct({
       message: () =>
          `Must contain either zero codes or exactly ${TOTP_RECOVERY_CODE_COUNT} recovery codes.`,
    }),
-   totpLastUsedStep: Schema.optionalWith(nonNegativeIntegerStringToNumber, {
-      default: () => 0,
-   }),
+   totpLastUsedStep: nonNegativeInteger,
 
    invitedBy: Schema.optional(objectIdInstance),
    isActive: Schema.Boolean,
@@ -128,7 +126,8 @@ export const UserDocumentSchema = Schema.Struct({
    })
 );
 
-type IUserDocument = Schema.Schema.Type<typeof UserDocumentSchema>;
+export type IUserInput = Schema.Schema.Type<typeof UserInputSchema>;
+export type IUserDocument = Schema.Schema.Type<typeof UserDocumentSchema>;
 
 export function getUserCollection(): Collection<IUserDocument> {
    return DatabaseManager.getInstance()
