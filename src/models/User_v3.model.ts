@@ -49,55 +49,79 @@ export const UserDocumentSchema = Schema.Struct({
    previousNames: Schema.Array(
       Schema.Struct({
          ...UserInputSchema.pick('firstName', 'lastName').fields,
-         archivedAt: Schema.Date,
+         archivedAt: Schema.ValidDateFromSelf,
       })
    ).pipe(Schema.maxItems(NAME_CHANGE_CAP)),
    previousEmails: Schema.Array(
       Schema.Struct({
          ...UserInputSchema.pick('email').fields,
-         archivedAt: Schema.Date,
+         archivedAt: Schema.ValidDateFromSelf,
       })
    ).pipe(Schema.maxItems(EMAIL_CHANGE_CAP)),
    nameChangesUsed: nonNegativeIntegerStringToNumber,
    emailChangesUsed: nonNegativeIntegerStringToNumber,
-   totpSecret: Schema.NullOr(totpSecretCheck),
+
    isTotpEnabled: Schema.Boolean,
+   totpSecret: Schema.NullOr(totpSecretCheck).annotations({
+      message: () =>
+         `totpSecret must be null or a validly formatted encrypted secret.`,
+   }),
    totpRecoveryCodes: Schema.Union(
       Schema.Array(sha256HexString).pipe(Schema.itemsCount(0)),
       Schema.Array(sha256HexString).pipe(
          Schema.itemsCount(TOTP_RECOVERY_CODE_COUNT)
       )
-   ),
-   totpLastUsedStep: nonNegativeIntegerStringToNumber,
+   ).annotations({
+      message: () =>
+         `Must contain either zero codes or exactly ${TOTP_RECOVERY_CODE_COUNT} recovery codes.`,
+   }),
+   totpLastUsedStep: Schema.optionalWith(nonNegativeIntegerStringToNumber, {
+      default: () => 0,
+   }),
+
    invitedBy: Schema.optional(objectIdInstance),
    isActive: Schema.Boolean,
-   createdAt: Schema.Date,
-   updatedAt: Schema.Date,
+   createdAt: Schema.ValidDateFromSelf,
+   updatedAt: Schema.ValidDateFromSelf,
 }).pipe(
    Schema.filter(profile => {
       const issues: Array<Schema.FilterIssue> = [];
+
+      if (profile.isTotpEnabled !== (profile.totpSecret !== null)) {
+         issues.push({
+            path: ['totpSecret'],
+            message: `totpSecret must be set if and only if TOTP is enabled.`,
+         });
+      }
+
       if (
          profile.isTotpEnabled !==
          (profile.totpRecoveryCodes.length === TOTP_RECOVERY_CODE_COUNT)
       ) {
          issues.push({
             path: ['totpRecoveryCodes'],
-            message: `recoveryCodes length must match 2FA status.`,
+            message: `Recovery codes must be fully present if and only if TOTP is enabled.`,
          });
       }
+
       if (profile.createdAt > profile.updatedAt) {
          issues.push({
             path: ['updatedAt'],
             message: `updatedAt cannot be chronologically before createdAt.`,
          });
       }
-      if (
-         (profile.role === 'superadmin' && !!profile.invitedBy) ||
-         (profile.role !== 'superadmin' && !profile.invitedBy)
-      ) {
+
+      if (profile.role === 'superadmin' && profile.invitedBy !== undefined) {
          issues.push({
-            path: ['role'],
-            message: `Role invariant violated: the superadmin role may only exist without an invitedBy reference, and all invited users must have an allowed role.`,
+            path: ['invitedBy'],
+            message: `Superadmins cannot have an invitedBy reference.`,
+         });
+      }
+
+      if (profile.role !== 'superadmin' && profile.invitedBy === undefined) {
+         issues.push({
+            path: ['invitedBy'],
+            message: `Non-superadmin users must have an invitedBy reference.`,
          });
       }
       return issues;
