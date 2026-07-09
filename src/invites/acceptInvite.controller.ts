@@ -3,8 +3,8 @@ import type { Request, NextFunction } from 'express';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    getUserCollection,
-   IUserDocument,
-   IUserInput,
+   type IUserDocument,
+   type IUserInput,
    UserDocumentSchema,
 } from '@models/User_v3.model.ts';
 import {

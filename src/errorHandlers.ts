@@ -5,37 +5,28 @@ import { errors as joseErrors } from 'jose';
 import logger from 'logger.ts';
 
 // ===== Every possible machine-readable error code (so far) =======================
-export type ErrorCode =
+const ALL_ERROR_CODES = [
    // ───── Client errors (4XX) ────────────────────────────────────────────────────
-   | 'VALIDATION_ERROR' // Valibot ValiError: body/params failed schema validation
-   | 'INVALID_JSON' // Body parser couldn't parse the request body as JSON
-   | 'NOT_FOUND' // Route or database document does not exist
-   | 'METHOD_NOT_ALLOWED' // Valid route, but wrong HTTP verb
-   | 'CONFLICT' // Uniqueness violation (e.g. duplicate email) — MongoDB 11000
+   'VALIDATION_ERROR', // Valibot ValiError: body/params failed schema validation
+   'INVALID_JSON', // Body parser couldn't parse the request body as JSON
+   'NOT_FOUND', // Route or database document does not exist
+   'METHOD_NOT_ALLOWED', // Valid route, but wrong HTTP verb
+   'CONFLICT', // Uniqueness violation (e.g. duplicate email) — MongoDB 11000
    // ── Auth errors (401/403) ────────────────────────────────────────────
-   | 'UNAUTHORIZED' // No credentials provided — "I don't know who you are"
-   | 'FORBIDDEN' // Valid credentials, insufficient permissions — "No means no"
+   'UNAUTHORIZED', // No credentials provided — "I don't know who you are"
+   'FORBIDDEN', // Valid credentials, insufficient permissions — "No means no"
    // ── Rate limiting (429) ──────────────────────────────────────────────
-   | 'RATE_LIMITED' // express-rate-limit triggered — tell client to back off
+   'RATE_LIMITED', // express-rate-limit triggered — tell client to back off
    // ── Server/operational errors (5XX) ──────────────────────────────────
-   | 'SERVICE_UNAVAILABLE' // Known infrastructure failure: bad deploy, DB unreachable
-   | 'DATABASE_ERROR' // MongoDB runtime error not caused by client input
+   'SERVICE_UNAVAILABLE', // Known infrastructure failure: bad deploy, DB unreachable
+   'DATABASE_ERROR', // MongoDB runtime error not caused by client input
    // ── Catch-all (500) ──────────────────────────────────────────────────
-   | 'INTERNAL_ERROR'; // Unexpected programmer error — details hidden in production
+   'INTERNAL_ERROR', // Unexpected programmer error — details hidden in production
+] as const;
 
-const VALID_ERROR_CODES = new Set<ErrorCode>([
-   'VALIDATION_ERROR',
-   'INVALID_JSON',
-   'NOT_FOUND',
-   'METHOD_NOT_ALLOWED',
-   'CONFLICT',
-   'UNAUTHORIZED',
-   'FORBIDDEN',
-   'RATE_LIMITED',
-   'SERVICE_UNAVAILABLE',
-   'DATABASE_ERROR',
-   'INTERNAL_ERROR',
-]);
+type ErrorCode = (typeof ALL_ERROR_CODES)[number];
+
+const VALID_ERROR_CODES: ReadonlySet<string> = new Set(ALL_ERROR_CODES);
 
 // ===== CANONICAL RESPONSE SHAPE ==================================================
 interface ApiErrorResponse {
@@ -240,7 +231,7 @@ function isAppError(value: unknown): value is Error & AppErrorShape {
    if (!('_tag' in value) || typeof value._tag !== 'string') return false;
    if (!('status' in value) || typeof value.status !== 'number') return false;
    if (!('code' in value) || typeof value.code !== 'string') return false;
-   return VALID_ERROR_CODES.has(value.code as never) === false ? false : true;
+   return VALID_ERROR_CODES.has(value.code);
 }
 
 export function handleEffectFailure(
