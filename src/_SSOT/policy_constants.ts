@@ -31,6 +31,7 @@ export const provincesAndTerritories = [
    'NU',
    'Outside',
 ] as const;
+export const availableCountries = ['Canada', 'United States'] as const;
 export const typeOfPhones = ['home', 'mobile', 'work', 'other'] as const;
 export const prefixes = [
    'Mr.',

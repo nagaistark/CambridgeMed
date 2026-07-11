@@ -78,10 +78,26 @@ export const nameString = Schema.transform(
    }
 );
 
+export const passwordString = baseString.pipe(
+   Schema.filter((str: string) => str.length >= 8, {
+      message: () => `Password must be at least 8 characters.`,
+   }),
+   Schema.pattern(/[A-Z]/, {
+      message: () => `Password must contain at least one uppercase letter.`,
+   }),
+   Schema.pattern(/[a-z]/, {
+      message: () => `Password must contain at least one lowercase letter.`,
+   }),
+   Schema.pattern(/[0-9]/, {
+      message: () => `Password must contain at least one number.`,
+   })
+);
+
 export const positiveIntegerStringToNumber = Schema.transform(
    baseString.pipe(
       Schema.pattern(/^[0-9]+$/, {
-         message: () => `Must be a numeric string (positiveInteger).`,
+         message: () =>
+            `Must be a numeric string (positiveIntegerStringToNumber).`,
       })
    ),
    Schema.Number.pipe(

@@ -6,11 +6,11 @@ import {
 } from '@ssot/user_change_constants.ts';
 import {
    argon2HashString,
-   baseString,
    clinicStaffEmail,
    nameString,
    nonNegativeInteger,
    objectIdInstance,
+   passwordString,
    sha256HexString,
    totpSecretCheck,
 } from '@utils/effectSchemaReusables.ts';
@@ -24,20 +24,7 @@ export const UserInputSchema = Schema.Struct({
    firstName: nameString,
    lastName: nameString,
    email: clinicStaffEmail,
-   password: baseString.pipe(
-      Schema.filter((str: string) => str.length >= 8, {
-         message: () => `Password must be at least 8 characters.`,
-      }),
-      Schema.pattern(/[A-Z]/, {
-         message: () => `Password must contain at least one uppercase letter.`,
-      }),
-      Schema.pattern(/[a-z]/, {
-         message: () => `Password must contain at least one lowercase letter.`,
-      }),
-      Schema.pattern(/[0-9]/, {
-         message: () => `Password must contain at least one number.`,
-      })
-   ),
+   password: passwordString,
 });
 
 /* Document schema: composed from the SAME field atoms, extended with server-generated fields. No duplication of firstName/lastName/email rules. */
