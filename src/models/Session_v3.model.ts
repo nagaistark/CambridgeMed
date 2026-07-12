@@ -2,8 +2,8 @@ import {
    fullDateInTheFuture,
    ipAddress,
    longString,
-   objectIdInstance,
    sha256HexString,
+   stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
@@ -11,7 +11,7 @@ import { Collection } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 
 export const SessionDocumentSchema = Schema.Struct({
-   userId: objectIdInstance,
+   userId: stringToObjectId,
 
    /* SHA-256 hex digest of the raw opaque token currently valid for this session. Primary lookup key on every refresh request. */
    currentTokenHash: sha256HexString,
@@ -29,10 +29,14 @@ export const SessionDocumentSchema = Schema.Struct({
    ipAddress: ipAddress,
    userAgent: longString,
 
-   _id: objectIdInstance,
+   _id: stringToObjectId,
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
 });
+
+export const SessionDocumentValidator = Schema.typeSchema(
+   SessionDocumentSchema
+);
 
 type ISessionDoc = Schema.Schema.Type<typeof SessionDocumentSchema>;
 

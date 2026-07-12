@@ -1,7 +1,7 @@
 import {
    fullDateInTheFuture,
-   objectIdInstance,
    sha256HexString,
+   stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
@@ -10,12 +10,16 @@ import { DatabaseManager } from 'mongoDBConnect.ts';
 
 export const PasswordResetDocumentSchema = Schema.Struct({
    tokenHash: sha256HexString,
-   userId: objectIdInstance,
+   userId: stringToObjectId,
    expiresAt: fullDateInTheFuture,
-   _id: objectIdInstance,
+   _id: stringToObjectId,
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
 });
+
+export const PasswordResetDocumentValidator = Schema.typeSchema(
+   PasswordResetDocumentSchema
+);
 
 type IPasswordResetDoc = Schema.Schema.Type<typeof PasswordResetDocumentSchema>;
 

@@ -12,7 +12,6 @@ import { DatabaseManager } from 'mongoDBConnect.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 
 export const EmailChangeDocumentSchema = Schema.Struct({
-   ...InitiateEmailChangeSchema.fields,
    confirmTokenHash: sha256HexString,
    cancelTokenHash: sha256HexString,
    userId: objectIdInstance,
@@ -25,7 +24,11 @@ export const EmailChangeDocumentSchema = Schema.Struct({
    _id: objectIdInstance,
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
-});
+}).pipe(Schema.extend(InitiateEmailChangeSchema));
+
+export const EmailChangeDocumentValidator = Schema.typeSchema(
+   EmailChangeDocumentSchema
+);
 
 export type IEmailChangeDoc = Schema.Schema.Type<
    typeof EmailChangeDocumentSchema

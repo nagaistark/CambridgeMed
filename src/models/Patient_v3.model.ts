@@ -364,6 +364,8 @@ export const PatientUniSchema = Schema.Struct({
    }),
 });
 
+export const PatientDocumentValidator = Schema.typeSchema(PatientUniSchema);
+
 type IPatientDoc = Schema.Schema.Type<typeof PatientUniSchema>;
 
 export function getPatientCollection(): Collection<IPatientDoc> {

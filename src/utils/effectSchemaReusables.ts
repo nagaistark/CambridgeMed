@@ -133,19 +133,19 @@ export const nonNegativeIntegerStringToNumber = Schema.transform(
    }
 );
 
-export const positiveInteger = Schema.Number.pipe(
-   Schema.int({ message: () => `Must be an integer (positiveInteger).` }),
-   Schema.positive({
-      message: () => `Must be a positive number (positiveInteger)`,
-   })
-);
+// export const positiveInteger = Schema.Number.pipe(
+//    Schema.int({ message: () => `Must be an integer (positiveInteger).` }),
+//    Schema.positive({
+//       message: () => `Must be a positive number (positiveInteger)`,
+//    })
+// );
 
-export const nonNegativeInteger = Schema.Number.pipe(
-   Schema.int({ message: () => `Must be an integer (nonNegativeInteger).` }),
-   Schema.nonNegative({
-      message: () => `Must be a non-negative number (nonNegativeInteger).`,
-   })
-);
+// export const nonNegativeInteger = Schema.Number.pipe(
+//    Schema.int({ message: () => `Must be an integer (nonNegativeInteger).` }),
+//    Schema.nonNegative({
+//       message: () => `Must be a non-negative number (nonNegativeInteger).`,
+//    })
+// );
 
 const normalizedString = Schema.transform(
    baseString,
@@ -213,7 +213,7 @@ export const fullDateStringToJSDate = Schema.transform(
       }),
       isCalendarDate
    ),
-   Schema.DateFromSelf,
+   Schema.ValidDateFromSelf,
    {
       strict: true,
       decode: (str: string) => DateTime.fromISO(str).toJSDate(),
@@ -295,16 +295,16 @@ export const shortDateInTheFutureOrToday = shortDateString.pipe(
    )
 );
 
-export const validDateInThePast = Schema.ValidDateFromSelf.pipe(
-   Schema.filter((date: Date) => date.getTime() < Date.now(), {
-      message: () => `The date must be in the past (validDateInThePast).`,
-   })
-);
-export const validDateInTheFuture = Schema.ValidDateFromSelf.pipe(
-   Schema.filter((date: Date) => date.getTime() > Date.now(), {
-      message: () => `The date must be in the future (validDateInTheFuture).`,
-   })
-);
+// export const validDateInThePast = Schema.ValidDateFromSelf.pipe(
+//    Schema.filter((date: Date) => date.getTime() < Date.now(), {
+//       message: () => `The date must be in the past (validDateInThePast).`,
+//    })
+// );
+// export const validDateInTheFuture = Schema.ValidDateFromSelf.pipe(
+//    Schema.filter((date: Date) => date.getTime() > Date.now(), {
+//       message: () => `The date must be in the future (validDateInTheFuture).`,
+//    })
+// );
 
 export const validateDOB = shortDateString.pipe(
    Schema.filter(

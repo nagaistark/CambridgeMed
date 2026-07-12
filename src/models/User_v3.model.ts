@@ -8,10 +8,10 @@ import {
    argon2HashString,
    clinicStaffEmail,
    nameString,
-   nonNegativeInteger,
-   objectIdInstance,
+   nonNegativeIntegerStringToNumber,
    passwordString,
    sha256HexString,
+   stringToObjectId,
    totpSecretCheck,
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
@@ -29,24 +29,20 @@ export const UserInputSchema = Schema.Struct({
 
 /* Document schema: composed from the SAME field atoms, extended with server-generated fields. No duplication of firstName/lastName/email rules. */
 export const UserDocumentSchema = Schema.Struct({
-   ...UserInputSchema.omit('password').fields,
-   ...AUTHENTICATED_USER.pick('role', 'permissions').fields,
-   _id: objectIdInstance,
+   _id: stringToObjectId,
    passwordHash: argon2HashString,
    previousNames: Schema.Array(
       Schema.Struct({
-         ...UserInputSchema.pick('firstName', 'lastName').fields,
          archivedAt: Schema.ValidDateFromSelf,
-      })
+      }).pipe(Schema.extend(UserInputSchema.pick('firstName', 'lastName')))
    ).pipe(Schema.maxItems(NAME_CHANGE_CAP)),
    previousEmails: Schema.Array(
       Schema.Struct({
-         ...UserInputSchema.pick('email').fields,
          archivedAt: Schema.ValidDateFromSelf,
-      })
+      }).pipe(Schema.extend(UserInputSchema.pick('firstName', 'lastName')))
    ).pipe(Schema.maxItems(EMAIL_CHANGE_CAP)),
-   nameChangesUsed: nonNegativeInteger,
-   emailChangesUsed: nonNegativeInteger,
+   nameChangesUsed: nonNegativeIntegerStringToNumber,
+   emailChangesUsed: nonNegativeIntegerStringToNumber,
 
    isTotpEnabled: Schema.Boolean,
    totpSecret: Schema.NullOr(totpSecretCheck).annotations({
@@ -62,13 +58,15 @@ export const UserDocumentSchema = Schema.Struct({
       message: () =>
          `Must contain either zero codes or exactly ${TOTP_RECOVERY_CODE_COUNT} recovery codes.`,
    }),
-   totpLastUsedStep: nonNegativeInteger,
+   totpLastUsedStep: nonNegativeIntegerStringToNumber,
 
-   invitedBy: Schema.optional(objectIdInstance),
+   invitedBy: Schema.optional(stringToObjectId),
    isActive: Schema.Boolean,
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
 }).pipe(
+   Schema.extend(UserInputSchema.omit('password')),
+   Schema.extend(AUTHENTICATED_USER.pick('role', 'permissions')),
    Schema.filter(profile => {
       const issues: Array<Schema.FilterIssue> = [];
 
@@ -112,6 +110,8 @@ export const UserDocumentSchema = Schema.Struct({
       return issues;
    })
 );
+
+export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 
 export type IUserInput = Schema.Schema.Type<typeof UserInputSchema>;
 export type IUserDocument = Schema.Schema.Type<typeof UserDocumentSchema>;

@@ -1,10 +1,10 @@
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import {
    clinicStaffEmail,
-   objectIdInstance,
+   fullDateInTheFuture,
+   fullDateInThePast,
    sha256HexString,
-   validDateInTheFuture,
-   validDateInThePast,
+   stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
@@ -18,20 +18,21 @@ export const InviteInputSchema = Schema.Struct({
 });
 
 export const InviteDocumentSchema = Schema.Struct({
-   ...InviteInputSchema.fields,
-   _id: objectIdInstance,
+   _id: stringToObjectId,
    tokenHash: sha256HexString,
-   usedAt: Schema.NullOr(validDateInThePast),
-   expiresAt: validDateInTheFuture,
-   issuedBy: objectIdInstance,
+   usedAt: Schema.NullOr(fullDateInThePast),
+   expiresAt: fullDateInTheFuture,
+   issuedBy: stringToObjectId,
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
-});
+}).pipe(Schema.extend(InviteInputSchema));
 
-export type IInviteDocument = Schema.Schema.Type<typeof InviteDocumentSchema>;
+export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
+
+export type IInviteDoc = Schema.Schema.Type<typeof InviteDocumentSchema>;
 
 export type ISafeInvite = Pick<
-   IInviteDocument,
+   IInviteDoc,
    'email' | 'role' | 'canIssueInvites' | 'expiresAt' | 'usedAt'
 >;
 
@@ -40,14 +41,14 @@ export type IPreviewInviteResponse = {
    inv: ISafeInvite;
 };
 
-export function getInviteCollection(): Collection<IInviteDocument> {
+export function getInviteCollection(): Collection<IInviteDoc> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<IInviteDocument>('invites');
+      .collection<IInviteDoc>('invites');
 }
 
 export const inviteIndexes = [
    { key: { email: 1 } },
    { key: { tokenHash: 1 }, unique: true },
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
-] satisfies readonly TypedIndexDescription<IInviteDocument>[];
+] satisfies readonly TypedIndexDescription<IInviteDoc>[];
