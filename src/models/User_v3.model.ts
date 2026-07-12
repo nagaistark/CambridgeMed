@@ -39,7 +39,7 @@ export const UserDocumentSchema = Schema.Struct({
    previousEmails: Schema.Array(
       Schema.Struct({
          archivedAt: Schema.ValidDateFromSelf,
-      }).pipe(Schema.extend(UserInputSchema.pick('firstName', 'lastName')))
+      }).pipe(Schema.extend(UserInputSchema.pick('email')))
    ).pipe(Schema.maxItems(EMAIL_CHANGE_CAP)),
    nameChangesUsed: nonNegativeIntegerStringToNumber,
    emailChangesUsed: nonNegativeIntegerStringToNumber,
