@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { verifyPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
@@ -7,6 +7,7 @@ import {
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { DisableTotpBody } from '@auth/totp.schemas.ts';
+import { ObjectId } from 'mongodb';
 
 export async function disableTotpController(
    _req: Request,
@@ -18,8 +19,8 @@ export async function disableTotpController(
       const { sub } = res.locals.authenticatedUser;
       const { password } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const user = await User.findById(sub).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne(new ObjectId(sub));
 
       if (!user) {
          return void res
@@ -58,7 +59,7 @@ export async function disableTotpController(
       }
 
       // ── Clear all TOTP state in one atomic update ──────────────────────────────
-      await User.updateOne(
+      await userCollection.updateOne(
          { _id: user._id },
          {
             $set: {
@@ -66,8 +67,7 @@ export async function disableTotpController(
                totpSecret: null,
                totpRecoveryCodes: [],
             },
-         },
-         { runValidators: true }
+         }
       );
 
       return void res.status(200).json({

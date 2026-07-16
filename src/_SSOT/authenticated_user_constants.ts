@@ -11,3 +11,5 @@ export const AUTHENTICATED_USER = Schema.Struct({
    permissions: positiveIntegerStringToNumber,
    sessionId: baseString,
 });
+
+export type AuthenticatedUser = Schema.Schema.Type<typeof AUTHENTICATED_USER>;

@@ -21,7 +21,9 @@ export const PasswordResetDocumentValidator = Schema.typeSchema(
    PasswordResetDocumentSchema
 );
 
-type IPasswordResetDoc = Schema.Schema.Type<typeof PasswordResetDocumentSchema>;
+export type IPasswordResetDoc = Schema.Schema.Type<
+   typeof PasswordResetDocumentSchema
+>;
 
 export function getPasswordResetCollection(): Collection<IPasswordResetDoc> {
    return DatabaseManager.getInstance()

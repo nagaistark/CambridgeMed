@@ -1,10 +1,11 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import {
-   getInviteModel,
-   type IInviteCreateBody,
-} from '@models/Invite.model.ts';
+   getInviteCollection,
+   IInviteDoc,
+   IInviteInput,
+   ISafeInvite,
+} from '@models/Invite_v3.model.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import {
    AuthenticatedResponse,
@@ -17,10 +18,12 @@ import {
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
 import { myEnv } from 'validateConfig.ts';
+import { ObjectId } from 'mongodb';
+import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
 
 export async function createInviteController(
    _req: Request,
-   res: ResponseWithValidatedBody<IInviteCreateBody> & AuthenticatedResponse,
+   res: ResponseWithValidatedBody<IInviteInput> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
@@ -28,12 +31,13 @@ export async function createInviteController(
       const { sub } = res.locals.authenticatedUser;
       const { email, role, canIssueInvites } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const Invite = getInviteModel();
+      const userCollection = getUserCollection();
+      const inviteCollection = getInviteCollection();
 
       // ── Guard #1: email must not belong to an existing user ────────────────────
-      /* `.exists()` returns the document's `_id` if found, or null — far cheaper than a full `.findOne()` since it stops at the first match. */
-      const existingUser = await User.exists({ email });
+      /* We limit `.countDocuments()` to 1 so that it stops at the first match. */
+      const existingUser =
+         (await userCollection.countDocuments({ email }, { limit: 1 })) > 0;
       if (existingUser) {
          return void res
             .status(409)
@@ -47,12 +51,15 @@ export async function createInviteController(
       }
 
       // ── Guard #2: no pending invite may already exist for this email ───────────
-      /* "Pending" = not yet accepted (usedAt is null) AND not yet expired. We filter by expiresAt explicitly because the TTL janitor runs on a background schedule and may not have cleaned up stale documents yet. */
-      const existingInvite = await Invite.exists({
-         email,
-         usedAt: null,
-         expiresAt: { $gt: new Date() },
-      });
+      /* countDocuments functions as `.exists()`. "Pending" = not yet accepted (usedAt is null) AND not yet expired. We filter by expiresAt explicitly because the TTL janitor runs on a background schedule and may not have cleaned up stale documents yet. */
+      const existingInvite = await inviteCollection.countDocuments(
+         {
+            email,
+            usedAt: null,
+            expiresAt: { $gt: new Date() },
+         },
+         { limit: 1 }
+      );
       if (existingInvite) {
          return void res
             .status(409)
@@ -72,12 +79,12 @@ export async function createInviteController(
 
       // ── Calculate expiry (next Monday 00:00 Toronto time) ──────────────────────
       /* We reuse the same Monday-reset logic as refresh tokens. RTEXP is the Unix timestamp (ms) of the next reset boundary. */
-      const { RTEXP } = getMaxAgeTokens();
-      const expiresAt = new Date(RTEXP);
+      const { refreshTokenExpirationTimestampMS } = getMaxAgeTokens();
+      const expiresAt = new Date(refreshTokenExpirationTimestampMS);
 
       // ── Fetch issuer's full name for the email body ────────────────────────────
       /* The access token carries sub but not the name, so we need one DB hit. This should never return null since the user just passed authenticate, but we throw explicitly rather than silently continuing with a broken state. */
-      const issuer = await User.findById(sub).lean();
+      const issuer = await userCollection.findOne(new ObjectId(sub));
       if (!issuer) {
          throw new Error(
             `Authenticated user not found in database during invite creation. userId=${sub}`
@@ -85,15 +92,26 @@ export async function createInviteController(
       }
 
       // ── Persist the invite ─────────────────────────────────────────────────────
-      const invite = await Invite.create({
+      const now = new Date();
+
+      const safeInvitePayload: ISafeInvite = {
          email,
          role,
          canIssueInvites,
-         tokenHash,
          expiresAt,
          usedAt: null,
-         issuedBy: new mongoose.Types.ObjectId(sub),
-      });
+      };
+
+      const fullInvitePayload: IInviteDoc = {
+         ...safeInvitePayload,
+         _id: new ObjectId(),
+         tokenHash,
+         issuedBy: new ObjectId(sub),
+         createdAt: now,
+         updatedAt: now,
+      };
+
+      const invite = await inviteCollection.insertOne(fullInvitePayload);
 
       // ── Send the invite email — with rollback on failure ───────────────────────
       /* An invite whose email was never delivered is worse than no invite: it silently occupies the pending-invite slot for this address until it expires, blocking any re-invite attempt. Rolling back removes that risk. */
@@ -110,24 +128,16 @@ export async function createInviteController(
          });
       } catch (emailErr) {
          /* Best-effort rollback. If this deleteOne also fails, the catch-all handler will log it. The re-thrown emailErr is the primary failure. */
-         await Invite.deleteOne({ _id: invite._id }).catch(() => undefined);
+         await inviteCollection
+            .deleteOne({ _id: invite.insertedId })
+            .catch(() => undefined);
          throw emailErr;
       }
 
       // ── Respond ────────────────────────────────────────────────────────────────
-      /* Return a safe subset — never expose tokenHash or issuedBy internals. */
-      const response = {
-         success: true as const,
-         message: 'Invite sent successfully.',
-         invite: {
-            id: invite._id,
-            email: invite.email,
-            role: invite.role,
-            canIssueInvites: invite.canIssueInvites,
-            expiresAt: invite.expiresAt,
-         },
-      };
-      return void res.status(201).json(response);
+      return void res
+         .status(201)
+         .json(buildCreateInviteResponse(safeInvitePayload));
    } catch (err) {
       next(err);
    }

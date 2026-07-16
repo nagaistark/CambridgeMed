@@ -29,12 +29,19 @@ export const InviteDocumentSchema = Schema.Struct({
 
 export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
 
+export type IInviteInput = Schema.Schema.Encoded<typeof InviteInputSchema>;
 export type IInviteDoc = Schema.Schema.Type<typeof InviteDocumentSchema>;
 
 export type ISafeInvite = Pick<
    IInviteDoc,
    'email' | 'role' | 'canIssueInvites' | 'expiresAt' | 'usedAt'
 >;
+
+export type ICreateInviteResponse = {
+   success: true;
+   message: string;
+   inv: ISafeInvite;
+};
 
 export type IPreviewInviteResponse = {
    success: true;

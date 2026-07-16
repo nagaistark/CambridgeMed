@@ -24,7 +24,9 @@ export const ChangePasswordSchema = Schema.Struct({
    )
 );
 
-export type ChangePassword = Schema.Schema.Type<typeof ChangePasswordSchema>;
+export type ChangePasswordBody = Schema.Schema.Type<
+   typeof ChangePasswordSchema
+>;
 
 // ── Change name ──────────────────────────────────────────────────────────────────
 /* Both fields are optional individually, but we enforce that at least one is present. This allows a user to change only their first name, only their last name, or both in a single request. */
@@ -43,7 +45,7 @@ export const ChangeNameSchema = Schema.Struct({
    )
 );
 
-export type ChangeName = Schema.Schema.Type<typeof ChangeNameSchema>;
+export type ChangeNameBody = Schema.Schema.Type<typeof ChangeNameSchema>;
 
 // ── Initiate email change ─────────────────────────────────────────────────────
 /* Identical pipeline to the registration email field: format validation, length cap, and a lowercase transform. The equality check against the user's current email (new !== old) is enforced in the controller, not here, because the schema has no access to the authenticated user's record. */
@@ -51,7 +53,7 @@ export const InitiateEmailChangeSchema = Schema.Struct({
    newEmail: clinicStaffEmail,
 });
 
-export type InitiateEmailChange = Schema.Schema.Type<
+export type InitiateEmailChangeBody = Schema.Schema.Type<
    typeof InitiateEmailChangeSchema
 >;
 
@@ -63,7 +65,7 @@ export const SetCanIssueInvitesSchema = Schema.Struct({
    }),
 });
 
-export type SetCanIssueInvites = Schema.Schema.Type<
+export type SetCanIssueInvitesBody = Schema.Schema.Type<
    typeof SetCanIssueInvitesSchema
 >;
 
@@ -75,4 +77,4 @@ export const SetIsActiveSchema = Schema.Struct({
    }),
 });
 
-export type SetIsActive = Schema.Schema.Type<typeof SetIsActiveSchema>;
+export type SetIsActiveBody = Schema.Schema.Type<typeof SetIsActiveSchema>;

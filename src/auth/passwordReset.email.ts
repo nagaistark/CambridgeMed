@@ -2,7 +2,7 @@ import { Resend } from 'resend';
 import { myEnv } from 'validateConfig.ts';
 import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
-import type { IPasswordResetDefinition } from '@models/PasswordReset.model.ts';
+import type { IPasswordResetDoc } from '@models/PasswordReset_v3.model.ts';
 import type { IUserDefinition } from '@models/User.model.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
 
@@ -10,7 +10,7 @@ export type IPasswordResetEmailParams = Pick<
    IUserDefinition,
    'firstName' | 'email'
 > &
-   Pick<IPasswordResetDefinition, 'expiresAt'> & {
+   Pick<IPasswordResetDoc, 'expiresAt'> & {
       resetUrl: string;
    };
 

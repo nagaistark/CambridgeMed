@@ -9,7 +9,7 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   type IInviteDocument,
+   type IInviteDoc,
 } from '@models/Invite_v3.model.ts';
 
 import { hashPassword } from '@utils/hashAndVerify.ts';
@@ -50,7 +50,7 @@ type RegistrationParams = Pick<
    IUserDocument,
    'firstName' | 'lastName' | 'passwordHash'
 > &
-   Pick<IInviteDocument, 'email' | 'tokenHash'>;
+   Pick<IInviteDoc, 'email' | 'tokenHash'>;
 
 async function runRegistrationTransaction(
    session: ClientSession,
@@ -72,7 +72,7 @@ async function runRegistrationTransaction(
             - expiresAt > now   → not expired, regardless of TTL janitor lag
    
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
-         const claimedInvite: IInviteDocument | null =
+         const claimedInvite: IInviteDoc | null =
             await inviteCollection.findOneAndUpdate(
                { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
                { $set: { usedAt: new Date() } },

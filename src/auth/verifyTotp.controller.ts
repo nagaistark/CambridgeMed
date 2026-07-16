@@ -1,6 +1,6 @@
 import type { Request, NextFunction } from 'express';
 import { verify } from 'otplib';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { decryptTotpSecret } from '@utils/totpCrypto.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
@@ -11,6 +11,7 @@ import {
 } from '@utils/customTypedResponses.ts';
 import type { TotpCodeBody } from '@auth/totp.schemas.ts';
 import { issueSession } from '@utils/issueSession.ts';
+import { ObjectId } from 'mongodb';
 
 export async function verifyTotpController(
    req: Request,
@@ -22,8 +23,8 @@ export async function verifyTotpController(
       const { totpChallengeSub } = res.locals;
       const { code } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const user = await User.findById(totpChallengeSub).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne(new ObjectId(totpChallengeSub));
 
       if (!user || !user.isActive) {
          clearTotpChallengeCookie(res);
@@ -75,7 +76,7 @@ export async function verifyTotpController(
 
       // ── Update the Time Step ───────────────────────────────────────────────────
       if ('timeStep' in result) {
-         await User.updateOne(
+         await userCollection.updateOne(
             { _id: user._id },
             { $set: { totpLastUsedStep: result.timeStep } }
          );

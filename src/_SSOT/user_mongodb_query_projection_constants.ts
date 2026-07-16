@@ -1,10 +1,10 @@
-import { ISafeInvite } from '@models/Invite_v2.model.ts';
-import type { SafeUser, PublicUser } from '@models/User_v2.model.ts';
+import { ISafeInvite } from '@models/Invite_v3.model.ts';
+import type { SafeUser, PublicUser } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
-   IPatientDefinitionFull,
-   IPatientDefinitionInit,
-} from '@models/Patient.model.ts';
+   IPatientDocument,
+   IPatientInitial,
+} from '@models/Patient_v3.model.ts';
 import { StrictIndexConfig } from '@utils/pathFinder_v2.ts';
 
 /* Field projections defined once at module level. Using MongoDB-level projection means `passwordHash` never travels over the wire from MongoDB to the Node process. */
@@ -45,7 +45,6 @@ export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInvite, 1> = {
 };
 
 // ── Patient projections ──────────────────────────────────────────────────────────
-
 /* The inclusion projection for GET /api/patients. Its type is derived directly from PatientSummary via LeafPaths, so it stays in sync automatically. clinicalInfo is absent because PatientSummary doesn't include it — the constraint enforces this without any manual bookkeeping. */
 export const LIST_PATIENT_PROJECTION: Partial<
    StrictIndexConfig<PatientSummary>
@@ -60,15 +59,15 @@ export const LIST_PATIENT_PROJECTION: Partial<
    'intakeInfo.demographics.deceased': 1,
    'intakeInfo.coreIdentifiers.healthCardNumber': 1,
    'intakeInfo.coreIdentifiers.chartNumber': 1,
-   'intakeInfo.coreIdentifiers.enrolledStatus': 1,
+   'intakeInfo.coreIdentifiers.enrollmentStatus': 1,
    createdAt: 1,
    updatedAt: 1,
 } as const;
 
-/* ClinicalOnlyFields is computed as the set difference between the full and initial patient definitions. Currently that resolves to the single key 'clinicalInfo', but if a second top-level clinical field is ever added to IPatientDefinitionFull, TypeScript will require it to appear here too. */
+/* ClinicalOnlyFields is computed as the set difference between the full and initial patient definitions. Currently that resolves to the single key 'clinicalInfo', but if a second top-level clinical field is ever added to IPatientDocument, TypeScript will require it to appear here too. */
 type ClinicalOnlyFields = Exclude<
-   keyof IPatientDefinitionFull,
-   keyof IPatientDefinitionInit
+   keyof IPatientDocument,
+   keyof IPatientInitial
 >;
 
 export const INTAKE_ONLY_PATIENT_PROJECTION: Record<ClinicalOnlyFields, 0> = {

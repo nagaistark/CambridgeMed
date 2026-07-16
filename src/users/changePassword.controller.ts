@@ -1,7 +1,7 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
-import { getSessionModel } from '@models/Session.model.ts';
+
+import { getUserCollection } from '@models/User_v3.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
@@ -10,7 +10,8 @@ import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import type { ChangePasswordBody } from '@users/User.schemas.ts';
+import type { ChangePasswordBody } from '@users/User_v3.schemas.ts';
+import { ObjectId } from 'mongodb';
 
 export async function changePasswordController(
    _req: Request,
@@ -22,8 +23,8 @@ export async function changePasswordController(
       const { sub } = res.locals.authenticatedUser;
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const user = await User.findById(sub).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne(new ObjectId(sub));
 
       /* Should never be null (the user just passed authenticate), but we guard defensively rather than using a non-null assertion. */
       if (!user) {
@@ -58,7 +59,7 @@ export async function changePasswordController(
 
       // ── Step 3: atomic update + session destruction ────────────────────────────
       /* Transaction because the two writes must succeed OR fail as a unit. */
-      const authConnection = DatabaseManager.getInstance().auth.connection;
+      const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(
             `Auth database connection unavailable during password change.`
@@ -68,14 +69,13 @@ export async function changePasswordController(
       const session = await authConnection.startSession();
       try {
          await session.withTransaction(async () => {
-            await User.updateOne(
-               { _id: new mongoose.Types.ObjectId(sub) },
-               { $set: { passwordHash: newPasswordHash } },
-               { session, runValidators: true }
+            await userCollection.updateOne(
+               { _id: new ObjectId(sub) },
+               { $set: { passwordHash: newPasswordHash } }
             );
 
-            await getSessionModel().deleteMany(
-               { userId: new mongoose.Types.ObjectId(sub) },
+            await getSessionCollection().deleteMany(
+               { userId: new ObjectId(sub) },
                { session }
             );
          });

@@ -1,11 +1,12 @@
 import type { Request, NextFunction } from 'express';
 import { generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { encryptTotpSecret } from '@utils/totpCrypto.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { TOTP_ISSUER, TOTP_SECRET_BYTES } from '@ssot/totp_constants.ts';
+import { ObjectId } from 'mongodb';
 
 export async function enrollTotpController(
    _req: Request,
@@ -16,8 +17,8 @@ export async function enrollTotpController(
       const requestId = res.locals.requestId;
       const { sub } = res.locals.authenticatedUser;
 
-      const User = getUserModel();
-      const user = await User.findById(sub).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne(new ObjectId(sub));
 
       if (!user) {
          return void res
@@ -44,10 +45,9 @@ export async function enrollTotpController(
       const rawSecret = generateSecret({ length: TOTP_SECRET_BYTES });
       const encryptedSecret = encryptTotpSecret(rawSecret);
 
-      await User.updateOne(
+      await userCollection.updateOne(
          { _id: user._id },
-         { $set: { totpSecret: encryptedSecret } },
-         { runValidators: true }
+         { $set: { totpSecret: encryptedSecret } }
       );
 
       // ── Build the QR code ─────────────────────────────────────────────────────

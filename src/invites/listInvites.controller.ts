@@ -1,15 +1,18 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
-import { getInviteModel } from '@models/Invite.model.ts';
-
-import { IUserDocument } from '@models/User.model.ts';
-import { IInviteDocument } from '@models/Invite.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
+import {
+   getInviteCollection,
+   type IInviteDoc,
+} from '@models/Invite_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import { ObjectId } from 'mongodb';
 
 type IInviteIssuer = Pick<IUserDocument, '_id' | 'firstName' | 'lastName'>;
 type IPendingInviteItem = Pick<
-   IInviteDocument,
+   IInviteDoc,
    '_id' | 'email' | 'role' | 'canIssueInvites' | 'expiresAt'
 > & {
    status: 'pending';
@@ -17,7 +20,7 @@ type IPendingInviteItem = Pick<
 };
 
 type IAcceptedInviteItem = Pick<
-   IInviteDocument,
+   IInviteDoc,
    '_id' | 'email' | 'role' | 'canIssueInvites'
 > &
    Pick<IUserDocument, 'firstName' | 'lastName'> & {
@@ -37,8 +40,8 @@ export async function listInvitesController(
       const { sub, role } = res.locals.authenticatedUser;
       const isSuperAdmin: boolean = role === 'superadmin';
 
-      const Invite = getInviteModel();
-      const User = getUserModel();
+      const inviteCollection = getInviteCollection();
+      const userCollection = getUserCollection();
 
       // ── Build the query filter ─────────────────────────────────────────────────
       /* What we want are accepted invites (regardless of expiry) OR pending invites that haven't expired yet. The TTL janitor's ~60s lag means an expired document might still physically exist, so we filter explicitly. */
@@ -52,12 +55,14 @@ export async function listInvitesController(
       /* Non-superadmin users only see invites they personally issued. The superadmin sees everything, so no issuedBy constraint is added. */
       const ownershipFilter = isSuperAdmin
          ? {}
-         : { issuedBy: new mongoose.Types.ObjectId(sub) };
+         : { issuedBy: new ObjectId(sub) };
 
-      const invites = await Invite.find({
-         ...statusFilter,
-         ...ownershipFilter,
-      }).lean();
+      const invites = await inviteCollection
+         .find({
+            ...statusFilter,
+            ...ownershipFilter,
+         })
+         .toArray();
 
       if (invites.length === 0) {
          return void res.status(200).json({
@@ -67,7 +72,7 @@ export async function listInvitesController(
       }
 
       // ── Batch-fetch accepted invitees ──────────────────────────────────────────
-      /* Rather than a separate User.findOne() per accepted invite (N+1), we collect all relevant emails and fetch matching users in one query. We then build an in-memory map for O(1) lookup during response assembly. */
+      /* We collect all relevant emails and fetch matching users in one query. We then build an in-memory map for O(1) lookup during response assembly. */
       const acceptedEmails = invites
          .filter(inv => inv.usedAt !== null)
          .map(inv => inv.email);
@@ -78,10 +83,12 @@ export async function listInvitesController(
       >();
 
       if (acceptedEmails.length > 0) {
-         const acceptedUsers = await User.find(
-            { email: { $in: acceptedEmails } },
-            { email: 1, firstName: 1, lastName: 1 } // projection: fetch only what we need
-         ).lean();
+         const acceptedUsers = await userCollection
+            .find(
+               { email: { $in: acceptedEmails } },
+               { projection: { email: 1, firstName: 1, lastName: 1 } } // projection: fetch only what we need
+            )
+            .toArray();
 
          for (const user of acceptedUsers) {
             acceptedUsersMap.set(user.email, {
@@ -96,14 +103,14 @@ export async function listInvitesController(
       const issuerMap = new Map<string, IInviteIssuer>();
 
       if (isSuperAdmin) {
-         const uniqueIssuerIds = [
-            ...new Set(invites.map(inv => inv.issuedBy.toString())),
-         ];
+         const uniqueIssuerIds = [...new Set(invites.map(inv => inv.issuedBy))];
 
-         const issuers = await User.find(
-            { _id: { $in: uniqueIssuerIds } },
-            { firstName: 1, lastName: 1 } // projection: only what we need
-         ).lean();
+         const issuers = await userCollection
+            .find(
+               { _id: { $in: uniqueIssuerIds } },
+               { projection: { firstName: 1, lastName: 1 } } // projection: only what we need
+            )
+            .toArray();
 
          for (const issuer of issuers) {
             issuerMap.set(issuer._id.toString(), {

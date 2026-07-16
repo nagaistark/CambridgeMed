@@ -1,12 +1,11 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
-import { getPasswordResetModel } from '@models/PasswordReset.model.ts';
-import { getSessionModel } from '@models/Session.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
+import { getPasswordResetCollection } from '@models/PasswordReset_v3.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'dbConnect.ts';
+import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    generateStandardHash,
    HEX96_REGEX,
@@ -42,12 +41,10 @@ export async function resetPasswordController(
 
       const tokenHash = generateStandardHash(token);
 
-      const passwordReset = await getPasswordResetModel()
-         .findOne({
-            tokenHash,
-            expiresAt: { $gt: new Date() },
-         })
-         .lean();
+      const passwordReset = await getPasswordResetCollection().findOne({
+         tokenHash,
+         expiresAt: { $gt: new Date() },
+      });
 
       if (!passwordReset) {
          return void res
@@ -65,18 +62,18 @@ export async function resetPasswordController(
       const newPasswordHash = await hashPassword(newPassword);
 
       // ── Transactional claim + update ───────────────────────────────────────────
-      const authConnection = DatabaseManager.getInstance().auth.connection;
+      const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(
             `Auth database connection unavailable during password reset.`
          );
       }
 
-      const session = await authConnection.startSession();
+      const session = authConnection.startSession();
       try {
          await session.withTransaction(async () => {
             /* deleteOne is the serialisation point. By including { _id } in the filter, we atomically claim this specific document. If a concurrent request already claimed it (deletedCount === 0), we throw and the transaction rolls back, leaving the User document untouched. */
-            const deleteResult = await getPasswordResetModel().deleteOne(
+            const deleteResult = await getPasswordResetCollection().deleteOne(
                { _id: passwordReset._id },
                { session }
             );
@@ -87,14 +84,13 @@ export async function resetPasswordController(
                );
             }
 
-            await getUserModel().updateOne(
-               { _id: new mongoose.Types.ObjectId(passwordReset.userId) },
-               { $set: { passwordHash: newPasswordHash } },
-               { session, runValidators: true }
+            await getUserCollection().updateOne(
+               { _id: passwordReset.userId },
+               { $set: { passwordHash: newPasswordHash } }
             );
 
             /* Kill all active sessions. The user just proved control of their email address, which is the recovery credential — all other devices should be forced to -authenticate against the new password. */
-            await getSessionModel().deleteMany(
+            await getSessionCollection().deleteMany(
                { userId: passwordReset.userId },
                { session }
             );

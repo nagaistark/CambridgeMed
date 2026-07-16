@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import { verifyPassword } from '@utils/hashAndVerify.ts';
 
@@ -31,8 +31,8 @@ export async function loginController(
 ): Promise<void> {
    try {
       const { email, password } = res.locals['validatedBody'];
-      const User = getUserModel();
-      const user = await User.findOne({ email }).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne({ email });
 
       const isPasswordValid = await verifyPassword(
          user?.passwordHash ?? TIMING_DUMMY_HASH,

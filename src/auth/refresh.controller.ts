@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getSessionModel } from '@models/Session.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import {
    signAccessToken,
    generateRefreshToken,
@@ -39,24 +39,26 @@ export async function refreshController(
       }
 
       const tokenHash = generateStandardHash(rawToken);
-      const Session = getSessionModel();
+      const sessionCollection = getSessionCollection();
 
       // ── Primary lookup: is this the current token? ─────────────────────--------
       /* This query resolves the vast majority of legitimate refresh requests in a single indexed hit. If it returns a document, we are on the HAPPY PATH and no further session queries are needed. */
-      const session = await Session.findOne({
+      const session = await sessionCollection.findOne({
          currentTokenHash: tokenHash,
-      }).lean();
+      });
 
       if (session) {
          // ── Case 1: HAPPY PATH: valid rotation ─────────────────────────────────-
          /* Two reasons we fetch the user record:
             a) We need role and permissions to sign the new access token. The session document deliberately does not cache these so they are always fresh. */
-         const user = await getUserModel().findById(session.userId).lean();
+         const user = await getUserCollection().findOne({
+            _id: session.userId,
+         });
 
          /* b) We check isActive here. If an admin deactivated this account since the session was created, we must not mint new tokens. */
          if (!user || !user.isActive) {
             /* The account is gone or deactivated. Kill the session and clear cookies so the client is not left holding dead credentials. */
-            await Session.deleteOne({ _id: session._id });
+            await sessionCollection.deleteOne({ _id: session._id });
             clearAuthCookies(res);
             return void res
                .status(401)
@@ -71,9 +73,9 @@ export async function refreshController(
 
          /* Generate the new token pair before touching the database. */
          const {
-            ATMA: accessTokenMaxAge,
-            RTMA: refreshTokenMaxAge,
-            ATEXP: accessTokenExpirationTime,
+            accessTokenMaxAgeMS,
+            refreshTokenMaxAgeMS,
+            accessTokenExpirationTimestampMS,
          } = getMaxAgeTokens();
 
          const { raw: newRawToken, hash: newTokenHash } =
@@ -84,11 +86,11 @@ export async function refreshController(
             role: user.role,
             permissions: user.permissions,
             sessionId: session._id.toString(),
-            expirationTime: accessTokenExpirationTime,
+            expirationTime: accessTokenExpirationTimestampMS,
          });
 
          /* Rotate the session document in-place. The current hash steps back to previousTokenHash, and the newly generated hash becomes the live currentTokenHash. expiresAt is deliberately NOT updated — it represents when this entire session expires (Monday reset), not when this token expires. */
-         await Session.updateOne(
+         await sessionCollection.updateOne(
             { _id: session._id },
             {
                $set: {
@@ -96,16 +98,15 @@ export async function refreshController(
                   previousTokenHash: tokenHash,
                   rotatedAt: new Date(),
                },
-            },
-            { runValidators: true }
+            }
          );
 
          setAuthCookies(
             res,
             accessToken,
-            accessTokenMaxAge,
+            accessTokenMaxAgeMS,
             newRawToken,
-            refreshTokenMaxAge
+            refreshTokenMaxAgeMS
          );
 
          return void res
@@ -115,9 +116,9 @@ export async function refreshController(
 
       // ── Secondary lookup: is this a previous (already rotated) token? ──
       /* If the primary lookup failed, the token is either stale (rotated away) or completely unknown. The secondary lookup tells us which. */
-      const staleSession = await Session.findOne({
+      const staleSession = await sessionCollection.findOne({
          previousTokenHash: tokenHash,
-      }).lean();
+      });
 
       if (staleSession) {
          const millisecondsSinceRotation =
@@ -141,7 +142,7 @@ export async function refreshController(
 
          // ── Case 3/4: reuse detected outside the grace window ─────────────------
          /* A rotated token arrived too late to be a race condition. This is either a stale client bug or (more seriously) an attacker presenting a stolen token after the legitimate user already rotated it. We cannot tell which, and we don't need to. The response is "nuclear option". Delete every active session for this user, forcing a full re-authentication from all devices. */
-         await Session.deleteMany({ userId: staleSession.userId });
+         await sessionCollection.deleteMany({ userId: staleSession.userId });
          clearAuthCookies(res);
          return void res
             .status(401)

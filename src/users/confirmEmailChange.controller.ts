@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getUserModel } from '@models/User.model.ts';
-import { getEmailChangeModel } from '@models/EmailChange.model.ts';
-import { getSessionModel } from '@models/Session.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
+import { getEmailChangeCollection } from '@models/EmailChange_v3.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'dbConnect.ts';
+import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    generateStandardHash,
    HEX96_REGEX,
@@ -36,14 +36,14 @@ export async function confirmEmailChangeController(
       }
 
       const tokenHash = generateStandardHash(token);
-      const EmailChange = getEmailChangeModel();
-      const User = getUserModel();
+      const emailChangeCollection = getEmailChangeCollection();
+      const userCollection = getUserCollection();
 
       // ── Look up the EmailChange record ─────────────────────────────────────────
-      const emailChange = await EmailChange.findOne({
+      const emailChange = await emailChangeCollection.findOne({
          confirmTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
-      }).lean();
+      });
 
       if (!emailChange) {
          return void res
@@ -71,7 +71,7 @@ export async function confirmEmailChangeController(
       }
 
       // ── Transaction: mark confirmed + update User ──────────────────────────────
-      const authConnection = DatabaseManager.getInstance().auth.connection;
+      const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(
             `Auth database connection unavailable during email confirmation.`
@@ -81,7 +81,7 @@ export async function confirmEmailChangeController(
       const session = await authConnection.startSession();
       try {
          await session.withTransaction(async () => {
-            const updateResult = await EmailChange.updateOne(
+            const updateResult = await emailChangeCollection.updateOne(
                { _id: emailChange._id, confirmedAt: null },
                { $set: { confirmedAt: new Date() } },
                { session }
@@ -94,7 +94,7 @@ export async function confirmEmailChangeController(
             }
 
             /* The old email is pushed to the archive BEFORE being overwritten. archivedAt records the moment it stopped being the live address. */
-            await User.updateOne(
+            await userCollection.updateOne(
                { _id: emailChange.userId },
                {
                   $set: { email: emailChange.newEmail },
@@ -106,11 +106,11 @@ export async function confirmEmailChangeController(
                   },
                   $inc: { emailChangesUsed: 1 },
                },
-               { session, runValidators: true }
+               { session }
             );
 
             /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
-            await getSessionModel().deleteMany(
+            await getSessionCollection().deleteMany(
                { userId: emailChange.userId },
                { session }
             );

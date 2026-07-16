@@ -1,7 +1,8 @@
 import {
+   ICreateInviteResponse,
    IPreviewInviteResponse,
    ISafeInvite,
-} from '@models/Invite_v2.model.ts';
+} from '@models/Invite_v3.model.ts';
 import {
    IPatientDocument,
    PatientCreateFullResponse,
@@ -69,11 +70,21 @@ export function buildMeResponse(message: string, user: SafeUser): MeResponse {
    return { success: true, message, user };
 }
 
-// ── Invite preview response ──────────────────────────────────────────────────────
+// ── Invite responses ─────────────────────────────────────────────────────────────
 export function buildPreviewInviteResponse(
    inv: ISafeInvite
 ): IPreviewInviteResponse {
    return { success: true, inv };
+}
+
+export function buildCreateInviteResponse(
+   inv: ISafeInvite
+): ICreateInviteResponse {
+   return {
+      success: true,
+      message: 'Invite sent successfully.',
+      inv,
+   };
 }
 
 // ── Patient responses ────────────────────────────────────────────────────────────

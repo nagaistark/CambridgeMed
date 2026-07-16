@@ -1,13 +1,13 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
-import { getSessionModel } from '@models/Session.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import type { SetIsActiveBody } from '@users/User.schemas.ts';
+import type { SetIsActiveBody } from '@users/User_v3.schemas.ts';
+import { ObjectId } from 'mongodb';
 
 type ToggleIsActiveParams = { id: string };
 
@@ -36,7 +36,7 @@ export async function toggleIsActiveController(
             );
       }
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      if (!ObjectId.isValid(id)) {
          return void res
             .status(400)
             .json(
@@ -48,8 +48,8 @@ export async function toggleIsActiveController(
             );
       }
 
-      const User = getUserModel();
-      const targetUser = await User.findById(id).lean();
+      const userCollection = getUserCollection();
+      const targetUser = await userCollection.findOne(new ObjectId(id));
 
       if (!targetUser) {
          return void res
@@ -86,16 +86,15 @@ export async function toggleIsActiveController(
             );
       }
 
-      await User.updateOne(
+      await userCollection.updateOne(
          { _id: targetUser._id },
-         { $set: { isActive } },
-         { runValidators: true }
+         { $set: { isActive } }
       );
 
       // ── Kill sessions on deactivation ──────────────────────────────────────────
       /* Deactivating an account must immediately invalidate all live sessions. Without this, a deactivated user holding a valid refresh token could continue rotating for up to a week. The loginController and meController check isActive, which blocks access token use — but a session kill here removes the refresh token lifeline entirely. On reactivation, no session work is needed: the user simply logs in fresh, which creates a new session. */
       if (!isActive) {
-         await getSessionModel().deleteMany({ userId: targetUser._id });
+         await getSessionCollection().deleteMany({ userId: targetUser._id });
       }
 
       return void res.status(200).json({

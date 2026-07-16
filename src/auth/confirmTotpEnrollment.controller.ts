@@ -1,6 +1,6 @@
 import type { Request, NextFunction } from 'express';
 import { verify } from 'otplib';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import {
    decryptTotpSecret,
    generateRecoveryCodes,
@@ -12,6 +12,7 @@ import {
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { TotpCodeBody } from '@auth/totp.schemas.ts';
+import { ObjectId } from 'mongodb';
 
 export async function confirmTotpEnrollmentController(
    _req: Request,
@@ -23,8 +24,8 @@ export async function confirmTotpEnrollmentController(
       const { sub } = res.locals.authenticatedUser;
       const { code } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const user = await User.findById(sub).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne(new ObjectId(sub));
 
       if (!user) {
          return void res
@@ -92,7 +93,7 @@ export async function confirmTotpEnrollmentController(
          );
       }
 
-      await User.updateOne(
+      await userCollection.updateOne(
          { _id: user._id },
          {
             $set: {
@@ -100,8 +101,7 @@ export async function confirmTotpEnrollmentController(
                totpRecoveryCodes: hashedCodes,
                totpLastUsedStep: result.timeStep,
             },
-         },
-         { runValidators: true }
+         }
       );
 
       return void res.status(200).json({

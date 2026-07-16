@@ -8,12 +8,12 @@ import {
    emailTokenRateLimiter,
 } from '@utils/rateLimiters.ts';
 import {
-   ChangePasswordVSchema,
-   ChangeNameVSchema,
-   InitiateEmailChangeVSchema,
-   SetCanIssueInvitesVSchema,
-   SetIsActiveVSchema,
-} from '@users/User.schemas.ts';
+   ChangePasswordSchema,
+   ChangeNameSchema,
+   InitiateEmailChangeSchema,
+   SetCanIssueInvitesSchema,
+   SetIsActiveSchema,
+} from '@users/User_v3.schemas.ts';
 import { listUsersController } from '@users/listUsers.controller.ts';
 import { changePasswordController } from '@users/changePassword.controller.ts';
 import { changeNameController } from '@users/changeName.controller.ts';
@@ -45,7 +45,7 @@ usersRouter.patch(
    '/me/password',
    authenticate,
    passwordChangeRateLimiter,
-   validateBody(ChangePasswordVSchema),
+   validateBody(ChangePasswordSchema),
    changePasswordController
 );
 
@@ -53,7 +53,7 @@ usersRouter.patch(
    '/me/name',
    authenticate,
    nameChangeRateLimiter,
-   validateBody(ChangeNameVSchema),
+   validateBody(ChangeNameSchema),
    changeNameController
 );
 
@@ -61,7 +61,7 @@ usersRouter.post(
    '/me/email',
    authenticate,
    emailChangeInitiateRateLimiter,
-   validateBody(InitiateEmailChangeVSchema),
+   validateBody(InitiateEmailChangeSchema),
    initiateEmailChangeController
 );
 
@@ -87,14 +87,14 @@ usersRouter.get('/:id', authenticate, getUserController);
 usersRouter.patch(
    '/:id/can-issue-invites',
    authenticate,
-   validateBody(SetCanIssueInvitesVSchema),
+   validateBody(SetCanIssueInvitesSchema),
    toggleCanIssueInvitesController
 );
 
 usersRouter.patch(
    '/:id/is-active',
    authenticate,
-   validateBody(SetIsActiveVSchema),
+   validateBody(SetIsActiveSchema),
    toggleIsActiveController
 );
 

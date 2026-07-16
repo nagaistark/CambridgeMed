@@ -44,7 +44,7 @@ import {
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
-import { Collection } from 'mongodb';
+import { Collection, ObjectId } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 
 export const PatientUniSchema = Schema.Struct({
@@ -61,7 +61,7 @@ export const PatientUniSchema = Schema.Struct({
          chartNumber: chartNumber,
          internalProviderId: Schema.optional(stringToObjectId),
          externalProviderId: Schema.optional(stringToObjectId),
-         enrollementStatus: Schema.Literal(...enrollmentStatuses),
+         enrollmentStatus: Schema.Literal(...enrollmentStatuses),
          enrollmentDate: Schema.optional(fullDateInThePast),
          enrollmentTerminationDate: Schema.optional(fullDateInThePast),
          enrollmentTerminationReason: Schema.optional(baseString),
@@ -83,7 +83,7 @@ export const PatientUniSchema = Schema.Struct({
                });
             }
 
-            if (core.enrollementStatus === 'enrolled' && !core.enrollmentDate) {
+            if (core.enrollmentStatus === 'enrolled' && !core.enrollmentDate) {
                issues.push({
                   path: ['enrollmentDate'],
                   message: `Enrollment date is required when the patient status is "Enrolled".`,
@@ -91,7 +91,7 @@ export const PatientUniSchema = Schema.Struct({
             }
 
             if (
-               core.enrollementStatus === 'inactive' &&
+               core.enrollmentStatus === 'inactive' &&
                (!core.enrollmentTerminationDate ||
                   !core.enrollmentTerminationReason)
             ) {
@@ -364,14 +364,20 @@ export const PatientUniSchema = Schema.Struct({
    }),
 });
 
+export const PatientInitialSchema = PatientUniSchema.pick(
+   'isActive',
+   'primaryDoctorId',
+   'intakeInfo'
+);
+export type IPatientInitial = Schema.Schema.Type<typeof PatientInitialSchema>;
+
 export const PatientDocumentValidator = Schema.typeSchema(PatientUniSchema);
+export type IPatientDocument = Schema.Schema.Type<typeof PatientUniSchema>;
 
-type IPatientDoc = Schema.Schema.Type<typeof PatientUniSchema>;
-
-export function getPatientCollection(): Collection<IPatientDoc> {
+export function getPatientCollection(): Collection<IPatientDocument> {
    return DatabaseManager.getInstance()
       .clinic.db()
-      .collection<IPatientDoc>('patients');
+      .collection<IPatientDocument>('patients');
 }
 
 export const patientIndexes = [
@@ -396,4 +402,66 @@ export const patientIndexes = [
          'intakeInfo.coreIdentifiers.chartNumber': 'text',
       },
    },
-] satisfies readonly TypedIndexDescription<IPatientDoc>[];
+] satisfies readonly TypedIndexDescription<IPatientDocument>[];
+
+// ── HTTP response types ──────────────────────────────────────────────────────────
+export type PatientCreateFullResponse = {
+   success: true;
+   message: string;
+   patient: IPatientDocument; // Includes clinicalInfo
+};
+
+export type PatientCreateIntakeResponse = {
+   success: true;
+   message: string;
+   patient: Omit<IPatientDocument, 'clinicalInfo'>;
+};
+
+// ── GET response types ───────────────────────────────────────────────────────────
+
+type IntakeInfoKey = keyof Pick<IPatientDocument, 'intakeInfo'>;
+type DemographicsKey = keyof Pick<
+   IPatientDocument['intakeInfo'],
+   'demographics'
+>;
+type CoreIdentifiersKey = keyof Pick<
+   IPatientDocument['intakeInfo'],
+   'coreIdentifiers'
+>;
+
+export type PatientSummary = {
+   readonly _id: ObjectId;
+   readonly createdAt: Date;
+   readonly updatedAt: Date;
+} & Pick<IPatientDocument, 'isActive' | 'primaryDoctorId'> & {
+      [K in IntakeInfoKey]: {
+         [D in DemographicsKey]: Pick<
+            IPatientDocument['intakeInfo']['demographics'],
+            'prefix' | 'firstName' | 'lastName' | 'dateOfBirth' | 'deceased'
+         >;
+      } & {
+         [C in CoreIdentifiersKey]: Pick<
+            IPatientDocument['intakeInfo']['coreIdentifiers'],
+            'healthCardNumber' | 'chartNumber' | 'enrollmentStatus'
+         >;
+      };
+   };
+
+export type PatientGetFullResponse = {
+   success: true;
+   patient: IPatientDocument;
+};
+
+export type PatientGetIntakeResponse = {
+   success: true;
+   patient: Omit<IPatientDocument, 'clinicalInfo'>;
+};
+
+export type PatientCursorListResponse = {
+   success: true;
+   patients: PatientSummary[];
+   pagination: {
+      nextCursor: string | null;
+      limit: number;
+   };
+};

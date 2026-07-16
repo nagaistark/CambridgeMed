@@ -1,13 +1,13 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import type { SetCanIssueInvitesBody } from '@users/User.schemas.ts';
+import type { SetCanIssueInvitesBody } from '@users/User_v3.schemas.ts';
 import { Permissions } from '@ssot/permissions_constants.ts';
+import { ObjectId } from 'mongodb';
 
 type ToggleCanIssueInvitesParams = { id: string };
 
@@ -23,7 +23,7 @@ export async function toggleCanIssueInvitesController(
       const { id } = req.params;
       const { canIssueInvites } = res.locals.validatedBody;
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      if (!ObjectId.isValid(id)) {
          return void res
             .status(400)
             .json(
@@ -35,8 +35,8 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
-      const User = getUserModel();
-      const targetUser = await User.findById(id).lean();
+      const userCollection = getUserCollection();
+      const targetUser = await userCollection.findOne(new ObjectId(id));
 
       if (!targetUser) {
          return void res
@@ -91,10 +91,9 @@ export async function toggleCanIssueInvitesController(
          ? targetUser.permissions | Permissions.ISSUE_INVITES
          : targetUser.permissions & ~Permissions.ISSUE_INVITES;
 
-      await User.updateOne(
+      await userCollection.updateOne(
          { _id: targetUser._id },
-         { $set: { permissions: newPermissions } },
-         { runValidators: true }
+         { $set: { permissions: newPermissions } }
       );
 
       return void res.status(200).json({

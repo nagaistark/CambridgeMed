@@ -1,9 +1,10 @@
-import { validateEmail } from '@utils/valibotSchemaReusables.ts';
-import { InferOutput, strictObject } from 'valibot';
+import { clinicStaffEmail } from '@utils/effectSchemaReusables.ts';
+import { Schema } from 'effect';
 
-/* Mirrors the email field from LoginSchema exactly. We apply the same maxLength ceiling so an over-long payload is rejected before we touch the database, and the lowercase transform ensures we query with the canonical form. */
-export const ForgotPasswordSchema = strictObject({
-   email: validateEmail,
+export const ForgotPasswordSchema = Schema.Struct({
+   email: clinicStaffEmail,
 });
 
-export type ForgotPasswordBody = InferOutput<typeof ForgotPasswordSchema>;
+export type ForgotPasswordBody = Schema.Schema.Type<
+   typeof ForgotPasswordSchema
+>;

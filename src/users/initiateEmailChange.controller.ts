@@ -1,13 +1,15 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
-import { getEmailChangeModel } from '@models/EmailChange.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
+import {
+   getEmailChangeCollection,
+   IEmailChangeDoc,
+} from '@models/EmailChange_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import type { InitiateEmailChangeBody } from '@users/User.schemas.ts';
+import type { InitiateEmailChangeBody } from '@users/User_v3.schemas.ts';
 import { sendEmailChangeEmails } from '@users/emailChange.email.ts';
 import {
    generateRandomToken,
@@ -18,6 +20,7 @@ import {
    EMAIL_CHANGE_TOKEN_EXPIRY_MS,
 } from '@ssot/user_change_constants.ts';
 import { myEnv } from 'validateConfig.ts';
+import { ObjectId } from 'mongodb';
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -30,10 +33,10 @@ export async function initiateEmailChangeController(
       const { sub } = res.locals.authenticatedUser;
       const { newEmail } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const EmailChange = getEmailChangeModel();
+      const userCollection = getUserCollection();
+      const emailChangeCollection = getEmailChangeCollection();
 
-      const user = await User.findById(sub).lean();
+      const user = await userCollection.findOne(new ObjectId(sub));
       if (!user) {
          return void res
             .status(404)
@@ -69,7 +72,12 @@ export async function initiateEmailChangeController(
       }
 
       // ── Guard 3: new email must not belong to an existing user ─────────────────
-      const emailTaken = await User.exists({ email: newEmail });
+      /* Again, `.countDocuments` functions as `.exists()` here. */
+      const emailTaken =
+         (await userCollection.countDocuments(
+            { email: newEmail },
+            { limit: 1 }
+         )) > 0;
       if (emailTaken) {
          return void res
             .status(409)
@@ -86,11 +94,15 @@ export async function initiateEmailChangeController(
 
       // ── Guard 4: new email must not be claimed by another pending change ───────
       /* Between the moment a change is initiated and the moment the confirmation link is clicked, the newEmail is not yet stored on any User document (so the User.exists check above would miss it). We close that gap here. Only unconfirmed, non-cancelled, non-expired changes are "active". */
-      const emailClaimedByPendingChange = await EmailChange.exists({
-         newEmail,
-         confirmedAt: null,
-         expiresAt: { $gt: now },
-      });
+      const emailClaimedByPendingChange =
+         (await emailChangeCollection.countDocuments(
+            {
+               newEmail,
+               confirmedAt: null,
+               expiresAt: { $gt: now },
+            },
+            { limit: 1 }
+         )) > 0;
       if (emailClaimedByPendingChange) {
          return void res
             .status(409)
@@ -105,10 +117,14 @@ export async function initiateEmailChangeController(
 
       // ── Guard 5: no concurrent active change for this user ─────────────────────
       /* Only one active (non-expired) email change per user at a time is allowed. Active = confirmed-but-still-cancellable. */
-      const userHasActiveChange = await EmailChange.exists({
-         userId: new mongoose.Types.ObjectId(sub),
-         expiresAt: { $gt: now },
-      });
+      const userHasActiveChange =
+         (await emailChangeCollection.countDocuments(
+            {
+               userId: new ObjectId(sub),
+               expiresAt: { $gt: now },
+            },
+            { limit: 1 }
+         )) > 0;
       if (userHasActiveChange) {
          return void res
             .status(409)
@@ -131,15 +147,21 @@ export async function initiateEmailChangeController(
       const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TOKEN_EXPIRY_MS);
 
       // ── Persist the EmailChange record ─────────────────────────────────────────
-      const emailChange = await EmailChange.create({
+      const emailChangePayload: IEmailChangeDoc = {
+         _id: new ObjectId(),
          confirmTokenHash,
          cancelTokenHash,
-         userId: new mongoose.Types.ObjectId(sub),
+         userId: new ObjectId(sub),
          oldEmail: user.email,
          newEmail,
          expiresAt,
          confirmedAt: null,
-      });
+         createdAt: now,
+         updatedAt: now,
+      };
+
+      const emailChange =
+         await emailChangeCollection.insertOne(emailChangePayload);
 
       // ── Send bilateral emails — with rollback on failure ───────────────────────
       /* An EmailChange record whose emails were never delivered is worse than no record: it silently blocks re-initiation and leaves the user with no actionable links. Rolling back removes that risk. Note that if the first email succeeds and the second fails, the first cannot be "unsent" — but deleting the record makes both raw tokens permanently inert, which is the critical safety property. */
@@ -156,9 +178,9 @@ export async function initiateEmailChangeController(
             expiresAt,
          });
       } catch (emailErr) {
-         await EmailChange.deleteOne({ _id: emailChange._id }).catch(
-            () => undefined
-         );
+         await emailChangeCollection
+            .deleteOne({ _id: emailChange.insertedId })
+            .catch(() => undefined);
          throw emailErr;
       }
 

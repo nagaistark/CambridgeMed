@@ -1,5 +1,5 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getInviteModel, SafeInvite } from '@models/Invite.model.ts';
+import { getInviteCollection } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    generateStandardHash,
@@ -36,9 +36,10 @@ export async function previewInviteController(
 
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
-      const invite = (await getInviteModel()
-         .findOne({ tokenHash }, SAFE_INVITE_PROJECTION)
-         .lean()) as SafeInvite | null;
+      const invite = await getInviteCollection().findOne(
+         { tokenHash },
+         { projection: SAFE_INVITE_PROJECTION }
+      );
 
       // ── Existence and expiry check ─────────────────────────────────────────────
       /* We check expiresAt even if the document exists, because MongoDB's TTL janitor runs on a background thread and may lag by up to a minute. This ensures the response is always logically correct, not just contingent on when the janitor last ran. */

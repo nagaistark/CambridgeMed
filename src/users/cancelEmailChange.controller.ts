@@ -1,10 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getUserModel } from '@models/User.model.ts';
-import { getEmailChangeModel } from '@models/EmailChange.model.ts';
-import { getSessionModel } from '@models/Session.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
+import { getEmailChangeCollection } from '@models/EmailChange_v3.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'dbConnect.ts';
+import { DatabaseManager } from 'mongoDBConnect.ts';
 import {
    generateStandardHash,
    HEX96_REGEX,
@@ -36,14 +36,14 @@ export async function cancelEmailChangeController(
       }
 
       const tokenHash = generateStandardHash(token);
-      const EmailChange = getEmailChangeModel();
-      const User = getUserModel();
+      const emailChangeCollection = getEmailChangeCollection();
+      const userCollection = getUserCollection();
 
       // ── Look up the EmailChange record ─────────────────────────────────────────
-      const emailChange = await EmailChange.findOne({
+      const emailChange = await emailChangeCollection.findOne({
          cancelTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
-      }).lean();
+      });
 
       if (!emailChange) {
          return void res
@@ -63,7 +63,7 @@ export async function cancelEmailChangeController(
 
       Reversion (confirmedAt !== null): The change already went through. User.email is currently newEmail. We must revert the User document, archive newEmail in previousEmails, increment the counter, and kill all sessions. */
 
-      const authConnection = DatabaseManager.getInstance().auth.connection;
+      const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(
             `Auth database connection unavailable during email change reversion.`
@@ -72,13 +72,13 @@ export async function cancelEmailChangeController(
 
       let isReversion: boolean = false;
 
-      const session = await authConnection.startSession();
+      const session = authConnection.startSession();
       try {
          await session.withTransaction(async () => {
             isReversion = emailChange.confirmedAt !== null;
 
             if (isReversion) {
-               await User.updateOne(
+               await userCollection.updateOne(
                   { _id: emailChange.userId },
                   {
                      $set: { email: emailChange.oldEmail },
@@ -90,17 +90,17 @@ export async function cancelEmailChangeController(
                      },
                      $inc: { emailChangesUsed: 1 },
                   },
-                  { session, runValidators: true }
+                  { session }
                );
 
                /* Nuclear logout inside the transaction. */
-               await getSessionModel().deleteMany(
+               await getSessionCollection().deleteMany(
                   { userId: emailChange.userId },
                   { session }
                );
             }
 
-            const deleteResult = await getEmailChangeModel().deleteOne(
+            const deleteResult = await getEmailChangeCollection().deleteOne(
                { _id: emailChange._id },
                { session }
             );

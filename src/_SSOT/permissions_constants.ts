@@ -9,7 +9,7 @@ export const Permissions = {
    WRITE_CLINICAL: 1 << 5, //  32
 } as const;
 
-export type PermissionFlag = (typeof Permissions)[keyof typeof Permissions];
+export type PermissionFlag = keyof typeof Permissions;
 
 export const ROLE_PERMISSIONS: Record<UserRole, number> = {
    secretary: Permissions.READ_INTAKE | Permissions.WRITE_INTAKE, // 12

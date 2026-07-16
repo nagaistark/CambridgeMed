@@ -4,12 +4,12 @@ import type {
    AuthenticatedResponse,
 } from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { PermissionFlag } from '@ssot/permissions_constants.ts';
+import { PermissionFlag, Permissions } from '@ssot/permissions_constants.ts';
 
 export function requirePermissions(
    ...flags: PermissionFlag[]
 ): AuthenticatedRequestHandler {
-   const required = flags.reduce((acc, flag) => acc | flag, 0);
+   const required = flags.reduce((acc, flag) => acc | Permissions[flag], 0);
 
    return (
       _req: Request,

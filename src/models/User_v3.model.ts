@@ -125,3 +125,25 @@ export function getUserCollection(): Collection<IUserDocument> {
 export const userIndexes = [
    { key: { email: 1 }, unique: true },
 ] satisfies readonly TypedIndexDescription<IUserDocument>[];
+
+// ── Types Used in MongoDB Projections ────────────────────────────────────────────
+/* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection for self-view (GET /api/auth/me) and superadmin views. */
+export type SafeUser = Omit<
+   IUserDocument,
+   'passwordHash' | 'totpSecret' | 'totpRecoveryCodes' | 'totpLastUsedStep'
+>;
+
+/* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
+export type PublicUser = Pick<
+   IUserDocument,
+   '_id' | 'firstName' | 'lastName' | 'email' | 'role' | 'permissions'
+>;
+
+// ── HTTP response types ──────────────────────────────────────────────────────────
+export type AuthUserResponse = {
+   success: true;
+   message: string;
+   user: PublicUser;
+};
+
+export type AuthUserResponseLogout = Omit<AuthUserResponse, 'user'>;

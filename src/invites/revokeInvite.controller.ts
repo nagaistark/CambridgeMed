@@ -1,8 +1,8 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getInviteModel } from '@models/Invite.model.ts';
+import { getInviteCollection } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import { ObjectId } from 'mongodb';
 
 /* Request<P> threads P into req.params, narrowing each value from `string | string[]` down to plain `string`. */
 type RevokeInviteParams = { id: string };
@@ -18,8 +18,8 @@ export async function revokeInviteController(
       const { id } = req.params;
 
       // ── Validate the ID format before touching the database ────────────────────
-      /* mongoose.Types.ObjectId.isValid catches malformed strings early and prevents a Mongoose CastError from bubbling up as an unexpected 500. */
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      /* ObjectId.isValid catches malformed strings early. */
+      if (!ObjectId.isValid(id)) {
          return void res
             .status(400)
             .json(
@@ -31,10 +31,10 @@ export async function revokeInviteController(
             );
       }
 
-      const Invite = getInviteModel();
+      const inviteCollection = getInviteCollection();
 
       // ── Fetch the invite ───────────────────────────────────────────────────────
-      const invite = await Invite.findById(id).lean();
+      const invite = await inviteCollection.findOne(new ObjectId(id));
       if (!invite) {
          return void res
             .status(404)
@@ -74,7 +74,7 @@ export async function revokeInviteController(
       }
 
       // ── Hard delete ────────────────────────────────────────────────────────────
-      await Invite.deleteOne({ _id: invite._id });
+      await inviteCollection.deleteOne({ _id: invite._id });
 
       return void res.status(200).json({
          success: true,

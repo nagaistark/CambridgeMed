@@ -1,9 +1,10 @@
 import type { Request, NextFunction } from 'express';
-import { getUserModel, SafeUser } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { ObjectId } from 'mongodb';
 
 export async function meController(
    _req: Request,
@@ -17,9 +18,10 @@ export async function meController(
       const { sub } = res.locals.authenticatedUser;
 
       /* Only fetch the data that is safe to expose (SAFE_USER_PROJECTION). */
-      const user = (await getUserModel()
-         .findById(sub, SAFE_USER_PROJECTION)
-         .lean()) as SafeUser | null;
+      const user = await getUserCollection().findOne(
+         { _id: new ObjectId(sub) },
+         { projection: SAFE_USER_PROJECTION }
+      );
 
       if (!user) {
          return void res

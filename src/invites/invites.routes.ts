@@ -2,14 +2,13 @@ import { Router } from 'express';
 import { authenticate } from '@middleware/authenticate.ts';
 import { requirePermissions } from '@middleware/requirePermission.ts';
 import { validateBody } from '@middleware/validateBody.ts';
-import { InviteCreateSchema } from '@models/Invite.model.ts';
-import { UserRegistrationSchema } from '@models/User.model.ts';
+import { InviteCreateSchema } from '@invites/Invite_v3.schemas.ts';
+import { UserInputSchema } from '@models/User_v3.model.ts';
 import { createInviteController } from '@invites/createInvite.controller.ts';
 import { revokeInviteController } from '@invites/revokeInvite.controller.ts';
 import { previewInviteController } from '@invites/previewInvite.controller.ts';
 import { listInvitesController } from '@invites/listInvites.controller.ts';
 import { acceptInviteController } from '@invites/acceptInvite.controller.ts';
-import { Permissions } from '@ssot/permissions_constants.ts';
 
 const inviteRouter = Router();
 
@@ -17,7 +16,7 @@ const inviteRouter = Router();
 inviteRouter.post(
    '/',
    authenticate,
-   requirePermissions(Permissions.ISSUE_INVITES),
+   requirePermissions('ISSUE_INVITES'),
    validateBody(InviteCreateSchema),
    createInviteController
 );
@@ -26,7 +25,7 @@ inviteRouter.post(
 inviteRouter.delete(
    '/:id',
    authenticate,
-   requirePermissions(Permissions.ISSUE_INVITES),
+   requirePermissions('ISSUE_INVITES'),
    revokeInviteController
 );
 
@@ -34,7 +33,7 @@ inviteRouter.delete(
 inviteRouter.get(
    '/',
    authenticate,
-   requirePermissions(Permissions.ISSUE_INVITES),
+   requirePermissions('ISSUE_INVITES'),
    listInvitesController
 );
 
@@ -44,7 +43,7 @@ inviteRouter.get('/:token/preview', previewInviteController);
 // Public: the registering user has no session. validateBody runs the full UserRegistrationSchema (firstName, lastName, email, password). The raw token arrives as a path parameter, not in the body.
 inviteRouter.post(
    '/:token/accept',
-   validateBody(UserRegistrationSchema),
+   validateBody(UserInputSchema),
    acceptInviteController
 );
 

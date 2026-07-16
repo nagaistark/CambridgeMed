@@ -38,7 +38,7 @@ export const SessionDocumentValidator = Schema.typeSchema(
    SessionDocumentSchema
 );
 
-type ISessionDoc = Schema.Schema.Type<typeof SessionDocumentSchema>;
+export type ISessionDoc = Schema.Schema.Type<typeof SessionDocumentSchema>;
 
 export function getSessionCollection(): Collection<ISessionDoc> {
    return DatabaseManager.getInstance()

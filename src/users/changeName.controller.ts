@@ -1,13 +1,13 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import { getUserModel } from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import type { ChangeNameBody } from '@users/User.schemas.ts';
+import type { ChangeNameBody } from '@users/User_v3.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
+import { ObjectId } from 'mongodb';
 
 export async function changeNameController(
    _req: Request,
@@ -19,8 +19,8 @@ export async function changeNameController(
       const { sub } = res.locals.authenticatedUser;
       const { firstName, lastName } = res.locals.validatedBody;
 
-      const User = getUserModel();
-      const user = await User.findById(sub).lean();
+      const userCollection = getUserCollection();
+      const user = await userCollection.findOne(new ObjectId(sub));
 
       if (!user) {
          return void res
@@ -66,8 +66,8 @@ export async function changeNameController(
       if (firstName !== undefined) updateFields.firstName = firstName;
       if (lastName !== undefined) updateFields.lastName = lastName;
 
-      await User.updateOne(
-         { _id: new mongoose.Types.ObjectId(sub) },
+      await userCollection.updateOne(
+         { _id: new ObjectId(sub) },
          {
             $set: updateFields,
             $push: {
@@ -78,8 +78,7 @@ export async function changeNameController(
                },
             },
             $inc: { nameChangesUsed: 1 },
-         },
-         { runValidators: true }
+         }
       );
 
       return void res.status(200).json({

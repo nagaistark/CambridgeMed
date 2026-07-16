@@ -1,6 +1,6 @@
 import type { Request, NextFunction } from 'express';
-import { getUserModel } from '@models/User.model.ts';
-import { getPasswordResetModel } from '@models/PasswordReset.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
+import { getPasswordResetCollection } from '@models/PasswordReset_v3.model.ts';
 import {
    generateRandomToken,
    generateStandardHash,
@@ -28,7 +28,7 @@ export async function forgotPasswordController(
          });
       };
 
-      const user = await getUserModel().findOne({ email }).lean();
+      const user = await getUserCollection().findOne({ email });
 
       /* No account or inactive account: silently do nothing and return the generic response. We do NOT distinguish between these two cases in the response. */
       if (!user || !user.isActive) {
@@ -36,16 +36,32 @@ export async function forgotPasswordController(
       }
 
       // ── Token generation ───────────────────────────────────────────────────────
-      /* We always replace any existing reset document for this user with a fresh one. This means a user who clicks "Forgot password?" twice always receives the newest link, and the old link becomes permanently inert (the document it pointed to no longer exists). The deleteOne + create pair is intentionally not wrapped in a transaction because the failure modes are acceptable:
-         - If deleteOne succeeds and create fails: the user has no pending reset and can try again immediately. No harm done.
-         - If both succeed: the happy path. */
       const rawToken = generateRandomToken();
       const tokenHash = generateStandardHash(rawToken);
       const expiresAt = new Date(Date.now() + PASSWORD_RESET_TOKEN_EXPIRY_MS);
 
-      const replaceResult = await getPasswordResetModel().replaceOne(
+      const now = new Date();
+
+      /*
+         Scenario A: The document EXISTS (It is an Update). MongoDB applies only the `$set` block and completely ignores the `$setOnInsert` block. Result: `updatedAt` is updated while `createdAt` remains untouched (preserving the original timestamp).
+
+         Scenario B: The document DOES NOT EXIST (It is an Insert). MongoDB merges both the `$set` and the `$setOnInsert` blocks together to build the new document. Result: `updatedAt` (from $set) and `createdAt` (from $setOnInsert) are both written to the new document.
+
+         The `$setOnInsert` operator is strictly bound to the `upsert` option.
+      */
+      const updateResult = await getPasswordResetCollection().updateOne(
          { userId: user._id },
-         { tokenHash, userId: user._id, expiresAt },
+         {
+            $set: {
+               tokenHash,
+               expiresAt,
+               updatedAt: now,
+            },
+            $setOnInsert: {
+               userId: user._id,
+               createdAt: now,
+            },
+         },
          { upsert: true }
       );
 
@@ -53,8 +69,8 @@ export async function forgotPasswordController(
          upsertedCount: 1 → freshly created (no prior reset existed)
          anything else → something unexpected happened */
       if (
-         replaceResult.modifiedCount === 0 &&
-         replaceResult.upsertedCount === 0
+         updateResult.modifiedCount === 0 &&
+         updateResult.upsertedCount === 0
       ) {
          throw new Error(
             `Password reset document was neither created nor replaced for userId: ${user._id.toString()}`
@@ -73,7 +89,7 @@ export async function forgotPasswordController(
             expiresAt,
          });
       } catch (emailErr) {
-         await getPasswordResetModel()
+         await getPasswordResetCollection()
             .deleteOne({ userId: user._id })
             .catch(() => undefined);
          throw emailErr;
