@@ -84,7 +84,7 @@ export async function createInviteController(
 
       // ── Fetch issuer's full name for the email body ────────────────────────────
       /* The access token carries sub but not the name, so we need one DB hit. This should never return null since the user just passed authenticate, but we throw explicitly rather than silently continuing with a broken state. */
-      const issuer = await userCollection.findOne(new ObjectId(sub));
+      const issuer = await userCollection.findOne({ _id: new ObjectId(sub) });
       if (!issuer) {
          throw new Error(
             `Authenticated user not found in database during invite creation. userId=${sub}`

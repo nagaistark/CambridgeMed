@@ -1,30 +1,29 @@
-import mongoose from 'mongoose';
 import logger from 'logger.ts';
 
 import {
-   getAuditLogModel,
-   type IAuditLogInput,
-} from '@models/AuditLog.model.ts';
+   getAuditLogCollection,
+   type IAuditLogDoc,
+} from '@models/AuditLog_v3.model.ts';
+import { ObjectId } from 'mongodb';
 
-function record(input: IAuditLogInput): void {
+function record(input: Omit<IAuditLogDoc, '_id' | 'occurredAt'>): void {
    /* Void return is intentionally synchronous from the caller's perspective. The promise is managed entirely inside this function. */
-   getAuditLogModel()
-      .create({
-         actorID: new mongoose.Types.ObjectId(input.actorID),
-         actorRole: input.actorRole,
-         action: input.action,
-         resourceType: input.resourceType,
-         resourceIDs: input.resourceIDs.map(
-            id => new mongoose.Types.ObjectId(id)
-         ),
-         patientIDs: input.patientIDs.map(
-            id => new mongoose.Types.ObjectId(id)
-         ),
-         searchCriteria: input.searchCriteria,
-         ipAddress: input.ipAddress,
-         requestId: input.requestId,
-         occurredAt: new Date(),
-      })
+   const payload: IAuditLogDoc = {
+      _id: new ObjectId(),
+      occurredAt: new Date(),
+      actorID: input.actorID,
+      actorRole: input.actorRole,
+      action: input.action,
+      resourceType: input.resourceType,
+      resourceIDs: input.resourceIDs,
+      patientIDs: input.patientIDs,
+      searchCriteria: input.searchCriteria,
+      ipAddress: input.ipAddress,
+      requestId: input.requestId,
+   };
+
+   getAuditLogCollection()
+      .insertOne(payload)
       .catch((err: unknown) => {
          /* requestId is already in the input, so we can log it precisely without needing any external reference. */
          logger.error(

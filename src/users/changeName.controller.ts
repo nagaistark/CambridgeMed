@@ -20,7 +20,7 @@ export async function changeNameController(
       const { firstName, lastName } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne(new ObjectId(sub));
+      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
 
       if (!user) {
          return void res

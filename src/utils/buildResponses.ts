@@ -11,13 +11,13 @@ import {
    PatientGetIntakeResponse,
    PatientSummary,
    PatientCursorListResponse,
-} from '@models/Patient.model.ts';
+} from '@models/Patient_v3.model.ts';
 import type {
    AuthUserResponse,
    AuthUserResponseLogout,
    IUserDocument,
    SafeUser,
-} from '@models/User_v2.model.ts';
+} from '@models/User_v3.model.ts';
 import { encodeCursor } from '@utils/cursorPagination.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
@@ -89,7 +89,7 @@ export function buildCreateInviteResponse(
 
 // ── Patient responses ────────────────────────────────────────────────────────────
 export function buildCreatePatientResponse(
-   patient: IPatientDocument, // Plain object because the caller did `.toObject()`
+   patient: IPatientDocument,
    canReadClinical: boolean
 ): PatientCreateFullResponse | PatientCreateIntakeResponse {
    const message = 'Patient created successfully.';
@@ -143,6 +143,7 @@ export function buildCursorPatientsResponse(
    const trimmed = hasNextPage ? patients.slice(0, limit) : patients;
 
    // Generate the bookmark based on the very last item in the list
+
    const nextCursor =
       hasNextPage && trimmed.length > 0
          ? encodeCursor(trimmed[trimmed.length - 1])

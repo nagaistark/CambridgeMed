@@ -3,25 +3,27 @@ import { allRoles } from '@ssot/user_roles_constants.ts';
 import {
    ipAddress,
    longString,
-   stringToObjectId,
+   objectIdInstance,
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 
-export const AuditLogInputSchema = Schema.Struct({
-   actorID: stringToObjectId,
+export const AuditLogDocumentSchema = Schema.Struct({
+   _id: objectIdInstance,
+   occurredAt: Schema.ValidDateFromSelf,
+   actorID: objectIdInstance,
    actorRole: Schema.Literal(...allRoles),
    action: Schema.Literal(...auditActions),
    resourceType: Schema.Literal(...auditableResourceTypes),
-   resourceIDs: Schema.NonEmptyArray(stringToObjectId).annotations({
+   resourceIDs: Schema.NonEmptyArray(objectIdInstance).annotations({
       message: () => ({
          message: `The resourceIDs array must contain at least one ID.`,
          override: true,
       }),
    }),
-   patientIDs: Schema.NonEmptyArray(stringToObjectId).annotations({
+   patientIDs: Schema.NonEmptyArray(objectIdInstance).annotations({
       message: () => ({
          message: `Must include at least one patient ID.`,
          override: true,
@@ -34,15 +36,6 @@ export const AuditLogInputSchema = Schema.Struct({
          `The provided identifier must be a valid, standard format UUID.`,
    }),
 });
-
-export const AuditLogDocumentSchema = Schema.Struct({
-   _id: stringToObjectId,
-   occurredAt: Schema.ValidDateFromSelf,
-}).pipe(Schema.extend(AuditLogInputSchema));
-
-export const AuditLogDocumentValidator = Schema.typeSchema(
-   AuditLogDocumentSchema
-);
 
 export type IAuditLogDoc = Schema.Schema.Type<typeof AuditLogDocumentSchema>;
 

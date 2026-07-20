@@ -2,9 +2,9 @@ import { Request, NextFunction } from 'express';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import {
-   patientVSchemaFull,
-   patientVSchemaInitial,
-} from '@models/Patient.model.ts';
+   PatientSchema,
+   PatientInitialSchema,
+} from '@models/Patient_v3.model.ts';
 import { Permissions } from '@ssot/permissions_constants.ts';
 
 export function selectPatientCreateSchema(
@@ -17,8 +17,9 @@ export function selectPatientCreateSchema(
    /* Picking the schema based on what the authenticated role is allowed to submit. */
    const canWriteClinical = (permissions & Permissions.WRITE_CLINICAL) !== 0;
 
-   const schema = canWriteClinical ? patientVSchemaFull : patientVSchemaInitial;
-
-   /* validateBody(schema) produces a middleware function. We call that function immediately, passing the current req/res/next through. */
-   validateBody(schema)(req, res, next);
+   if (canWriteClinical) {
+      validateBody(PatientSchema)(req, res, next);
+   } else {
+      validateBody(PatientInitialSchema)(req, res, next);
+   }
 }

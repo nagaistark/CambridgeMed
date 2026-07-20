@@ -18,7 +18,7 @@ export async function enrollTotpController(
       const { sub } = res.locals.authenticatedUser;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne(new ObjectId(sub));
+      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
 
       if (!user) {
          return void res

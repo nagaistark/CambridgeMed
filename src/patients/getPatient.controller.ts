@@ -1,6 +1,5 @@
-// src/patients/getPatient.controller.ts
 import type { Request, NextFunction } from 'express';
-import { getPatientModel } from '@models/Patient.model.ts';
+import { getPatientCollection } from '@models/Patient_v3.model.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedParams,
@@ -11,6 +10,7 @@ import { buildGetPatientResponse } from '@utils/buildResponses.ts';
 import { INTAKE_ONLY_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import type { IMongoIdParam } from '@utils/valibotSchemaReusables.ts';
 import { auditLog } from '@services/auditLog.service.ts';
+import { ObjectId } from 'mongodb';
 
 export async function getPatientController(
    req: Request,
@@ -28,7 +28,10 @@ export async function getPatientController(
       const projection = canReadClinical ? {} : INTAKE_ONLY_PATIENT_PROJECTION;
 
       /* No isActive filter here — staff may legitimately need to view archived patient records (for historical reference, records requests, etc.). The isActive field is present in the response so the UI can render an "archived" indicator appropriately. */
-      const patient = await getPatientModel().findById(id, projection).lean();
+      const patient = await getPatientCollection().findOne(
+         { _id: id },
+         { projection }
+      );
 
       if (!patient) {
          return void res
@@ -39,7 +42,7 @@ export async function getPatientController(
       }
 
       auditLog.record({
-         actorID: sub,
+         actorID: new ObjectId(sub),
          actorRole: role,
          action: 'READ',
          resourceType: 'Patient',

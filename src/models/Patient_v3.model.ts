@@ -26,9 +26,11 @@ import {
    suffixes,
    typeOfPhones,
 } from '@ssot/policy_constants.ts';
+import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import {
    baseString,
    chartNumber,
+   CursorPaginationSchema,
    DIN,
    fullDateInThePast,
    longString,
@@ -44,10 +46,13 @@ import {
 } from '@utils/effectSchemaReusables.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
-import { Collection, ObjectId } from 'mongodb';
+import { Collection } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 
-export const PatientUniSchema = Schema.Struct({
+export const PatientSchema = Schema.Struct({
+   _id: stringToObjectId,
+   createdAt: Schema.ValidDateFromSelf,
+   updatedAt: Schema.ValidDateFromSelf,
    isActive: Schema.Boolean.annotations({
       message: () => `isActive Must be a boolean.`,
    }),
@@ -364,15 +369,15 @@ export const PatientUniSchema = Schema.Struct({
    }),
 });
 
-export const PatientInitialSchema = PatientUniSchema.pick(
+export const PatientInitialSchema = PatientSchema.pick(
    'isActive',
    'primaryDoctorId',
    'intakeInfo'
 );
 export type IPatientInitial = Schema.Schema.Type<typeof PatientInitialSchema>;
 
-export const PatientDocumentValidator = Schema.typeSchema(PatientUniSchema);
-export type IPatientDocument = Schema.Schema.Type<typeof PatientUniSchema>;
+export const PatientDocumentValidator = Schema.typeSchema(PatientSchema);
+export type IPatientDocument = Schema.Schema.Type<typeof PatientSchema>;
 
 export function getPatientCollection(): Collection<IPatientDocument> {
    return DatabaseManager.getInstance()
@@ -429,23 +434,22 @@ type CoreIdentifiersKey = keyof Pick<
    'coreIdentifiers'
 >;
 
-export type PatientSummary = {
-   readonly _id: ObjectId;
-   readonly createdAt: Date;
-   readonly updatedAt: Date;
-} & Pick<IPatientDocument, 'isActive' | 'primaryDoctorId'> & {
-      [K in IntakeInfoKey]: {
-         [D in DemographicsKey]: Pick<
-            IPatientDocument['intakeInfo']['demographics'],
-            'prefix' | 'firstName' | 'lastName' | 'dateOfBirth' | 'deceased'
-         >;
-      } & {
-         [C in CoreIdentifiersKey]: Pick<
-            IPatientDocument['intakeInfo']['coreIdentifiers'],
-            'healthCardNumber' | 'chartNumber' | 'enrollmentStatus'
-         >;
-      };
+export type PatientSummary = Pick<
+   IPatientDocument,
+   '_id' | 'isActive' | 'primaryDoctorId' | 'createdAt' | 'updatedAt'
+> & {
+   [K in IntakeInfoKey]: {
+      [D in DemographicsKey]: Pick<
+         IPatientDocument['intakeInfo']['demographics'],
+         'prefix' | 'firstName' | 'lastName' | 'dateOfBirth' | 'deceased'
+      >;
+   } & {
+      [C in CoreIdentifiersKey]: Pick<
+         IPatientDocument['intakeInfo']['coreIdentifiers'],
+         'healthCardNumber' | 'chartNumber' | 'enrollmentStatus'
+      >;
    };
+};
 
 export type PatientGetFullResponse = {
    success: true;
@@ -465,3 +469,28 @@ export type PatientCursorListResponse = {
       limit: number;
    };
 };
+
+// ── GET /api/patients ────────────────────────────────────────────────────────────
+const ListPatientFilterSchema = Schema.Struct({
+   search: Schema.optional(baseString),
+   includeArchived: Schema.optional(
+      Schema.transform(baseString, Schema.Boolean, {
+         decode: (val: string): boolean => val.toLocaleLowerCase() === 'true',
+         encode: (bool: boolean): string => String(bool),
+      })
+   ),
+});
+
+export const PatientQuerySchema = Schema.extend(
+   CursorPaginationSchema,
+   ListPatientFilterSchema
+);
+
+export type ListPatientsQuery = Schema.Schema.Type<typeof PatientQuerySchema>;
+
+export const PATIENT_LIST_SEARCH_FIELDS = [
+   'intakeInfo.demographics.lastName',
+   'intakeInfo.demographics.firstName',
+   'intakeInfo.coreIdentifiers.healthCardNumber',
+   'intakeInfo.coreIdentifiers.chartNumber',
+] as const satisfies ReadonlyArray<keyof typeof LIST_PATIENT_PROJECTION>;

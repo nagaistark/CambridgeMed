@@ -1,12 +1,13 @@
-import { PatientSummary } from '@models/Patient.model.ts';
+import { PatientSummary } from '@models/Patient_v3.model.ts';
+import { ObjectId } from 'mongodb';
 
-type PatientCursorData = [lastName: string, firstName: string, id: string];
+type PatientCursorData = [lastName: string, firstName: string, id: ObjectId];
 
 export function encodeCursor(patient: PatientSummary): string {
    const cursorData: PatientCursorData = [
       patient.intakeInfo.demographics.lastName,
       patient.intakeInfo.demographics.firstName,
-      patient._id.toString(),
+      patient._id,
    ];
    // Convert the array to a JSON string, then encode it as Base64 so the frontend just sees a random string
    return Buffer.from(JSON.stringify(cursorData)).toString('base64url');

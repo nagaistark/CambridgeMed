@@ -34,7 +34,7 @@ export async function revokeInviteController(
       const inviteCollection = getInviteCollection();
 
       // ── Fetch the invite ───────────────────────────────────────────────────────
-      const invite = await inviteCollection.findOne(new ObjectId(id));
+      const invite = await inviteCollection.findOne({ _id: new ObjectId(id) });
       if (!invite) {
          return void res
             .status(404)

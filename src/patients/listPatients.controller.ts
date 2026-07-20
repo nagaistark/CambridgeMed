@@ -1,15 +1,19 @@
-import mongoose from 'mongoose';
 import type { Request, NextFunction } from 'express';
-import { getPatientModel, type PatientSummary } from '@models/Patient.model.ts';
+import {
+   getPatientCollection,
+   type PatientSummary,
+   type ListPatientsQuery,
+   IPatientDocument,
+} from '@models/Patient_v3.model.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedQuery,
 } from '@utils/customTypedResponses.ts';
 import { buildCursorPatientsResponse } from '@utils/buildResponses.ts';
 import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import type { ListPatientsQuery } from '@models/Patient.model.ts';
 import { decodeCursor } from '@utils/cursorPagination.ts';
 import { auditLog } from '@services/auditLog.service.ts';
+import { ObjectId } from 'mongodb';
 
 export const PATIENT_SORT_FIELDS = [
    'intakeInfo.demographics.lastName',
@@ -27,7 +31,7 @@ type CursorSortCondition =
    | { [K in LastNameKey]: { $gt: string } }
    | ({ [K in LastNameKey]: string } & { [K in FirstNameKey]: { $gt: string } })
    | ({ [K in LastNameKey]: string } & { [K in FirstNameKey]: string } & {
-        [K in IdKey]: { $gt: mongoose.Types.ObjectId };
+        [K in IdKey]: { $gt: ObjectId };
      });
 
 type PatientCursorFilter = {
@@ -73,7 +77,7 @@ export async function listPatientsController(
                   [PATIENT_SORT_FIELDS[0]]: cursorLastName,
                   [PATIENT_SORT_FIELDS[1]]: cursorFirstName,
                   [PATIENT_SORT_FIELDS[2]]: {
-                     $gt: new mongoose.Types.ObjectId(cursorId),
+                     $gt: new ObjectId(cursorId),
                   },
                },
             ] as Array<CursorSortCondition>;
@@ -81,23 +85,25 @@ export async function listPatientsController(
       }
 
       // 2. Feed the configuration into Mongoose safely
-      const patients = await getPatientModel()
-         .find(filter, LIST_PATIENT_PROJECTION)
-         .sort({
-            [PATIENT_SORT_FIELDS[0]]: 1,
-            [PATIENT_SORT_FIELDS[1]]: 1,
-            [PATIENT_SORT_FIELDS[2]]: 1,
-         } satisfies Record<SortFieldsTuple[number], 1 | -1>)
-         .limit(limit + 1)
-         .lean<PatientSummary[]>();
+      const patients = await getPatientCollection()
+         .find(filter, {
+            projection: LIST_PATIENT_PROJECTION,
+            sort: {
+               [PATIENT_SORT_FIELDS[0]]: 1,
+               [PATIENT_SORT_FIELDS[1]]: 1,
+               [PATIENT_SORT_FIELDS[2]]: 1,
+            } satisfies Record<SortFieldsTuple[number], 1 | -1>,
+            limit: limit + 1,
+         })
+         .toArray();
 
       auditLog.record({
-         actorID: sub,
+         actorID: new ObjectId(sub),
          actorRole: role,
          action: 'READ',
          resourceType: 'Patient',
-         resourceIDs: patients.map(({ _id }) => _id.toString()),
-         patientIDs: patients.map(({ _id }) => _id.toString()),
+         resourceIDs: patients.map(patient => patient._id),
+         patientIDs: patients.map(patient => patient._id),
          ipAddress: req.ip ?? '0.0.0.0',
          requestId,
       });

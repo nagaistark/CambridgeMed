@@ -23,7 +23,9 @@ export async function recoverTotpController(
       const { code } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne(new ObjectId(totpChallengeSub));
+      const user = await userCollection.findOne({
+         _id: new ObjectId(totpChallengeSub),
+      });
 
       if (!user || !user.isActive) {
          clearTotpChallengeCookie(res);

@@ -36,7 +36,9 @@ export async function toggleCanIssueInvitesController(
       }
 
       const userCollection = getUserCollection();
-      const targetUser = await userCollection.findOne(new ObjectId(id));
+      const targetUser = await userCollection.findOne({
+         _id: new ObjectId(id),
+      });
 
       if (!targetUser) {
          return void res

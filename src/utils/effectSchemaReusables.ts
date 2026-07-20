@@ -6,6 +6,7 @@ import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
 import { recoveryCodeRegex, totpSecretRegex } from '@ssot/totp_constants.ts';
+import { paginationLimit } from '@ssot/pagination_constants.ts';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -133,19 +134,23 @@ export const nonNegativeIntegerStringToNumber = Schema.transform(
    }
 );
 
-// export const positiveInteger = Schema.Number.pipe(
-//    Schema.int({ message: () => `Must be an integer (positiveInteger).` }),
-//    Schema.positive({
-//       message: () => `Must be a positive number (positiveInteger)`,
-//    })
-// );
+export const positiveInteger = Schema.Number.pipe(
+   Schema.filter(Number.isSafeInteger, {
+      message: () => `Must be a safe JavaScript integer.`,
+   }),
+   Schema.positive({
+      message: () => `Must be a positive number (positiveInteger)`,
+   })
+);
 
-// export const nonNegativeInteger = Schema.Number.pipe(
-//    Schema.int({ message: () => `Must be an integer (nonNegativeInteger).` }),
-//    Schema.nonNegative({
-//       message: () => `Must be a non-negative number (nonNegativeInteger).`,
-//    })
-// );
+export const nonNegativeInteger = Schema.Number.pipe(
+   Schema.filter(Number.isSafeInteger, {
+      message: () => `Must be a safe JavaScript integer.`,
+   }),
+   Schema.nonNegative({
+      message: () => `Must be a non-negative number (nonNegativeInteger).`,
+   })
+);
 
 const normalizedString = Schema.transform(
    baseString,
@@ -205,7 +210,7 @@ export const shortDateString = baseString.pipe(
    isCalendarDate
 );
 
-export const fullDateStringToJSDate = Schema.transform(
+const fullDateStringToJSDate = Schema.transform(
    baseString.pipe(
       Schema.pattern(fullDateRegex, {
          message: () =>
@@ -294,17 +299,6 @@ export const shortDateInTheFutureOrToday = shortDateString.pipe(
       }
    )
 );
-
-// export const validDateInThePast = Schema.ValidDateFromSelf.pipe(
-//    Schema.filter((date: Date) => date.getTime() < Date.now(), {
-//       message: () => `The date must be in the past (validDateInThePast).`,
-//    })
-// );
-// export const validDateInTheFuture = Schema.ValidDateFromSelf.pipe(
-//    Schema.filter((date: Date) => date.getTime() > Date.now(), {
-//       message: () => `The date must be in the future (validDateInTheFuture).`,
-//    })
-// );
 
 export const validateDOB = shortDateString.pipe(
    Schema.filter(
@@ -406,3 +400,17 @@ export const recoveryCodeCheck = baseString.pipe(
       message: () => `Invalid recovery code format (recoveryCodeCheck).`,
    })
 );
+
+// ===== Pagination Schema (req.query) =============================================
+export const CursorPaginationSchema = Schema.Struct({
+   cursor: Schema.optional(baseString),
+
+   limit: Schema.optionalWith(
+      positiveIntegerStringToNumber.pipe(
+         Schema.lessThanOrEqualTo(paginationLimit)
+      ),
+      {
+         default: () => paginationLimit,
+      }
+   ),
+});

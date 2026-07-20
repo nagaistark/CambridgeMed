@@ -24,7 +24,7 @@ export async function changePasswordController(
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne(new ObjectId(sub));
+      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
 
       /* Should never be null (the user just passed authenticate), but we guard defensively rather than using a non-null assertion. */
       if (!user) {

@@ -36,7 +36,7 @@ export async function initiateEmailChangeController(
       const userCollection = getUserCollection();
       const emailChangeCollection = getEmailChangeCollection();
 
-      const user = await userCollection.findOne(new ObjectId(sub));
+      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
       if (!user) {
          return void res
             .status(404)
