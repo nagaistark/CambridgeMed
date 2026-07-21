@@ -366,6 +366,8 @@ export const PatientInputSchema = Schema.Struct({
    }),
 });
 
+export type IPatientInput = Schema.Schema.Type<typeof PatientInputSchema>;
+
 export const PatientDocumentSchema = Schema.extend(
    Schema.Struct({
       _id: stringToObjectId,
@@ -374,6 +376,8 @@ export const PatientDocumentSchema = Schema.extend(
    }),
    PatientInputSchema
 );
+
+export type IPatientDocument = Schema.Schema.Type<typeof PatientDocumentSchema>;
 
 export const PatientInitialSchema = PatientInputSchema.pick(
    'isActive',
@@ -386,7 +390,6 @@ export type IPatientInitial = Schema.Schema.Type<typeof PatientInitialSchema>;
 export const PatientDocumentValidator = Schema.typeSchema(
    PatientDocumentSchema
 );
-export type IPatientDocument = Schema.Schema.Type<typeof PatientDocumentSchema>;
 
 export function getPatientCollection(): Collection<IPatientDocument> {
    return DatabaseManager.getInstance()

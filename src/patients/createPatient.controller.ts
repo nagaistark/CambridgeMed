@@ -1,6 +1,7 @@
 import { Request, NextFunction } from 'express';
 import {
    getPatientCollection,
+   IPatientInput,
    PatientDocumentValidator,
    type IPatientDocument,
    type IPatientInitial,
@@ -22,7 +23,7 @@ import { ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
 
 /* Declared at module level as a named constant rather than inline inside the controller. This makes the defaults visible, testable, and reusable if other controllers ever need the same baseline. */
-const CLINICAL_INFO_DEFAULTS: IPatientDocument['clinicalInfo'] = {
+const CLINICAL_INFO_DEFAULTS: IPatientInput['clinicalInfo'] = {
    bloodType: 'unknown',
    activeMedications: [],
    allergies: [],
@@ -34,7 +35,7 @@ const CLINICAL_INFO_DEFAULTS: IPatientDocument['clinicalInfo'] = {
 export async function createPatientController(
    req: Request,
    res: AuthenticatedResponse &
-      ResponseWithValidatedBody<IPatientDocument | IPatientInitial>,
+      ResponseWithValidatedBody<IPatientInput | IPatientInitial>,
    next: NextFunction
 ): Promise<void> {
    try {
@@ -42,7 +43,7 @@ export async function createPatientController(
       const { sub, role, permissions } = res.locals.authenticatedUser;
       const body = res.locals.validatedBody;
 
-      const clinicalInfo: IPatientDocument['clinicalInfo'] =
+      const clinicalInfo: IPatientInput['clinicalInfo'] =
          'clinicalInfo' in body ? body.clinicalInfo : CLINICAL_INFO_DEFAULTS;
 
       const userCollection = getUserCollection();
