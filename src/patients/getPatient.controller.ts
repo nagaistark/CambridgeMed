@@ -8,7 +8,7 @@ import { Permissions } from '@ssot/permissions_constants.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { buildGetPatientResponse } from '@utils/buildResponses.ts';
 import { INTAKE_ONLY_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import type { IMongoIdParam } from '@utils/valibotSchemaReusables.ts';
+import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import { auditLog } from '@services/auditLog.service.ts';
 import { ObjectId } from 'mongodb';
 

@@ -13,6 +13,12 @@ import { decodeCursor } from '@utils/cursorPagination.ts';
 import { auditLog } from '@services/auditLog.service.ts';
 import { ObjectId } from 'mongodb';
 
+export function isNonEmptyArray<T>(
+   arr: readonly T[]
+): arr is readonly [T, ...T[]] {
+   return arr.length > 0;
+}
+
 export const PATIENT_SORT_FIELDS = [
    'intakeInfo.demographics.lastName',
    'intakeInfo.demographics.firstName',
@@ -95,16 +101,20 @@ export async function listPatientsController(
          })
          .toArray();
 
-      auditLog.record({
-         actorID: new ObjectId(sub),
-         actorRole: role,
-         action: 'READ',
-         resourceType: 'Patient',
-         resourceIDs: patients.map(patient => patient._id),
-         patientIDs: patients.map(patient => patient._id),
-         ipAddress: req.ip ?? '0.0.0.0',
-         requestId,
-      });
+      const resourceIDs = patients.map(patient => patient._id);
+
+      if (isNonEmptyArray(resourceIDs)) {
+         auditLog.record({
+            actorID: new ObjectId(sub),
+            actorRole: role,
+            action: 'READ',
+            resourceType: 'Patient',
+            resourceIDs, // correctly narrowed to [ObjectId, ...ObjectId[]]
+            patientIDs: resourceIDs,
+            ipAddress: req.ip ?? '0.0.0.0',
+            requestId,
+         });
+      }
 
       return void res
          .status(200)

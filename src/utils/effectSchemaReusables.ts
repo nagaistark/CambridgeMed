@@ -196,6 +196,8 @@ export const MongoIdParamsSchema = Schema.Struct({
    id: stringToObjectId,
 });
 
+export type IMongoIdParam = Schema.Schema.Type<typeof MongoIdParamsSchema>;
+
 // ===== DATES =====================================================================
 export const isCalendarDate = Schema.filter<Schema.Schema<string>>(
    (str: string) => DateTime.fromISO(str).isValid,
