@@ -1,23 +1,23 @@
 import logger from 'logger.ts';
 import { createTypedIndexes } from '@utils/typedIndexDescription.ts';
-import { getInviteCollection, inviteIndexes } from '@models/Invite_v2.model.ts';
-import { getUserCollection, userIndexes } from '@models/User_v2.model.ts';
+import { getInviteCollection, inviteIndexes } from '@models/Invite_v3.model.ts';
+import { getUserCollection, userIndexes } from '@models/User_v3.model.ts';
 import {
    getSessionCollection,
    sessionIndexes,
-} from '@models/Session_v2.model.ts';
+} from '@models/Session_v3.model.ts';
 import {
    getPasswordResetCollection,
    passwordResetIndexes,
-} from '@models/PasswordReset_v2.model.ts';
+} from '@models/PasswordReset_v3.model.ts';
 import {
    emailChangeIndexes,
    getEmailChangeCollection,
-} from '@models/EmailChange_v2.model.ts';
+} from '@models/EmailChange_v3.model.ts';
 import {
    auditLogIndexes,
    getAuditLogCollection,
-} from '@models/AuditLog_v2.model.ts';
+} from '@models/AuditLog_v3.model.ts';
 
 export async function initializeDatabaseIndexes() {
    logger.info(`Ensuring database indexes...`);

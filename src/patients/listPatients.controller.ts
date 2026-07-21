@@ -1,9 +1,7 @@
 import type { Request, NextFunction } from 'express';
 import {
    getPatientCollection,
-   type PatientSummary,
    type ListPatientsQuery,
-   IPatientDocument,
 } from '@models/Patient_v3.model.ts';
 import type {
    AuthenticatedResponse,

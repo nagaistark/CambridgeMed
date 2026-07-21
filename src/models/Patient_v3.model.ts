@@ -370,6 +370,9 @@ export const PatientSchema = Schema.Struct({
 });
 
 export const PatientInitialSchema = PatientSchema.pick(
+   '_id',
+   'createdAt',
+   'updatedAt',
    'isActive',
    'primaryDoctorId',
    'intakeInfo'
