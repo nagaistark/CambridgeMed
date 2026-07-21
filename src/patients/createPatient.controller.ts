@@ -1,6 +1,7 @@
 import { Request, NextFunction } from 'express';
 import {
    getPatientCollection,
+   PatientDocumentValidator,
    type IPatientDocument,
    type IPatientInitial,
 } from '@models/Patient_v3.model.ts';
@@ -18,6 +19,7 @@ import { ROLE_DOCTOR } from '@ssot/user_roles_constants.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { buildCreatePatientResponse } from '@utils/buildResponses.ts';
 import { ObjectId } from 'mongodb';
+import { Either, Schema } from 'effect';
 
 /* Declared at module level as a named constant rather than inline inside the controller. This makes the defaults visible, testable, and reusable if other controllers ever need the same baseline. */
 const CLINICAL_INFO_DEFAULTS: IPatientDocument['clinicalInfo'] = {
@@ -78,7 +80,16 @@ export async function createPatientController(
          updatedAt: now,
       };
 
-      await getPatientCollection().insertOne(payload);
+      const decoded = Schema.decodeUnknownEither(PatientDocumentValidator)(
+         payload
+      );
+
+      if (Either.isLeft(decoded)) {
+         /* If this ever fires, it means a programmer error slipped past PatientInputSchema — not a client mistake. Treat it as an internal error, not a 422. */
+         return next(decoded.left);
+      }
+
+      await getPatientCollection().insertOne(decoded.right);
 
       /* Fire-and-forget audit record. The service swallows its own errors and logs them internally, so a failed audit write does not abort the request. req.ip is always populated in production because app.set('trust proxy', 1) is set in app.ts. The '0.0.0.0' fallback only fires in edge cases during local development where the proxy header may be absent.*/
       auditLog.record({

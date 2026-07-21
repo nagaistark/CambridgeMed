@@ -49,10 +49,7 @@ import { Schema } from 'effect';
 import { Collection } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 
-export const PatientSchema = Schema.Struct({
-   _id: stringToObjectId,
-   createdAt: Schema.ValidDateFromSelf,
-   updatedAt: Schema.ValidDateFromSelf,
+export const PatientInputSchema = Schema.Struct({
    isActive: Schema.Boolean.annotations({
       message: () => `isActive Must be a boolean.`,
    }),
@@ -369,18 +366,27 @@ export const PatientSchema = Schema.Struct({
    }),
 });
 
-export const PatientInitialSchema = PatientSchema.pick(
-   '_id',
-   'createdAt',
-   'updatedAt',
+export const PatientDocumentSchema = Schema.extend(
+   Schema.Struct({
+      _id: stringToObjectId,
+      createdAt: Schema.ValidDateFromSelf,
+      updatedAt: Schema.ValidDateFromSelf,
+   }),
+   PatientInputSchema
+);
+
+export const PatientInitialSchema = PatientInputSchema.pick(
    'isActive',
    'primaryDoctorId',
    'intakeInfo'
 );
+
 export type IPatientInitial = Schema.Schema.Type<typeof PatientInitialSchema>;
 
-export const PatientDocumentValidator = Schema.typeSchema(PatientSchema);
-export type IPatientDocument = Schema.Schema.Type<typeof PatientSchema>;
+export const PatientDocumentValidator = Schema.typeSchema(
+   PatientDocumentSchema
+);
+export type IPatientDocument = Schema.Schema.Type<typeof PatientDocumentSchema>;
 
 export function getPatientCollection(): Collection<IPatientDocument> {
    return DatabaseManager.getInstance()
