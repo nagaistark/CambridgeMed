@@ -1,8 +1,8 @@
-import { getSessionModel } from '@models/Session.model.ts';
-import { getUserModel } from '@models/User.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
+import { ObjectId } from 'mongodb';
 
 export async function listSessionsController(
    _req: Request,
@@ -12,37 +12,39 @@ export async function listSessionsController(
    try {
       const { sub, role, sessionId } = res.locals.authenticatedUser;
       const isSuperAdmin = role === 'superadmin';
-      const Session = getSessionModel();
+      const sessionCollection = getSessionCollection();
 
       // The superadmin case: fetching ALL sessions across all users
       if (isSuperAdmin) {
-         const sessions = await Session.find(
-            {},
-            {
-               _id: 1,
-               userId: 1,
-               ipAddress: 1,
-               userAgent: 1,
-               createdAt: 1,
-               expiresAt: 1,
-            }
-         ).lean();
+         const sessions = await sessionCollection
+            .find(
+               {},
+               {
+                  projection: {
+                     _id: 1,
+                     userId: 1,
+                     ipAddress: 1,
+                     userAgent: 1,
+                     createdAt: 1,
+                     expiresAt: 1,
+                  },
+               }
+            )
+            .toArray();
 
          if (sessions.length === 0) {
             return void res.status(200).json({ success: true, sessions: [] });
          }
 
          // Batch-fetching user identity for display purposes (same pattern as in the listInvitesController)
-         const uniqueUserIds = [
-            ...new Set(sessions.map(s => s.userId.toString())),
-         ];
+         const uniqueUserIds = [...new Set(sessions.map(s => s.userId))];
 
-         const users = await getUserModel()
+         const users = await getUserCollection()
             .find(
                { _id: { $in: uniqueUserIds } },
-               { _id: 1, firstName: 1, lastName: 1, email: 1 }
+               { projection: { _id: 1, firstName: 1, lastName: 1, email: 1 } }
             )
-            .lean();
+            .toArray();
 
          const userMap = new Map(users.map(u => [u._id.toString(), u]));
 
@@ -56,10 +58,20 @@ export async function listSessionsController(
       }
 
       // The regular user case:
-      const sessions = await Session.find(
-         { userId: new mongoose.Types.ObjectId(sub) },
-         { _id: 1, ipAddress: 1, userAgent: 1, createdAt: 1, expiresAt: 1 }
-      ).lean();
+      const sessions = await sessionCollection
+         .find(
+            { userId: new ObjectId(sub) },
+            {
+               projection: {
+                  _id: 1,
+                  ipAddress: 1,
+                  userAgent: 1,
+                  createdAt: 1,
+                  expiresAt: 1,
+               },
+            }
+         )
+         .toArray();
 
       const result = sessions.map(s => ({
          ...s,

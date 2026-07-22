@@ -1,8 +1,8 @@
 import type { Request, NextFunction } from 'express';
-import { getSessionModel } from '@models/Session.model.ts';
+import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import mongoose from 'mongoose';
+import { ObjectId } from 'mongodb';
 
 type KillSessionParams = { id: string };
 
@@ -22,7 +22,7 @@ export async function killSessionController(
 
       const { id } = req.params;
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      if (!ObjectId.isValid(id)) {
          return void res
             .status(400)
             .json(
@@ -47,9 +47,11 @@ export async function killSessionController(
             );
       }
 
-      const Session = getSessionModel();
+      const sessionCollection = getSessionCollection();
 
-      const targetSession = await Session.findById(id).lean();
+      const targetSession = await sessionCollection.findOne({
+         _id: new ObjectId(id),
+      });
 
       if (
          !targetSession ||
@@ -65,7 +67,9 @@ export async function killSessionController(
       // ── Recency enforcement (non-superadmin users) ─────────────────────────────
       /* We only allow killing sessions that were created AFTER the current one. */
       if (!isSuperAdmin) {
-         const currentSession = await Session.findById(currentSessionId).lean();
+         const currentSession = await sessionCollection.findOne({
+            _id: new ObjectId(currentSessionId),
+         });
          if (!currentSession) {
             // If the current session has somehow vanished, treat it as expired
             return void res
@@ -92,7 +96,7 @@ export async function killSessionController(
          }
       }
 
-      await Session.deleteOne({ _id: targetSession._id });
+      await sessionCollection.deleteOne({ _id: targetSession._id });
 
       return void res.status(200).json({
          success: true,
