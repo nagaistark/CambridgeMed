@@ -1,16 +1,12 @@
 import type { Request, NextFunction } from 'express';
-import mongoose from 'mongoose';
-import {
-   getUserModel,
-   type SafeUser,
-   type PublicUser,
-} from '@models/User.model.ts';
+import { getUserCollection } from '@models/User_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import { ObjectId } from 'mongodb';
 
 type GetUserParams = { id: string };
 
@@ -24,7 +20,7 @@ export async function getUserController(
       const { role } = res.locals.authenticatedUser;
       const { id } = req.params;
 
-      if (!mongoose.Types.ObjectId.isValid(id)) {
+      if (!ObjectId.isValid(id)) {
          return void res
             .status(400)
             .json(
@@ -37,13 +33,13 @@ export async function getUserController(
       }
 
       const isSuperAdmin = role === 'superadmin';
-      const User = getUserModel();
+      const userCollection = getUserCollection();
 
       if (isSuperAdmin) {
-         const user = (await User.findById(
-            id,
-            SAFE_USER_PROJECTION
-         ).lean()) as SafeUser | null;
+         const user = await userCollection.findOne(
+            { _id: new ObjectId(id) },
+            { projection: SAFE_USER_PROJECTION }
+         );
          if (!user) {
             return void res
                .status(404)
@@ -54,10 +50,10 @@ export async function getUserController(
          return void res.status(200).json({ success: true, user });
       }
 
-      const user = (await User.findById(
-         id,
-         PUBLIC_USER_PROJECTION
-      ).lean()) as PublicUser | null;
+      const user = await userCollection.findOne(
+         { _id: new ObjectId(id) },
+         { projection: PUBLIC_USER_PROJECTION }
+      );
       if (!user) {
          return void res
             .status(404)
