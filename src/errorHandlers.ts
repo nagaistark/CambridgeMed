@@ -45,7 +45,7 @@ export function createErrorResponse(
    // A human-readable message safe to display. The handler is responsible for deciding whether this should be vague (production) or candid (dev).
    message: string,
 
-   // The correlation ID from res.locals.requestId, also optional because in some edge cases (very early middleware failures) it may not exist yet.
+   // The correlation ID from res.locals.requestId.
    requestId: string,
 
    // `details` is optional. `unknown` forces any consumer of this field to narrow its type before using it, which is the safe choice.
