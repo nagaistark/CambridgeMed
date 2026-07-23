@@ -78,7 +78,7 @@ export async function confirmEmailChangeController(
          );
       }
 
-      const session = await authConnection.startSession();
+      const session = authConnection.startSession();
       try {
          await session.withTransaction(async () => {
             const updateResult = await emailChangeCollection.updateOne(

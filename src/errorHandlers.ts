@@ -7,7 +7,7 @@ import logger from 'logger.ts';
 // ===== Every possible machine-readable error code (so far) =======================
 const ALL_ERROR_CODES = [
    // ───── Client errors (4XX) ────────────────────────────────────────────────────
-   'VALIDATION_ERROR', // Valibot ValiError: body/params failed schema validation
+   'VALIDATION_ERROR', // Body/params failed schema validation
    'INVALID_JSON', // Body parser couldn't parse the request body as JSON
    'NOT_FOUND', // Route or database document does not exist
    'METHOD_NOT_ALLOWED', // Valid route, but wrong HTTP verb
@@ -33,8 +33,8 @@ interface ApiErrorResponse {
    success: false; // It's always literally "false" for Errors, not just "boolean"
    code: string;
    message: string;
-   details?: unknown;
    requestId?: string;
+   details?: unknown;
 }
 
 // ===== FACTORY FUNCTION that produces a guaranteed-valid ApiErrorResponse ========
@@ -48,7 +48,7 @@ export function createErrorResponse(
    // The correlation ID from res.locals.requestId, also optional because in some edge cases (very early middleware failures) it may not exist yet.
    requestId: string,
 
-   // `details` is optional — only Valibot field-level issues and similar structured payloads will use this. `unknown` forces any consumer of this field to narrow its type before using it, which is the safe choice.
+   // `details` is optional. `unknown` forces any consumer of this field to narrow its type before using it, which is the safe choice.
    details?: unknown
 ): ApiErrorResponse {
    if (details !== undefined) {
