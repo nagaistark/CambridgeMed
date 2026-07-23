@@ -5,10 +5,7 @@ import { getSessionCollection } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'mongoDBConnect.ts';
-import {
-   generateStandardHash,
-   HEX96_REGEX,
-} from '@ssot/node_crypto_constants.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from 'logger.ts';
 
 type CancelParams = { token: string };
@@ -21,19 +18,6 @@ export async function cancelEmailChangeController(
    try {
       const requestId = res.locals.requestId;
       const { token } = req.params;
-
-      // ── Token format check ─────────────────────────────────────────────────────
-      if (!HEX96_REGEX.test(token)) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This link is invalid.`,
-                  requestId
-               )
-            );
-      }
 
       const tokenHash = generateStandardHash(token);
       const emailChangeCollection = getEmailChangeCollection();

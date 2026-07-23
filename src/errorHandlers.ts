@@ -33,7 +33,7 @@ interface ApiErrorResponse {
    success: false; // It's always literally "false" for Errors, not just "boolean"
    code: string;
    message: string;
-   requestId?: string;
+   requestId: string;
    details?: unknown;
 }
 

@@ -25,6 +25,7 @@ import { toggleCanIssueInvitesController } from '@users/toggleCanIssueInvites.co
 import { toggleIsActiveController } from '@users/toggleIsActive.controller.ts';
 import { validateParams } from '@middleware/validateParams.ts';
 import { MongoIdParamsSchema } from '@utils/effectSchemaReusables.ts';
+import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 
 const usersRouter = Router();
 
@@ -72,12 +73,14 @@ usersRouter.post(
 usersRouter.get(
    '/email/confirm/:token',
    emailTokenRateLimiter,
+   requireValidRawToken,
    confirmEmailChangeController
 );
 
 usersRouter.get(
    '/email/cancel/:token',
    emailTokenRateLimiter,
+   requireValidRawToken,
    cancelEmailChangeController
 );
 
