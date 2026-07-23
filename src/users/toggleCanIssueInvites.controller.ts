@@ -4,36 +4,25 @@ import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
+   ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import type { SetCanIssueInvitesBody } from '@users/User_v3.schemas.ts';
 import { Permissions } from '@ssot/permissions_constants.ts';
 import { ObjectId } from 'mongodb';
-
-type ToggleCanIssueInvitesParams = { id: string };
+import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 
 export async function toggleCanIssueInvitesController(
-   req: Request<ToggleCanIssueInvitesParams>,
+   _req: Request,
    res: ResponseWithValidatedBody<SetCanIssueInvitesBody> &
+      ResponseWithValidatedParams<IMongoIdParam> &
       AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
       const { sub, role } = res.locals.authenticatedUser;
-      const { id } = req.params;
+      const { id } = res.locals.validatedParams;
       const { canIssueInvites } = res.locals.validatedBody;
-
-      if (!ObjectId.isValid(id)) {
-         return void res
-            .status(400)
-            .json(
-               createErrorResponse(
-                  'VALIDATION_ERROR',
-                  `Invalid user ID.`,
-                  requestId
-               )
-            );
-      }
 
       const userCollection = getUserCollection();
       const targetUser = await userCollection.findOne({

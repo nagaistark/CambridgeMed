@@ -5,21 +5,23 @@ import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
+   ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import type { SetIsActiveBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
-
-type ToggleIsActiveParams = { id: string };
+import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 
 export async function toggleIsActiveController(
-   req: Request<ToggleIsActiveParams>,
-   res: ResponseWithValidatedBody<SetIsActiveBody> & AuthenticatedResponse,
+   _req: Request,
+   res: ResponseWithValidatedBody<SetIsActiveBody> &
+      ResponseWithValidatedParams<IMongoIdParam> &
+      AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
       const { role } = res.locals.authenticatedUser;
-      const { id } = req.params;
+      const { id } = res.locals.validatedParams;
       const { isActive } = res.locals.validatedBody;
 
       // ── Authorisation ──────────────────────────────────────────────────────────
@@ -31,18 +33,6 @@ export async function toggleIsActiveController(
                createErrorResponse(
                   'FORBIDDEN',
                   `Only the superadmin can activate or deactivate accounts.`,
-                  requestId
-               )
-            );
-      }
-
-      if (!ObjectId.isValid(id)) {
-         return void res
-            .status(400)
-            .json(
-               createErrorResponse(
-                  'VALIDATION_ERROR',
-                  `Invalid user ID.`,
                   requestId
                )
             );
