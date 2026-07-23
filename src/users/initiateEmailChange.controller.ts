@@ -116,15 +116,19 @@ export async function initiateEmailChangeController(
       }
 
       // ── Guard 5: no concurrent active change for this user ─────────────────────
-      /* Only one active (non-expired) email change per user at a time is allowed. Active = confirmed-but-still-cancellable. */
+      /* Reap anything for this user that has already logically expired but hasn't yet been swept by MongoDB's TTL monitor (which runs on its own ~60s cycle). Without this, a user whose previous request expired seconds ago could still collide with the unique index on `userId` and receive a spurious 409. */
+
+      await emailChangeCollection.deleteMany({
+         userId: new ObjectId(sub),
+         expiresAt: { $lte: now },
+      });
+
       const userHasActiveChange =
          (await emailChangeCollection.countDocuments(
-            {
-               userId: new ObjectId(sub),
-               expiresAt: { $gt: now },
-            },
+            { userId: new ObjectId(sub), expiresAt: { $gt: now } },
             { limit: 1 }
          )) > 0;
+
       if (userHasActiveChange) {
          return void res
             .status(409)

@@ -2,15 +2,15 @@ import { myEnv } from 'validateConfig.ts';
 import { Resend } from 'resend';
 import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
-import { IEmailChangeDefinition } from '@models/EmailChange.model.ts';
-import { IUserDefinition } from '@models/User.model.ts';
+import { IEmailChangeDoc } from '@models/EmailChange_v3.model.ts';
+import { IUserDocument } from '@models/User_v3.model.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
 
 export type IEmailChangeEmailParams = Pick<
-   IEmailChangeDefinition,
+   IEmailChangeDoc,
    'oldEmail' | 'newEmail' | 'expiresAt'
 > &
-   Pick<IUserDefinition, 'firstName'> & {
+   Pick<IUserDocument, 'firstName'> & {
       confirmUrl: string;
       cancelUrl: string;
    };

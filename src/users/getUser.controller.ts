@@ -5,39 +5,28 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import { ObjectId } from 'mongodb';
-
-type GetUserParams = { id: string };
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedParams,
+} from '@utils/customTypedResponses.ts';
+import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 
 export async function getUserController(
-   req: Request<GetUserParams>,
-   res: AuthenticatedResponse,
+   _req: Request,
+   res: AuthenticatedResponse & ResponseWithValidatedParams<IMongoIdParam>,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
       const { role } = res.locals.authenticatedUser;
-      const { id } = req.params;
-
-      if (!ObjectId.isValid(id)) {
-         return void res
-            .status(400)
-            .json(
-               createErrorResponse(
-                  'VALIDATION_ERROR',
-                  `Invalid user ID.`,
-                  requestId
-               )
-            );
-      }
+      const { id } = res.locals.validatedParams;
 
       const isSuperAdmin = role === 'superadmin';
       const userCollection = getUserCollection();
 
       if (isSuperAdmin) {
          const user = await userCollection.findOne(
-            { _id: new ObjectId(id) },
+            { _id: id },
             { projection: SAFE_USER_PROJECTION }
          );
          if (!user) {
@@ -51,7 +40,7 @@ export async function getUserController(
       }
 
       const user = await userCollection.findOne(
-         { _id: new ObjectId(id) },
+         { _id: id },
          { projection: PUBLIC_USER_PROJECTION }
       );
       if (!user) {

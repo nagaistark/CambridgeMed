@@ -23,6 +23,8 @@ import { cancelEmailChangeController } from '@users/cancelEmailChange.controller
 import { getUserController } from '@users/getUser.controller.ts';
 import { toggleCanIssueInvitesController } from '@users/toggleCanIssueInvites.controller.ts';
 import { toggleIsActiveController } from '@users/toggleIsActive.controller.ts';
+import { validateParams } from '@middleware/validateParams.ts';
+import { MongoIdParamsSchema } from '@utils/effectSchemaReusables.ts';
 
 const usersRouter = Router();
 
@@ -82,11 +84,17 @@ usersRouter.get(
 // ── Per-user admin routes (/:id/*) ───────────────────────────────────────────────
 /* These must come last. Dynamic segments eat any path that wasn't matched above. All require authentication. Authorisation (superadmin vs inviter) is enforced inside each controller because it requires a database lookup of the target user — middleware cannot perform this check without duplicating the fetch. */
 
-usersRouter.get('/:id', authenticate, getUserController);
+usersRouter.get(
+   '/:id',
+   authenticate,
+   validateParams(MongoIdParamsSchema),
+   getUserController
+);
 
 usersRouter.patch(
    '/:id/can-issue-invites',
    authenticate,
+   validateParams(MongoIdParamsSchema),
    validateBody(SetCanIssueInvitesSchema),
    toggleCanIssueInvitesController
 );
@@ -94,6 +102,7 @@ usersRouter.patch(
 usersRouter.patch(
    '/:id/is-active',
    authenticate,
+   validateParams(MongoIdParamsSchema),
    validateBody(SetIsActiveSchema),
    toggleIsActiveController
 );
