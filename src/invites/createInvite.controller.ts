@@ -52,14 +52,15 @@ export async function createInviteController(
 
       // ── Guard #2: no pending invite may already exist for this email ───────────
       /* countDocuments functions as `.exists()`. "Pending" = not yet accepted (usedAt is null) AND not yet expired. We filter by expiresAt explicitly because the TTL janitor runs on a background schedule and may not have cleaned up stale documents yet. */
-      const existingInvite = await inviteCollection.countDocuments(
-         {
-            email,
-            usedAt: null,
-            expiresAt: { $gt: new Date() },
-         },
-         { limit: 1 }
-      );
+      const existingInvite =
+         (await inviteCollection.countDocuments(
+            {
+               email,
+               usedAt: null,
+               expiresAt: { $gt: new Date() },
+            },
+            { limit: 1 }
+         )) > 0;
       if (existingInvite) {
          return void res
             .status(409)

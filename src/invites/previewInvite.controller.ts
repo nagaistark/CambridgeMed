@@ -1,10 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getInviteCollection } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import {
-   generateStandardHash,
-   HEX96_REGEX,
-} from '@ssot/node_crypto_constants.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { buildPreviewInviteResponse } from '@utils/buildResponses.ts';
 import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
@@ -19,20 +16,6 @@ export async function previewInviteController(
    try {
       const requestId = res.locals.requestId;
       const { token } = req.params;
-
-      // ── Token format check ─────────────────────────────────────────────────────
-      /* We respond with 404 (not 400) because we don't want to leak that token format is being validated — a malformed token is indistinguishable from a non-existent one from the caller's perspective. */
-      if (!HEX96_REGEX.test(token)) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This invite link is invalid or has expired.`,
-                  requestId
-               )
-            );
-      }
 
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);

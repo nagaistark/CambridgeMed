@@ -1,35 +1,22 @@
 import type { Request, NextFunction } from 'express';
 import { getInviteCollection } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedParams,
+} from '@utils/customTypedResponses.ts';
 import { ObjectId } from 'mongodb';
-
-/* Request<P> threads P into req.params, narrowing each value from `string | string[]` down to plain `string`. */
-type RevokeInviteParams = { id: string };
+import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 
 export async function revokeInviteController(
-   req: Request<RevokeInviteParams>,
-   res: AuthenticatedResponse,
+   _req: Request,
+   res: AuthenticatedResponse & ResponseWithValidatedParams<IMongoIdParam>,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
       const { sub, role } = res.locals.authenticatedUser;
-      const { id } = req.params;
-
-      // ── Validate the ID format before touching the database ────────────────────
-      /* ObjectId.isValid catches malformed strings early. */
-      if (!ObjectId.isValid(id)) {
-         return void res
-            .status(400)
-            .json(
-               createErrorResponse(
-                  'VALIDATION_ERROR',
-                  `Invalid invite ID.`,
-                  requestId
-               )
-            );
-      }
+      const { id } = res.locals.validatedParams;
 
       const inviteCollection = getInviteCollection();
 
@@ -74,7 +61,22 @@ export async function revokeInviteController(
       }
 
       // ── Hard delete ────────────────────────────────────────────────────────────
-      await inviteCollection.deleteOne({ _id: invite._id });
+      const deleteResult = await inviteCollection.deleteOne({
+         _id: invite._id,
+         usedAt: null,
+      });
+
+      if (deleteResult.deletedCount === 0) {
+         return void res
+            .status(409)
+            .json(
+               createErrorResponse(
+                  'CONFLICT',
+                  `This invite was just accepted and can no longer be revoked.`,
+                  requestId
+               )
+            );
+      }
 
       return void res.status(200).json({
          success: true,

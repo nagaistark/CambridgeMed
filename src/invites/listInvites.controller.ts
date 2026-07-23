@@ -103,7 +103,11 @@ export async function listInvitesController(
       const issuerMap = new Map<string, IInviteIssuer>();
 
       if (isSuperAdmin) {
-         const uniqueIssuerIds = [...new Set(invites.map(inv => inv.issuedBy))];
+         const uniqueIssuerIds = [
+            ...new Map(
+               invites.map(inv => [inv.issuedBy.toHexString(), inv.issuedBy])
+            ).values(),
+         ];
 
          const issuers = await userCollection
             .find(

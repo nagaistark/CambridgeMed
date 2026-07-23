@@ -5,7 +5,7 @@ import {
    getUserCollection,
    type IUserDocument,
    type IUserInput,
-   UserDocumentSchema,
+   UserDocumentValidator,
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
@@ -15,13 +15,10 @@ import {
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
-import {
-   generateStandardHash,
-   HEX96_REGEX,
-} from '@ssot/node_crypto_constants.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 import { ClientSession, ObjectId } from 'mongodb';
-import { Schema } from 'effect';
+import { Either, Schema } from 'effect';
 
 type AcceptInviteParams = { token: string };
 
@@ -117,10 +114,15 @@ async function runRegistrationTransaction(
             updatedAt: now,
          };
 
-         await userCollection.insertOne(
-            Schema.decodeUnknownSync(UserDocumentSchema)(payload),
-            { session }
+         const decoded = Schema.decodeUnknownEither(UserDocumentValidator)(
+            payload
          );
+         if (Either.isLeft(decoded)) {
+            /* A payload built entirely from server-side logic failing validation means a programmer error, not a client input problem — treat accordingly. */
+            throw decoded.left;
+         }
+
+         await userCollection.insertOne(decoded.right, { session });
 
          outcome = { status: 'success' };
          // withTransaction() commits automatically when the callback resolves.
@@ -148,28 +150,14 @@ export async function acceptInviteController(
       const { token } = req.params;
       const { email, firstName, lastName, password } = res.locals.validatedBody;
 
-      // ── Step 1: Token format check ─────────────────────────────────────────────
-      /* 404 rather than 400, so a malformed token is indistinguishable from a non-existent one. We don't want to leak that format validation is occurring. */
-      if (!HEX96_REGEX.test(token)) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This invite link is invalid or has expired.`,
-                  requestId
-               )
-            );
-      }
-
-      // ── Step 2: Hash the password BEFORE opening the transaction ───────────────
+      // ── Step 1: Hash the password BEFORE opening the transaction ───────────────
       /* Keeping a MongoDB transaction open while Argon2 churns for 100–300ms would hold server-side resources unnecessarily. */
       const passwordHash = await hashPassword(password);
 
-      // ── Step 3: Derive the token hash ──────────────────────────────────────────
+      // ── Step 2: Derive the token hash ──────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
 
-      // ── Step 4: Acquire the native client and start a session (synchronous!) ───
+      // ── Step 3: Acquire the native client and start a session (synchronous!) ───
       /* The server bootstrap guarantees this is never null, and any unexpected throw here is caught by the outer try/catch. */
       const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
@@ -178,7 +166,7 @@ export async function acceptInviteController(
          );
       }
 
-      // ── Step 5: Run the transaction ────────────────────────────────────────────
+      // ── Step 4: Run the transaction ────────────────────────────────────────────
       const session = authConnection.startSession();
 
       /* The try/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
@@ -195,7 +183,7 @@ export async function acceptInviteController(
          await session.endSession();
       }
 
-      // ── Step 6: Send the HTTP response ─────────────────────────────────────────
+      // ── Step 5: Send the HTTP response ─────────────────────────────────────────
       if (outcome.status === 'invalid_token') {
          return void res
             .status(404)

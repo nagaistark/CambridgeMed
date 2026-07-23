@@ -31,7 +31,8 @@ export async function sendInviteEmail(
       expiresAt,
    } = params;
 
-   const issuerFullName = `${escapeHtml(issuerFirstName)} ${escapeHtml(issuerLastName)}`;
+   const issuerFullNameHtml = `${escapeHtml(issuerFirstName)} ${escapeHtml(issuerLastName)}`;
+   const issuerFullNameText = `${issuerFirstName} ${issuerLastName}`;
    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
    const expiryFormatted = expiresAt.toLocaleDateString(LOCALE, {
@@ -65,7 +66,7 @@ export async function sendInviteEmail(
       html: string;
    } {
       const text = [
-         `${issuerFullName} ${template.intro} ${roleLabel}.`,
+         `${issuerFullNameText} ${template.intro} ${roleLabel}.`,
          ...(canIssueInvites ? [`${template.privilege}.`] : []),
          '',
          template.link,
@@ -81,7 +82,7 @@ export async function sendInviteEmail(
          <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
             <h2 style="margin:0 0 16px;">You have been invited to CambridgeMed</h2>
             <p style="margin:0 0 12px;">
-               <strong>${issuerFullName}</strong> ${template.intro} <strong>${roleLabel}</strong>.
+               <strong>${issuerFullNameHtml}</strong> ${template.intro} <strong>${roleLabel}</strong>.
             </p>
             ${canIssueInvites ? `<p style="margin:0 0 12px;">${template.privilege}.</p>` : ''}
             <p style="margin:24px 0;">
