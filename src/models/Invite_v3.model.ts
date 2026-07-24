@@ -29,7 +29,7 @@ export const InviteDocumentSchema = Schema.Struct({
 
 export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
 
-export type IInviteInput = Schema.Schema.Encoded<typeof InviteInputSchema>;
+export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
 export type IInviteDoc = Schema.Schema.Type<typeof InviteDocumentSchema>;
 
 export type ISafeInvite = Pick<
