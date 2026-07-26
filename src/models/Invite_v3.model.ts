@@ -30,10 +30,10 @@ export const InviteDocumentSchema = Schema.Struct({
 export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
 
 export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
-export type IInviteDoc = Schema.Schema.Type<typeof InviteDocumentSchema>;
+export type IInviteDocument = Schema.Schema.Type<typeof InviteDocumentSchema>;
 
 export type ISafeInvite = Pick<
-   IInviteDoc,
+   IInviteDocument,
    'email' | 'role' | 'canIssueInvites' | 'expiresAt' | 'usedAt'
 >;
 
@@ -48,14 +48,14 @@ export type IPreviewInviteResponse = {
    inv: ISafeInvite;
 };
 
-export function getInviteCollection(): Collection<IInviteDoc> {
+export function getInviteCollection(): Collection<IInviteDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<IInviteDoc>('invites');
+      .collection<IInviteDocument>('invites');
 }
 
 export const inviteIndexes = [
    { key: { email: 1 } },
    { key: { tokenHash: 1 }, unique: true },
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
-] satisfies readonly TypedIndexDescription<IInviteDoc>[];
+] satisfies readonly TypedIndexDescription<IInviteDocument>[];

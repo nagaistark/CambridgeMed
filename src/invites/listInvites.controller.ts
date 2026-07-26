@@ -5,14 +5,14 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   type IInviteDoc,
+   type IInviteDocument,
 } from '@models/Invite_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { ObjectId } from 'mongodb';
 
 type IInviteIssuer = Pick<IUserDocument, '_id' | 'firstName' | 'lastName'>;
 type IPendingInviteItem = Pick<
-   IInviteDoc,
+   IInviteDocument,
    '_id' | 'email' | 'role' | 'canIssueInvites' | 'expiresAt'
 > & {
    status: 'pending';
@@ -20,7 +20,7 @@ type IPendingInviteItem = Pick<
 };
 
 type IAcceptedInviteItem = Pick<
-   IInviteDoc,
+   IInviteDocument,
    '_id' | 'email' | 'role' | 'canIssueInvites'
 > &
    Pick<IUserDocument, 'firstName' | 'lastName'> & {

@@ -2,7 +2,7 @@ import type { Request, NextFunction } from 'express';
 import { getUserCollection } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   IInviteDoc,
+   IInviteDocument,
    IInviteInput,
    InviteDocumentValidator,
    ISafeInvite,
@@ -107,7 +107,7 @@ export async function createInviteController(
          usedAt: null,
       };
 
-      const fullInvitePayload: IInviteDoc = {
+      const fullInvitePayload: IInviteDocument = {
          ...safeInvitePayload,
          _id: new ObjectId(),
          tokenHash,
