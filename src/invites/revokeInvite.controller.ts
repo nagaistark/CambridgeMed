@@ -5,7 +5,6 @@ import {
    AuthenticatedResponse,
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
-import { ObjectId } from 'mongodb';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 
 export async function revokeInviteController(
@@ -21,7 +20,7 @@ export async function revokeInviteController(
       const inviteCollection = getInviteCollection();
 
       // ── Fetch the invite ───────────────────────────────────────────────────────
-      const invite = await inviteCollection.findOne({ _id: new ObjectId(id) });
+      const invite = await inviteCollection.findOne({ _id: id });
       if (!invite) {
          return void res
             .status(404)
@@ -63,7 +62,7 @@ export async function revokeInviteController(
       // ── Hard delete ────────────────────────────────────────────────────────────
       const deleteResult = await inviteCollection.deleteOne({
          _id: invite._id,
-         usedAt: null,
+         usedAt: null, // atomically fails if it was accepted between your findOne and this call
       });
 
       if (deleteResult.deletedCount === 0) {

@@ -21,6 +21,8 @@ import {
 } from '@ssot/user_change_constants.ts';
 import { myEnv } from 'validateConfig.ts';
 import { ObjectId } from 'mongodb';
+import logger from 'logger.ts';
+import { sanitizeError } from 'mongoDBConnect.ts';
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -182,9 +184,15 @@ export async function initiateEmailChangeController(
             expiresAt,
          });
       } catch (emailErr) {
-         await emailChangeCollection
-            .deleteOne({ _id: emailChange.insertedId })
-            .catch(() => undefined);
+         try {
+            await emailChangeCollection.deleteOne({
+               _id: emailChange.insertedId,
+            });
+         } catch (rollbackErr) {
+            logger.error(
+               `Failed to roll back orphaned email change ${emailChange.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
+            );
+         }
          throw emailErr;
       }
 

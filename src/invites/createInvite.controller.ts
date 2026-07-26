@@ -4,6 +4,7 @@ import {
    getInviteCollection,
    IInviteDoc,
    IInviteInput,
+   InviteDocumentValidator,
    ISafeInvite,
 } from '@models/Invite_v3.model.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
@@ -20,6 +21,9 @@ import {
 import { myEnv } from 'validateConfig.ts';
 import { ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
+import { Either, Schema } from 'effect';
+import logger from 'logger.ts';
+import { sanitizeError } from 'mongoDBConnect.ts';
 
 export async function createInviteController(
    _req: Request,
@@ -112,7 +116,14 @@ export async function createInviteController(
          updatedAt: now,
       };
 
-      const invite = await inviteCollection.insertOne(fullInvitePayload);
+      const decoded = Schema.decodeUnknownEither(InviteDocumentValidator)(
+         fullInvitePayload
+      );
+      if (Either.isLeft(decoded)) {
+         throw decoded.left;
+      }
+
+      const invite = await inviteCollection.insertOne(decoded.right);
 
       // ── Send the invite email — with rollback on failure ───────────────────────
       /* An invite whose email was never delivered is worse than no invite: it silently occupies the pending-invite slot for this address until it expires, blocking any re-invite attempt. Rolling back removes that risk. */
@@ -129,9 +140,13 @@ export async function createInviteController(
          });
       } catch (emailErr) {
          /* Best-effort rollback. If this deleteOne also fails, the catch-all handler will log it. The re-thrown emailErr is the primary failure. */
-         await inviteCollection
-            .deleteOne({ _id: invite.insertedId })
-            .catch(() => undefined);
+         try {
+            await inviteCollection.deleteOne({ _id: invite.insertedId });
+         } catch (rollbackErr) {
+            logger.error(
+               `Failed to roll back orphaned invite ${invite.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
+            );
+         }
          throw emailErr;
       }
 

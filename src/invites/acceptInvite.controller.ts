@@ -9,6 +9,7 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
+   InviteDocumentValidator,
    type IInviteDoc,
 } from '@models/Invite_v3.model.ts';
 
@@ -69,16 +70,27 @@ async function runRegistrationTransaction(
             - expiresAt > now   → not expired, regardless of TTL janitor lag
    
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
-         const claimedInvite: IInviteDoc | null =
+         const claimedInviteRaw: IInviteDoc | null =
             await inviteCollection.findOneAndUpdate(
                { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
                { $set: { usedAt: new Date() } },
                { returnDocument: 'after', session }
             );
 
-         if (!claimedInvite) {
+         if (!claimedInviteRaw) {
             throw new TransactionAbortError({ status: 'invalid_token' });
          }
+
+         /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. The driver's generic type (Collection<IInviteDoc>) is a compile-time cast, not a runtime guarantee. */
+         const decodedInvite = Schema.decodeUnknownEither(
+            InviteDocumentValidator
+         )(claimedInviteRaw);
+         if (Either.isLeft(decodedInvite)) {
+            /* A stored invite failing its own document schema means data drift or corruption, not a client mistake — let it surface as a real error rather than silently trusting bad data. */
+            throw decodedInvite;
+         }
+
+         const claimedInvite = decodedInvite.right;
 
          // ── Email confirmation check ────────────────────────────────────────────
          /* We compare the body email against claimedInvite.email (the value locked in at invite creation time) to confirm the registering person is the intended recipient.
