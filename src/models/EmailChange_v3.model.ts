@@ -10,6 +10,7 @@ import {
 import { Collection } from 'mongodb';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
+import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
 export const EmailChangeDocumentSchema = Schema.Struct({
    confirmTokenHash: sha256HexString,
@@ -20,24 +21,23 @@ export const EmailChangeDocumentSchema = Schema.Struct({
    /* TTL index target. Both tokens expire together at this moment regardless of their individual usage state. */
    expiresAt: fullDateInTheFuture,
    confirmedAt: Schema.NullOr(fullDateInThePast),
-
-   _id: objectIdInstance,
-   createdAt: Schema.ValidDateFromSelf,
-   updatedAt: Schema.ValidDateFromSelf,
-}).pipe(Schema.extend(InitiateEmailChangeSchema));
+}).pipe(
+   Schema.extend(InitiateEmailChangeSchema),
+   Schema.extend(serverGeneratedFields)
+);
 
 export const EmailChangeDocumentValidator = Schema.typeSchema(
    EmailChangeDocumentSchema
 );
 
-export type IEmailChangeDoc = Schema.Schema.Type<
+export type IEmailChangeDocument = Schema.Schema.Type<
    typeof EmailChangeDocumentSchema
 >;
 
-export function getEmailChangeCollection(): Collection<IEmailChangeDoc> {
+export function getEmailChangeCollection(): Collection<IEmailChangeDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<IEmailChangeDoc>('emailchanges');
+      .collection<IEmailChangeDocument>('emailchanges');
 }
 
 export const emailChangeIndexes = [
@@ -50,4 +50,4 @@ export const emailChangeIndexes = [
 
    /* TTL janitor. */
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
-] satisfies readonly TypedIndexDescription<IEmailChangeDoc>[];
+] satisfies readonly TypedIndexDescription<IEmailChangeDocument>[];

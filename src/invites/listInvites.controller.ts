@@ -9,6 +9,7 @@ import {
 } from '@models/Invite_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { ObjectId } from 'mongodb';
+import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 type IInviteIssuer = Pick<IUserDocument, '_id' | 'firstName' | 'lastName'>;
 type IPendingInviteItem = Pick<
@@ -50,18 +51,20 @@ export async function listInvitesController(
             { usedAt: { $ne: null } },
             { usedAt: null, expiresAt: { $gt: new Date() } },
          ],
-      };
+      } satisfies StrictMongoFilter<IInviteDocument>;
 
       /* Non-superadmin users only see invites they personally issued. The superadmin sees everything, so no issuedBy constraint is added. */
       const ownershipFilter = isSuperAdmin
          ? {}
-         : { issuedBy: new ObjectId(sub) };
+         : ({
+              issuedBy: new ObjectId(sub),
+           } satisfies StrictMongoFilter<IInviteDocument>);
 
       const invites = await inviteCollection
          .find({
             ...statusFilter,
             ...ownershipFilter,
-         })
+         } satisfies StrictMongoFilter<IInviteDocument>)
          .toArray();
 
       if (invites.length === 0) {
@@ -85,8 +88,12 @@ export async function listInvitesController(
       if (acceptedEmails.length > 0) {
          const acceptedUsers = await userCollection
             .find(
-               { email: { $in: acceptedEmails } },
-               { projection: { email: 1, firstName: 1, lastName: 1 } } // projection: fetch only what we need
+               {
+                  email: { $in: acceptedEmails },
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  projection: { email: 1, firstName: 1, lastName: 1 },
+               } satisfies StrictFindOptions<IUserDocument> // projection: fetch only what we need
             )
             .toArray();
 
@@ -111,8 +118,12 @@ export async function listInvitesController(
 
          const issuers = await userCollection
             .find(
-               { _id: { $in: uniqueIssuerIds } },
-               { projection: { firstName: 1, lastName: 1 } } // projection: only what we need
+               {
+                  _id: { $in: uniqueIssuerIds },
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  projection: { firstName: 1, lastName: 1 },
+               } satisfies StrictFindOptions<IUserDocument> // projection: only what we need
             )
             .toArray();
 

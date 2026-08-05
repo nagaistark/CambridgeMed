@@ -20,6 +20,12 @@ import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 import { ClientSession, ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
+import {
+   StrictFindOneAndUpdateOptions,
+   StrictMongoFilter,
+   StrictMongoFilterFields,
+   StrictUpdate,
+} from '@utils/pathFinder_v3.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -72,9 +78,20 @@ async function runRegistrationTransaction(
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
          const claimedInviteRaw: IInviteDocument | null =
             await inviteCollection.findOneAndUpdate(
-               { tokenHash, usedAt: null, expiresAt: { $gt: new Date() } },
-               { $set: { usedAt: new Date() } },
-               { returnDocument: 'after', session }
+               {
+                  tokenHash,
+                  usedAt: null,
+                  expiresAt: { $gt: new Date() },
+               } satisfies StrictMongoFilter<IInviteDocument>,
+               {
+                  $set: {
+                     usedAt: new Date(),
+                  },
+               } satisfies StrictUpdate<IInviteDocument>,
+               {
+                  returnDocument: 'after',
+                  session,
+               } satisfies StrictFindOneAndUpdateOptions<IInviteDocument>
             );
 
          if (!claimedInviteRaw) {

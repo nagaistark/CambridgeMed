@@ -1,11 +1,15 @@
 import type { Request, NextFunction } from 'express';
-import { getInviteCollection } from '@models/Invite_v3.model.ts';
+import {
+   getInviteCollection,
+   IInviteDocument,
+} from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function revokeInviteController(
    _req: Request,
@@ -20,7 +24,9 @@ export async function revokeInviteController(
       const inviteCollection = getInviteCollection();
 
       // ── Fetch the invite ───────────────────────────────────────────────────────
-      const invite = await inviteCollection.findOne({ _id: id });
+      const invite = await inviteCollection.findOne({
+         _id: id,
+      } satisfies StrictMongoFilter<IInviteDocument>);
       if (!invite) {
          return void res
             .status(404)
@@ -63,7 +69,7 @@ export async function revokeInviteController(
       const deleteResult = await inviteCollection.deleteOne({
          _id: invite._id,
          usedAt: null, // atomically fails if it was accepted between your findOne and this call
-      });
+      } satisfies StrictMongoFilter<IInviteDocument>);
 
       if (deleteResult.deletedCount === 0) {
          return void res

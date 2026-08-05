@@ -1,6 +1,10 @@
-import { getSessionCollection } from '@models/Session_v3.model.ts';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 import type { Request, NextFunction } from 'express';
 import { ObjectId } from 'mongodb';
 
@@ -17,19 +21,16 @@ export async function listSessionsController(
       // The superadmin case: fetching ALL sessions across all users
       if (isSuperAdmin) {
          const sessions = await sessionCollection
-            .find(
-               {},
-               {
-                  projection: {
-                     _id: 1,
-                     userId: 1,
-                     ipAddress: 1,
-                     userAgent: 1,
-                     createdAt: 1,
-                     expiresAt: 1,
-                  },
-               }
-            )
+            .find({}, {
+               projection: {
+                  _id: 1,
+                  userId: 1,
+                  ipAddress: 1,
+                  userAgent: 1,
+                  createdAt: 1,
+                  expiresAt: 1,
+               },
+            } satisfies StrictFindOptions<ISessionDocument>)
             .toArray();
 
          if (sessions.length === 0) {
@@ -41,8 +42,12 @@ export async function listSessionsController(
 
          const users = await getUserCollection()
             .find(
-               { _id: { $in: uniqueUserIds } },
-               { projection: { _id: 1, firstName: 1, lastName: 1, email: 1 } }
+               {
+                  _id: { $in: uniqueUserIds },
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  projection: { _id: 1, firstName: 1, lastName: 1, email: 1 },
+               } satisfies StrictFindOptions<IUserDocument>
             )
             .toArray();
 
@@ -60,7 +65,9 @@ export async function listSessionsController(
       // The regular user case:
       const sessions = await sessionCollection
          .find(
-            { userId: new ObjectId(sub) },
+            {
+               userId: new ObjectId(sub),
+            } satisfies StrictMongoFilter<ISessionDocument>,
             {
                projection: {
                   _id: 1,
@@ -69,7 +76,7 @@ export async function listSessionsController(
                   createdAt: 1,
                   expiresAt: 1,
                },
-            }
+            } satisfies StrictFindOptions<ISessionDocument>
          )
          .toArray();
 

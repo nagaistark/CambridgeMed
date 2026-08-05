@@ -1,8 +1,12 @@
 import type { Request, NextFunction } from 'express';
-import { getSessionCollection } from '@models/Session_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 type KillSessionParams = { id: string };
 
@@ -51,7 +55,7 @@ export async function killSessionController(
 
       const targetSession = await sessionCollection.findOne({
          _id: new ObjectId(id),
-      });
+      } satisfies StrictMongoFilter<ISessionDocument>);
 
       if (
          !targetSession ||
@@ -69,7 +73,7 @@ export async function killSessionController(
       if (!isSuperAdmin) {
          const currentSession = await sessionCollection.findOne({
             _id: new ObjectId(currentSessionId),
-         });
+         } satisfies StrictMongoFilter<ISessionDocument>);
          if (!currentSession) {
             // If the current session has somehow vanished, treat it as expired
             return void res
@@ -96,7 +100,9 @@ export async function killSessionController(
          }
       }
 
-      await sessionCollection.deleteOne({ _id: targetSession._id });
+      await sessionCollection.deleteOne({
+         _id: targetSession._id,
+      } satisfies StrictMongoFilter<ISessionDocument>);
 
       return void res.status(200).json({
          success: true,

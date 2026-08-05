@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    SAFE_USER_PROJECTION,
@@ -10,6 +10,10 @@ import {
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 
 export async function getUserController(
    _req: Request,
@@ -26,8 +30,10 @@ export async function getUserController(
 
       if (isSuperAdmin) {
          const user = await userCollection.findOne(
-            { _id: id },
-            { projection: SAFE_USER_PROJECTION }
+            { _id: id } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               projection: SAFE_USER_PROJECTION,
+            } satisfies StrictFindOneOptions<IUserDocument>
          );
          if (!user) {
             return void res
@@ -40,8 +46,10 @@ export async function getUserController(
       }
 
       const user = await userCollection.findOne(
-         { _id: id },
-         { projection: PUBLIC_USER_PROJECTION }
+         { _id: id } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: PUBLIC_USER_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserDocument>
       );
       if (!user) {
          return void res

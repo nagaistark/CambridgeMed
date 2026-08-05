@@ -1,12 +1,19 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
-import { getEmailChangeCollection } from '@models/EmailChange_v3.model.ts';
-import { getSessionCollection } from '@models/Session_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getEmailChangeCollection,
+   IEmailChangeDocument,
+} from '@models/EmailChange_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from 'logger.ts';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 type CancelParams = { token: string };
 
@@ -27,7 +34,7 @@ export async function cancelEmailChangeController(
       const emailChange = await emailChangeCollection.findOne({
          cancelTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
-      });
+      } satisfies StrictMongoFilter<IEmailChangeDocument>);
 
       if (!emailChange) {
          return void res
@@ -63,7 +70,9 @@ export async function cancelEmailChangeController(
 
             if (isReversion) {
                await userCollection.updateOne(
-                  { _id: emailChange.userId },
+                  {
+                     _id: emailChange.userId,
+                  } satisfies StrictMongoFilter<IUserDocument>,
                   {
                      $set: { email: emailChange.oldEmail },
                      $push: {
@@ -73,13 +82,15 @@ export async function cancelEmailChangeController(
                         },
                      },
                      $inc: { emailChangesUsed: 1 },
-                  },
+                  } satisfies StrictUpdate<IUserDocument>,
                   { session }
                );
 
                /* Nuclear logout inside the transaction. */
                await getSessionCollection().deleteMany(
-                  { userId: emailChange.userId },
+                  {
+                     userId: emailChange.userId,
+                  } satisfies StrictMongoFilter<ISessionDocument>,
                   { session }
                );
             }

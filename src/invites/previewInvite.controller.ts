@@ -1,9 +1,16 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getInviteCollection } from '@models/Invite_v3.model.ts';
+import {
+   getInviteCollection,
+   IInviteDocument,
+} from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { buildPreviewInviteResponse } from '@utils/buildResponses.ts';
 import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 
 // Declare the param shape so `token` is narrowed to `string`:
 type PreviewInviteParams = { token: string };
@@ -20,8 +27,10 @@ export async function previewInviteController(
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
       const invite = await getInviteCollection().findOne(
-         { tokenHash },
-         { projection: SAFE_INVITE_PROJECTION }
+         { tokenHash } satisfies StrictMongoFilter<IInviteDocument>,
+         {
+            projection: SAFE_INVITE_PROJECTION,
+         } satisfies StrictFindOneOptions<IInviteDocument>
       );
 
       // ── Existence and expiry check ─────────────────────────────────────────────

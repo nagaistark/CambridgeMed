@@ -1,3 +1,4 @@
+import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import {
    fullDateInTheFuture,
    sha256HexString,
@@ -12,10 +13,7 @@ export const PasswordResetDocumentSchema = Schema.Struct({
    tokenHash: sha256HexString,
    userId: stringToObjectId,
    expiresAt: fullDateInTheFuture,
-   _id: stringToObjectId,
-   createdAt: Schema.ValidDateFromSelf,
-   updatedAt: Schema.ValidDateFromSelf,
-});
+}).pipe(Schema.extend(serverGeneratedFields));
 
 export const PasswordResetDocumentValidator = Schema.typeSchema(
    PasswordResetDocumentSchema

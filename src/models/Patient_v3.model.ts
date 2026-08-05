@@ -26,6 +26,7 @@ import {
    suffixes,
    typeOfPhones,
 } from '@ssot/policy_constants.ts';
+import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import {
    baseString,
@@ -369,11 +370,7 @@ export const PatientInputSchema = Schema.Struct({
 export type IPatientInput = Schema.Schema.Type<typeof PatientInputSchema>;
 
 export const PatientDocumentSchema = Schema.extend(
-   Schema.Struct({
-      _id: stringToObjectId,
-      createdAt: Schema.ValidDateFromSelf,
-      updatedAt: Schema.ValidDateFromSelf,
-   }),
+   serverGeneratedFields,
    PatientInputSchema
 );
 

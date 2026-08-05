@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
    IInviteDocument,
@@ -19,11 +19,12 @@ import {
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
 import { myEnv } from 'validateConfig.ts';
-import { ObjectId } from 'mongodb';
+import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
 import { Either, Schema } from 'effect';
 import logger from 'logger.ts';
 import { sanitizeError } from 'mongoDBConnect.ts';
+import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function createInviteController(
    _req: Request,
@@ -41,7 +42,10 @@ export async function createInviteController(
       // ── Guard #1: email must not belong to an existing user ────────────────────
       /* We limit `.countDocuments()` to 1 so that it stops at the first match. */
       const existingUser =
-         (await userCollection.countDocuments({ email }, { limit: 1 })) > 0;
+         (await userCollection.countDocuments(
+            { email } satisfies StrictMongoFilter<IUserDocument>,
+            { limit: 1 } satisfies CountDocumentsOptions
+         )) > 0;
       if (existingUser) {
          return void res
             .status(409)
@@ -62,8 +66,8 @@ export async function createInviteController(
                email,
                usedAt: null,
                expiresAt: { $gt: new Date() },
-            },
-            { limit: 1 }
+            } satisfies StrictMongoFilter<IInviteDocument>,
+            { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
       if (existingInvite) {
          return void res
@@ -89,7 +93,9 @@ export async function createInviteController(
 
       // ── Fetch issuer's full name for the email body ────────────────────────────
       /* The access token carries sub but not the name, so we need one DB hit. This should never return null since the user just passed authenticate, but we throw explicitly rather than silently continuing with a broken state. */
-      const issuer = await userCollection.findOne({ _id: new ObjectId(sub) });
+      const issuer = await userCollection.findOne({
+         _id: new ObjectId(sub),
+      } satisfies StrictMongoFilter<IUserDocument>);
       if (!issuer) {
          throw new Error(
             `Authenticated user not found in database during invite creation. userId=${sub}`

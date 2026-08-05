@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
@@ -10,6 +10,7 @@ import type { SetCanIssueInvitesBody } from '@users/User_v3.schemas.ts';
 import { Permissions } from '@ssot/permissions_constants.ts';
 import { ObjectId } from 'mongodb';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function toggleCanIssueInvitesController(
    _req: Request,
@@ -27,7 +28,7 @@ export async function toggleCanIssueInvitesController(
       const userCollection = getUserCollection();
       const targetUser = await userCollection.findOne({
          _id: new ObjectId(id),
-      });
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       if (!targetUser) {
          return void res

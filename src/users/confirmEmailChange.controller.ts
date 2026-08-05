@@ -1,12 +1,19 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
-import { getEmailChangeCollection } from '@models/EmailChange_v3.model.ts';
-import { getSessionCollection } from '@models/Session_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getEmailChangeCollection,
+   IEmailChangeDocument,
+} from '@models/EmailChange_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import { DatabaseManager } from 'mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from 'logger.ts';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 type ConfirmParams = { token: string };
 
@@ -27,7 +34,7 @@ export async function confirmEmailChangeController(
       const emailChange = await emailChangeCollection.findOne({
          confirmTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
-      });
+      } satisfies StrictMongoFilter<IEmailChangeDocument>);
 
       if (!emailChange) {
          return void res
@@ -66,8 +73,13 @@ export async function confirmEmailChangeController(
       try {
          await session.withTransaction(async () => {
             const updateResult = await emailChangeCollection.updateOne(
-               { _id: emailChange._id, confirmedAt: null },
-               { $set: { confirmedAt: new Date() } },
+               {
+                  _id: emailChange._id,
+                  confirmedAt: null,
+               } satisfies StrictMongoFilter<IEmailChangeDocument>,
+               {
+                  $set: { confirmedAt: new Date() },
+               } satisfies StrictUpdate<IEmailChangeDocument>,
                { session }
             );
 
@@ -79,7 +91,9 @@ export async function confirmEmailChangeController(
 
             /* The old email is pushed to the archive BEFORE being overwritten. archivedAt records the moment it stopped being the live address. */
             await userCollection.updateOne(
-               { _id: emailChange.userId },
+               {
+                  _id: emailChange.userId,
+               } satisfies StrictMongoFilter<IUserDocument>,
                {
                   $set: { email: emailChange.newEmail },
                   $push: {
@@ -89,13 +103,15 @@ export async function confirmEmailChangeController(
                      },
                   },
                   $inc: { emailChangesUsed: 1 },
-               },
+               } satisfies StrictUpdate<IUserDocument>,
                { session }
             );
 
             /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
             await getSessionCollection().deleteMany(
-               { userId: emailChange.userId },
+               {
+                  userId: emailChange.userId,
+               } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
 

@@ -1,4 +1,5 @@
 import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
+import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
 import {
    EMAIL_CHANGE_CAP,
@@ -65,6 +66,7 @@ export const UserDocumentSchema = Schema.Struct({
    createdAt: Schema.ValidDateFromSelf,
    updatedAt: Schema.ValidDateFromSelf,
 }).pipe(
+   Schema.extend(serverGeneratedFields),
    Schema.extend(UserInputSchema.omit('password')),
    Schema.extend(AUTHENTICATED_USER.pick('role', 'permissions')),
    Schema.filter(profile => {

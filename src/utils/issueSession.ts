@@ -7,7 +7,7 @@ import {
    setAuthCookies,
 } from '@utils/tokenUtils.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
-import { ISessionDoc } from '@models/Session_v3.model.ts';
+import { ISessionDocument } from '@models/Session_v3.model.ts';
 import { ObjectId } from 'mongodb';
 
 /* Creates a Session document, signs both tokens, sets the auth cookies. This encapsulates the "complete a login" operation, which is shared by three controllers: the password-only login path, the TOTP verification path, and the recovery code path. Any future change to session structure happens here and propagates everywhere automatically. */
@@ -28,7 +28,7 @@ export async function issueSession(
 
    const now = new Date();
 
-   const payload: ISessionDoc = {
+   const payload: ISessionDocument = {
       _id: new ObjectId(),
       userId: user._id,
       currentTokenHash: refreshTokenHash,

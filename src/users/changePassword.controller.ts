@@ -1,7 +1,10 @@
 import type { Request, NextFunction } from 'express';
 
-import { getUserCollection } from '@models/User_v3.model.ts';
-import { getSessionCollection } from '@models/Session_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
@@ -12,6 +15,7 @@ import {
 } from '@utils/customTypedResponses.ts';
 import type { ChangePasswordBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function changePasswordController(
    _req: Request,
@@ -24,7 +28,9 @@ export async function changePasswordController(
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
+      const user = await userCollection.findOne({
+         _id: new ObjectId(sub),
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       /* Should never be null (the user just passed authenticate), but we guard defensively rather than using a non-null assertion. */
       if (!user) {
@@ -70,12 +76,18 @@ export async function changePasswordController(
       try {
          await session.withTransaction(async () => {
             await userCollection.updateOne(
-               { _id: new ObjectId(sub) },
-               { $set: { passwordHash: newPasswordHash } }
+               {
+                  _id: new ObjectId(sub),
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  $set: { passwordHash: newPasswordHash },
+               } satisfies StrictUpdate<IUserDocument>
             );
 
             await getSessionCollection().deleteMany(
-               { userId: new ObjectId(sub) },
+               {
+                  userId: new ObjectId(sub),
+               } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
          });

@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
    AuthenticatedResponse,
@@ -8,6 +8,7 @@ import {
 import type { ChangeNameBody } from '@users/User_v3.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function changeNameController(
    _req: Request,
@@ -20,7 +21,9 @@ export async function changeNameController(
       const { firstName, lastName } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
+      const user = await userCollection.findOne({
+         _id: new ObjectId(sub),
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       if (!user) {
          return void res
@@ -67,7 +70,7 @@ export async function changeNameController(
       if (lastName !== undefined) updateFields.lastName = lastName;
 
       await userCollection.updateOne(
-         { _id: new ObjectId(sub) },
+         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: updateFields,
             $push: {
@@ -78,7 +81,7 @@ export async function changeNameController(
                },
             },
             $inc: { nameChangesUsed: 1 },
-         }
+         } satisfies StrictUpdate<IUserDocument>
       );
 
       return void res.status(200).json({

@@ -1,3 +1,4 @@
+import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import {
    fullDateInTheFuture,
    ipAddress,
@@ -28,22 +29,18 @@ export const SessionDocumentSchema = Schema.Struct({
    /* Device-metadata (captured once at login, never mutated) */
    ipAddress: ipAddress,
    userAgent: longString,
-
-   _id: stringToObjectId,
-   createdAt: Schema.ValidDateFromSelf,
-   updatedAt: Schema.ValidDateFromSelf,
-});
+}).pipe(Schema.extend(serverGeneratedFields));
 
 export const SessionDocumentValidator = Schema.typeSchema(
    SessionDocumentSchema
 );
 
-export type ISessionDoc = Schema.Schema.Type<typeof SessionDocumentSchema>;
+export type ISessionDocument = Schema.Schema.Type<typeof SessionDocumentSchema>;
 
-export function getSessionCollection(): Collection<ISessionDoc> {
+export function getSessionCollection(): Collection<ISessionDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<ISessionDoc>('sessions');
+      .collection<ISessionDocument>('sessions');
 }
 
 export const sessionIndexes = [
@@ -55,4 +52,4 @@ export const sessionIndexes = [
 
    // TTL index: MongoDB automatically removes expired documents once expiresAt has passed.
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
-] satisfies readonly TypedIndexDescription<ISessionDoc>[];
+] satisfies readonly TypedIndexDescription<ISessionDocument>[];

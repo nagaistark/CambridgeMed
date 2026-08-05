@@ -1,3 +1,4 @@
+import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import {
    clinicStaffEmail,
@@ -18,14 +19,11 @@ export const InviteInputSchema = Schema.Struct({
 });
 
 export const InviteDocumentSchema = Schema.Struct({
-   _id: stringToObjectId,
    tokenHash: sha256HexString,
    usedAt: Schema.NullOr(fullDateInThePast),
    expiresAt: fullDateInTheFuture,
    issuedBy: stringToObjectId,
-   createdAt: Schema.ValidDateFromSelf,
-   updatedAt: Schema.ValidDateFromSelf,
-}).pipe(Schema.extend(InviteInputSchema));
+}).pipe(Schema.extend(InviteInputSchema), Schema.extend(serverGeneratedFields));
 
 export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
 

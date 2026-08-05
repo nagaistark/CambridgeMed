@@ -1,8 +1,8 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import {
    getEmailChangeCollection,
-   IEmailChangeDoc,
+   IEmailChangeDocument,
 } from '@models/EmailChange_v3.model.ts';
 import { createErrorResponse } from 'errorHandlers.ts';
 import {
@@ -20,9 +20,10 @@ import {
    EMAIL_CHANGE_TOKEN_EXPIRY_MS,
 } from '@ssot/user_change_constants.ts';
 import { myEnv } from 'validateConfig.ts';
-import { ObjectId } from 'mongodb';
+import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import logger from 'logger.ts';
 import { sanitizeError } from 'mongoDBConnect.ts';
+import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -38,7 +39,9 @@ export async function initiateEmailChangeController(
       const userCollection = getUserCollection();
       const emailChangeCollection = getEmailChangeCollection();
 
-      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
+      const user = await userCollection.findOne({
+         _id: new ObjectId(sub),
+      } satisfies StrictMongoFilter<IUserDocument>);
       if (!user) {
          return void res
             .status(404)
@@ -77,8 +80,8 @@ export async function initiateEmailChangeController(
       /* Again, `.countDocuments` functions as `.exists()` here. */
       const emailTaken =
          (await userCollection.countDocuments(
-            { email: newEmail },
-            { limit: 1 }
+            { email: newEmail } satisfies StrictMongoFilter<IUserDocument>,
+            { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
       if (emailTaken) {
          return void res
@@ -102,8 +105,8 @@ export async function initiateEmailChangeController(
                newEmail,
                confirmedAt: null,
                expiresAt: { $gt: now },
-            },
-            { limit: 1 }
+            } satisfies StrictMongoFilter<IEmailChangeDocument>,
+            { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
       if (emailClaimedByPendingChange) {
          return void res
@@ -123,12 +126,15 @@ export async function initiateEmailChangeController(
       await emailChangeCollection.deleteMany({
          userId: new ObjectId(sub),
          expiresAt: { $lte: now },
-      });
+      } satisfies StrictMongoFilter<IEmailChangeDocument>);
 
       const userHasActiveChange =
          (await emailChangeCollection.countDocuments(
-            { userId: new ObjectId(sub), expiresAt: { $gt: now } },
-            { limit: 1 }
+            {
+               userId: new ObjectId(sub),
+               expiresAt: { $gt: now },
+            } satisfies StrictMongoFilter<IEmailChangeDocument>,
+            { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
 
       if (userHasActiveChange) {
@@ -153,7 +159,7 @@ export async function initiateEmailChangeController(
       const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TOKEN_EXPIRY_MS);
 
       // ── Persist the EmailChange record ─────────────────────────────────────────
-      const emailChangePayload: IEmailChangeDoc = {
+      const emailChangePayload: IEmailChangeDocument = {
          _id: new ObjectId(),
          confirmTokenHash,
          cancelTokenHash,
