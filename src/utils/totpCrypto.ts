@@ -5,7 +5,7 @@ import {
    hkdfSync,
    randomBytes,
 } from 'node:crypto';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { Redacted } from 'effect';
 import {
    AES_KEY_BYTE_LENGTH,

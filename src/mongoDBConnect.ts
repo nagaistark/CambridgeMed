@@ -1,5 +1,5 @@
-import { myEnv } from 'validateConfig.ts';
-import logger from 'logger.ts';
+import { myEnv } from './validateConfig.ts';
+import logger from './logger.ts';
 import { MongoClient, MongoClientOptions, Db } from 'mongodb';
 import { Server } from 'node:http';
 import { Redacted } from 'effect';

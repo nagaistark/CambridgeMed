@@ -17,7 +17,7 @@ import {
    type IUserDocument,
 } from '@models/User_v3.model.ts';
 import { ROLE_DOCTOR } from '@ssot/user_roles_constants.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { buildCreatePatientResponse } from '@utils/buildResponses.ts';
 import { ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';

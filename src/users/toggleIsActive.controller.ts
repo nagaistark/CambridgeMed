@@ -4,7 +4,7 @@ import {
    getSessionCollection,
    ISessionDocument,
 } from '@models/Session_v3.model.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,

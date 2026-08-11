@@ -7,8 +7,8 @@ import {
 } from '@models/Session_v3.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,

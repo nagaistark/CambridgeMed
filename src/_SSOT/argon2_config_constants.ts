@@ -1,8 +1,8 @@
-import argon2, { Options } from 'argon2';
-import { myEnv } from 'validateConfig.ts';
+import argon2, { type HashOptions } from 'argon2';
+import { myEnv } from '../validateConfig.ts';
 import { Redacted } from 'effect';
 
-export const ARGON2_CONFIG: Options & { type: 2 } = {
+export const ARGON2_CONFIG: HashOptions & { type: 2 } = {
    type: argon2.argon2id,
    version: 19,
    memoryCost: 65536, // 64 MB

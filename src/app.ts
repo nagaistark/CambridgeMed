@@ -8,8 +8,8 @@ import rateLimit, { Options } from 'express-rate-limit';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 
-import { myEnv } from 'validateConfig.ts';
-import logger from 'logger.ts';
+import { myEnv } from './validateConfig.ts';
+import logger from './logger.ts';
 
 import cookieParser from 'cookie-parser';
 
@@ -19,7 +19,7 @@ import usersRouter from '@users/users.routes.ts';
 import sessionsRouter from '@sessions/sessions.routes.ts';
 import patientRouter from '@patients/patients.routes.ts';
 
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { DatabaseManager } from './mongoDBConnect.ts';
 
 import {
    handleParseError,
@@ -30,7 +30,7 @@ import {
    handleEnoentError,
    handleCatchAll,
    createErrorResponse,
-} from 'errorHandlers.ts';
+} from './errorHandlers.ts';
 
 import { DateTime } from 'luxon';
 
@@ -201,7 +201,8 @@ app.get('/health', limiter, (_req: Request, res: Response) => {
 });
 // Simple route example. No reason.
 app.get(/^\/$|\/index(.html)?$/, (_req: Request, res: Response) => {
-   logger.debug(`${DateTime.now()} — ${DateTime.now().zoneName}`);
+   const now = DateTime.now();
+   logger.debug(`${now.toString()} — ${now.zoneName}`);
    res.send('<h1>Welcome to CambridgeMed, Ontario!</h1>');
 });
 

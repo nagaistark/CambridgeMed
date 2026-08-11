@@ -7,7 +7,7 @@ import {
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 
 export const PasswordResetDocumentSchema = Schema.Struct({
    tokenHash: sha256HexString,
@@ -19,14 +19,14 @@ export const PasswordResetDocumentValidator = Schema.typeSchema(
    PasswordResetDocumentSchema
 );
 
-export type IPasswordResetDoc = Schema.Schema.Type<
+export type IPasswordResetDocument = Schema.Schema.Type<
    typeof PasswordResetDocumentSchema
 >;
 
-export function getPasswordResetCollection(): Collection<IPasswordResetDoc> {
+export function getPasswordResetCollection(): Collection<IPasswordResetDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<IPasswordResetDoc>('passwordresets');
+      .collection<IPasswordResetDocument>('passwordresets');
 }
 
 export const passwordResetIndexes = [
@@ -38,4 +38,4 @@ export const passwordResetIndexes = [
 
    /* TTL janitor. */
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
-] satisfies readonly TypedIndexDescription<IPasswordResetDoc>[];
+] satisfies readonly TypedIndexDescription<IPasswordResetDocument>[];

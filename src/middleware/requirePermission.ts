@@ -3,7 +3,7 @@ import type {
    AuthenticatedRequestHandler,
    AuthenticatedResponse,
 } from '@utils/customTypedResponses.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { PermissionFlag, Permissions } from '@ssot/permissions_constants.ts';
 
 export function requirePermissions(

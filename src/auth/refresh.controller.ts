@@ -1,7 +1,10 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getSessionCollection } from '@models/Session_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import {
    signAccessToken,
    generateRefreshToken,
@@ -10,9 +13,10 @@ import {
    REFRESH_TOKEN_COOKIE_NAME,
 } from '@utils/tokenUtils.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { SESSION_REUSE_GRACE_WINDOW_MS } from '@ssot/access_refresh_tokens_constants.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function refreshController(
    req: Request,
@@ -45,7 +49,7 @@ export async function refreshController(
       /* This query resolves the vast majority of legitimate refresh requests in a single indexed hit. If it returns a document, we are on the HAPPY PATH and no further session queries are needed. */
       const session = await sessionCollection.findOne({
          currentTokenHash: tokenHash,
-      });
+      } satisfies StrictMongoFilter<ISessionDocument>);
 
       if (session) {
          // ── Case 1: HAPPY PATH: valid rotation ─────────────────────────────────-
@@ -53,12 +57,14 @@ export async function refreshController(
             a) We need role and permissions to sign the new access token. The session document deliberately does not cache these so they are always fresh. */
          const user = await getUserCollection().findOne({
             _id: session.userId,
-         });
+         } satisfies StrictMongoFilter<IUserDocument>);
 
          /* b) We check isActive here. If an admin deactivated this account since the session was created, we must not mint new tokens. */
          if (!user || !user.isActive) {
             /* The account is gone or deactivated. Kill the session and clear cookies so the client is not left holding dead credentials. */
-            await sessionCollection.deleteOne({ _id: session._id });
+            await sessionCollection.deleteOne({
+               _id: session._id,
+            } satisfies StrictMongoFilter<ISessionDocument>);
             clearAuthCookies(res);
             return void res
                .status(401)
@@ -91,14 +97,14 @@ export async function refreshController(
 
          /* Rotate the session document in-place. The current hash steps back to previousTokenHash, and the newly generated hash becomes the live currentTokenHash. expiresAt is deliberately NOT updated — it represents when this entire session expires (Monday reset), not when this token expires. */
          await sessionCollection.updateOne(
-            { _id: session._id },
+            { _id: session._id } satisfies StrictMongoFilter<ISessionDocument>,
             {
                $set: {
                   currentTokenHash: newTokenHash,
                   previousTokenHash: tokenHash,
                   rotatedAt: new Date(),
                },
-            }
+            } satisfies StrictUpdate<ISessionDocument>
          );
 
          setAuthCookies(
@@ -118,7 +124,7 @@ export async function refreshController(
       /* If the primary lookup failed, the token is either stale (rotated away) or completely unknown. The secondary lookup tells us which. */
       const staleSession = await sessionCollection.findOne({
          previousTokenHash: tokenHash,
-      });
+      } satisfies StrictMongoFilter<ISessionDocument>);
 
       if (staleSession) {
          const millisecondsSinceRotation =
@@ -142,7 +148,9 @@ export async function refreshController(
 
          // ── Case 3/4: reuse detected outside the grace window ─────────────------
          /* A rotated token arrived too late to be a race condition. This is either a stale client bug or (more seriously) an attacker presenting a stolen token after the legitimate user already rotated it. We cannot tell which, and we don't need to. The response is "nuclear option". Delete every active session for this user, forcing a full re-authentication from all devices. */
-         await sessionCollection.deleteMany({ userId: staleSession.userId });
+         await sessionCollection.deleteMany({
+            userId: staleSession.userId,
+         } satisfies StrictMongoFilter<ISessionDocument>);
          clearAuthCookies(res);
          return void res
             .status(401)

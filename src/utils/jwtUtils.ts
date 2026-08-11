@@ -1,5 +1,5 @@
 import { SignJWT, jwtVerify, importPKCS8, importSPKI } from 'jose';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { Redacted } from 'effect';
 
 //== JWT KEY VALIDATION ────────────────────────────────────────────────────────────────

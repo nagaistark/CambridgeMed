@@ -1,12 +1,13 @@
 import type { Request, NextFunction } from 'express';
 import { generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { encryptTotpSecret } from '@utils/totpCrypto.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { TOTP_ISSUER, TOTP_SECRET_BYTES } from '@ssot/totp_constants.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function enrollTotpController(
    _req: Request,
@@ -18,7 +19,9 @@ export async function enrollTotpController(
       const { sub } = res.locals.authenticatedUser;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
+      const user = await userCollection.findOne({
+         _id: new ObjectId(sub),
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       if (!user) {
          return void res
@@ -46,8 +49,10 @@ export async function enrollTotpController(
       const encryptedSecret = encryptTotpSecret(rawSecret);
 
       await userCollection.updateOne(
-         { _id: user._id },
-         { $set: { totpSecret: encryptedSecret } }
+         { _id: user._id } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            $set: { totpSecret: encryptedSecret },
+         } satisfies StrictUpdate<IUserDocument>
       );
 
       // ── Build the QR code ─────────────────────────────────────────────────────

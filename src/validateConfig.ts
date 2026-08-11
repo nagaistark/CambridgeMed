@@ -2,7 +2,7 @@ import 'dotenv/config';
 import { env } from 'node:process';
 import { Buffer } from 'node:buffer';
 import { Schema, ParseResult, Either } from 'effect';
-import logger from 'logger.ts';
+import logger from './logger.ts';
 
 // ===== BASIC LEAF SCHEMAS ========================================================
 /* Same pattern already used in effectSchemaReusables.ts's `customTrim` — kept identical here on purpose so this file reads the same way as the rest of the codebase. */

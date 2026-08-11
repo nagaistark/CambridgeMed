@@ -1,10 +1,10 @@
 import type { Request, NextFunction } from 'express';
 import { verify } from 'otplib';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { decryptTotpSecret } from '@utils/totpCrypto.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    TotpChallengeResponse,
    ResponseWithValidatedBody,
@@ -12,6 +12,7 @@ import {
 import type { TotpCodeBody } from '@auth/totp.schemas.ts';
 import { issueSession } from '@utils/issueSession.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function verifyTotpController(
    req: Request,
@@ -26,7 +27,7 @@ export async function verifyTotpController(
       const userCollection = getUserCollection();
       const user = await userCollection.findOne({
          _id: new ObjectId(totpChallengeSub),
-      });
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       if (!user || !user.isActive) {
          clearTotpChallengeCookie(res);
@@ -79,8 +80,10 @@ export async function verifyTotpController(
       // ── Update the Time Step ───────────────────────────────────────────────────
       if ('timeStep' in result) {
          await userCollection.updateOne(
-            { _id: user._id },
-            { $set: { totpLastUsedStep: result.timeStep } }
+            { _id: user._id } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               $set: { totpLastUsedStep: result.timeStep },
+            } satisfies StrictUpdate<IUserDocument>
          );
       }
 

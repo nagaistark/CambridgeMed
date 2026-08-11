@@ -5,7 +5,7 @@ import {
    TOTP_CHALLENGE_COOKIE_NAME,
    TOTP_CHALLENGE_AUDIENCE,
 } from '@ssot/totp_constants.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 
 /* Guards /totp/verify and /totp/recover. The user at this point has proven their password is correct but has not yet proven their TOTP code. They hold a challenge token cookie rather than an access token cookie. */
 export async function authenticateTotp(

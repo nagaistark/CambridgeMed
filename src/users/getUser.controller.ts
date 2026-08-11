@@ -1,6 +1,6 @@
 import type { Request, NextFunction } from 'express';
 import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,

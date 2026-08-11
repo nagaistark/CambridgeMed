@@ -1,16 +1,16 @@
 import { Resend } from 'resend';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
-import type { IPasswordResetDoc } from '@models/PasswordReset_v3.model.ts';
-import type { IUserDefinition } from '@models/User.model.ts';
+import type { IPasswordResetDocument } from '@models/PasswordReset_v3.model.ts';
+import type { IUserDocument } from '@models/User_v3.model.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
 
 export type IPasswordResetEmailParams = Pick<
-   IUserDefinition,
+   IUserDocument,
    'firstName' | 'email'
 > &
-   Pick<IPasswordResetDoc, 'expiresAt'> & {
+   Pick<IPasswordResetDocument, 'expiresAt'> & {
       resetUrl: string;
    };
 

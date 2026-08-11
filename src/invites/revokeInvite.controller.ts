@@ -3,7 +3,7 @@ import {
    getInviteCollection,
    IInviteDocument,
 } from '@models/Invite_v3.model.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedParams,

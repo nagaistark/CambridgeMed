@@ -1,6 +1,6 @@
 import { SignJWT } from 'jose';
 import type { Response } from 'express';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
 import {
    generateRandomToken,

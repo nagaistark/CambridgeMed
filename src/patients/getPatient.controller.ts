@@ -5,7 +5,7 @@ import type {
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import { Permissions } from '@ssot/permissions_constants.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { buildGetPatientResponse } from '@utils/buildResponses.ts';
 import { INTAKE_ONLY_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';

@@ -1,5 +1,5 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import { verifyPassword } from '@utils/hashAndVerify.ts';
 
@@ -8,10 +8,11 @@ import {
    setTotpChallengeCookie,
 } from '@utils/tokenUtils.ts';
 
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import type { LoginBody } from '@auth/login.schema.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { issueSession } from '@utils/issueSession.ts';
+import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 // ── Timing-safe dummy hash ───────────────────────────────────────────────────────
 /* A syntactically valid argon2id hash with parameters matching ARGON2_CONFIG. When no user is found for the submitted email, we still run a full Argon2 verification against this dummy (to make the response time indistinguishable from a "user found but wrong password"). This prevents an attacker from enumerating valid email addresses by measuring latency differences.
@@ -32,7 +33,9 @@ export async function loginController(
    try {
       const { email, password } = res.locals['validatedBody'];
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({ email });
+      const user = await userCollection.findOne({
+         email,
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       const isPasswordValid = await verifyPassword(
          user?.passwordHash ?? TIMING_DUMMY_HASH,

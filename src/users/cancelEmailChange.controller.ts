@@ -9,10 +9,10 @@ import {
    ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
-import logger from 'logger.ts';
+import logger from '../logger.ts';
 import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 type CancelParams = { token: string };

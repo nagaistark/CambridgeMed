@@ -4,7 +4,7 @@ import {
    IndexDescription,
    IndexDirection,
 } from 'mongodb';
-import { StrictIndexConfig } from '@utils/pathFinder_v2.ts';
+import { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 
 export type TypedIndexDescription<T> = Omit<IndexDescription, 'key'> & {
    key: StrictIndexConfig<T>;

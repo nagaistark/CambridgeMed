@@ -1,6 +1,6 @@
 import rateLimit, { type RateLimitRequestHandler } from 'express-rate-limit';
 import type { Request, Response } from 'express';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    PASSWORD_CHANGE_WINDOW_MS,
    PASSWORD_CHANGE_MAX_REQUESTS,

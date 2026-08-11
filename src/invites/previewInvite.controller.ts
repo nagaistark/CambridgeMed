@@ -3,7 +3,7 @@ import {
    getInviteCollection,
    IInviteDocument,
 } from '@models/Invite_v3.model.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { buildPreviewInviteResponse } from '@utils/buildResponses.ts';
 import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';

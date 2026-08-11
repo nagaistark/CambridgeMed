@@ -1,9 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { hashRecoveryCode } from '@utils/totpCrypto.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    TotpChallengeResponse,
    ResponseWithValidatedBody,
@@ -11,6 +11,7 @@ import {
 import type { RecoveryCodeBody } from '@auth/totp.schemas.ts';
 import { issueSession } from '@utils/issueSession.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function recoverTotpController(
    req: Request,
@@ -25,7 +26,7 @@ export async function recoverTotpController(
       const userCollection = getUserCollection();
       const user = await userCollection.findOne({
          _id: new ObjectId(totpChallengeSub),
-      });
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       if (!user || !user.isActive) {
          clearTotpChallengeCookie(res);
@@ -69,8 +70,13 @@ export async function recoverTotpController(
       const submittedHash = hashRecoveryCode(code);
 
       const updateResult = await userCollection.findOneAndUpdate(
-         { _id: user._id, totpRecoveryCodes: submittedHash },
-         { $pull: { totpRecoveryCodes: submittedHash } }
+         {
+            _id: user._id,
+            totpRecoveryCodes: submittedHash,
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            $pull: { totpRecoveryCodes: submittedHash },
+         } satisfies StrictUpdate<IUserDocument>
       );
 
       if (!updateResult) {

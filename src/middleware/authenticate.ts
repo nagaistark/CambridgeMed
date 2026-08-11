@@ -6,7 +6,7 @@ import {
    ACCESS_TOKEN_AUDIENCE,
 } from '@utils/tokenUtils.ts';
 import { allRoles } from '@ssot/user_roles_constants.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { CustomSessionPayload } from '@ssot/jwt_payload_constants.ts';
 

@@ -4,7 +4,7 @@ import {
    getEmailChangeCollection,
    IEmailChangeDocument,
 } from '@models/EmailChange_v3.model.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -19,10 +19,10 @@ import {
    EMAIL_CHANGE_CAP,
    EMAIL_CHANGE_TOKEN_EXPIRY_MS,
 } from '@ssot/user_change_constants.ts';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { CountDocumentsOptions, ObjectId } from 'mongodb';
-import logger from 'logger.ts';
-import { sanitizeError } from 'mongoDBConnect.ts';
+import logger from '../logger.ts';
+import { sanitizeError } from '../mongoDBConnect.ts';
 import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function initiateEmailChangeController(

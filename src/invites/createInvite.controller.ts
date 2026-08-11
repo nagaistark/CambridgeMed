@@ -12,18 +12,18 @@ import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { sendInviteEmail } from '@invites/invite.email.ts';
 import {
    generateRandomToken,
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
 import { Either, Schema } from 'effect';
-import logger from 'logger.ts';
-import { sanitizeError } from 'mongoDBConnect.ts';
+import logger from '../logger.ts';
+import { sanitizeError } from '../mongoDBConnect.ts';
 import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function createInviteController(

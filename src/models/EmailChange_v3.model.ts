@@ -8,7 +8,7 @@ import {
    sha256HexString,
 } from '@utils/effectSchemaReusables.ts';
 import { Collection } from 'mongodb';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 

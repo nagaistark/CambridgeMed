@@ -1,13 +1,14 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { verifyPassword } from '@utils/hashAndVerify.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { DisableTotpBody } from '@auth/totp.schemas.ts';
 import { ObjectId } from 'mongodb';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function disableTotpController(
    _req: Request,
@@ -20,7 +21,9 @@ export async function disableTotpController(
       const { password } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({ _id: new ObjectId(sub) });
+      const user = await userCollection.findOne({
+         _id: new ObjectId(sub),
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       if (!user) {
          return void res
@@ -60,14 +63,14 @@ export async function disableTotpController(
 
       // ── Clear all TOTP state in one atomic update ──────────────────────────────
       await userCollection.updateOne(
-         { _id: user._id },
+         { _id: user._id } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: {
                isTotpEnabled: false,
                totpSecret: null,
                totpRecoveryCodes: [],
             },
-         }
+         } satisfies StrictUpdate<IUserDocument>
       );
 
       return void res.status(200).json({

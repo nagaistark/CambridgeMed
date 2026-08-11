@@ -1,6 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
-import { getPasswordResetCollection } from '@models/PasswordReset_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getPasswordResetCollection,
+   IPasswordResetDocument,
+} from '@models/PasswordReset_v3.model.ts';
 import {
    generateRandomToken,
    generateStandardHash,
@@ -9,7 +12,8 @@ import { PASSWORD_RESET_TOKEN_EXPIRY_MS } from '@ssot/password_reset_constants.t
 import { sendPasswordResetEmail } from '@auth/passwordReset.email.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ForgotPasswordBody } from '@auth/forgotPassword.schema.ts';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function forgotPasswordController(
    _req: Request,
@@ -28,7 +32,9 @@ export async function forgotPasswordController(
          });
       };
 
-      const user = await getUserCollection().findOne({ email });
+      const user = await getUserCollection().findOne({
+         email,
+      } satisfies StrictMongoFilter<IUserDocument>);
 
       /* No account or inactive account: silently do nothing and return the generic response. We do NOT distinguish between these two cases in the response. */
       if (!user || !user.isActive) {
@@ -50,7 +56,9 @@ export async function forgotPasswordController(
          The `$setOnInsert` operator is strictly bound to the `upsert` option.
       */
       const updateResult = await getPasswordResetCollection().updateOne(
-         { userId: user._id },
+         {
+            userId: user._id,
+         } satisfies StrictMongoFilter<IPasswordResetDocument>,
          {
             $set: {
                tokenHash,
@@ -61,7 +69,7 @@ export async function forgotPasswordController(
                userId: user._id,
                createdAt: now,
             },
-         },
+         } satisfies StrictUpdate<IPasswordResetDocument>,
          { upsert: true }
       );
 

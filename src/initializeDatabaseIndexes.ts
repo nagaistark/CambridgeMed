@@ -1,4 +1,4 @@
-import logger from 'logger.ts';
+import logger from './logger.ts';
 import { createTypedIndexes } from '@utils/typedIndexDescription.ts';
 import { getInviteCollection, inviteIndexes } from '@models/Invite_v3.model.ts';
 import { getUserCollection, userIndexes } from '@models/User_v3.model.ts';

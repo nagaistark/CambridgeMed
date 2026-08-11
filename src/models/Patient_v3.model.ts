@@ -48,7 +48,7 @@ import {
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 
 export const PatientInputSchema = Schema.Struct({
    isActive: Schema.Boolean.annotations({

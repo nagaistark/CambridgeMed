@@ -1,17 +1,24 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
-import { getPasswordResetCollection } from '@models/PasswordReset_v3.model.ts';
-import { getSessionCollection } from '@models/Session_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getPasswordResetCollection,
+   IPasswordResetDocument,
+} from '@models/PasswordReset_v3.model.ts';
+import {
+   getSessionCollection,
+   ISessionDocument,
+} from '@models/Session_v3.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    generateStandardHash,
    HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ResetPasswordBody } from '@auth/resetPassword.schema.ts';
+import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 type ResetPasswordParams = { token: string };
 
@@ -44,7 +51,7 @@ export async function resetPasswordController(
       const passwordReset = await getPasswordResetCollection().findOne({
          tokenHash,
          expiresAt: { $gt: new Date() },
-      });
+      } satisfies StrictMongoFilter<IPasswordResetDocument>);
 
       if (!passwordReset) {
          return void res
@@ -74,7 +81,9 @@ export async function resetPasswordController(
          await session.withTransaction(async () => {
             /* deleteOne is the serialisation point. By including { _id } in the filter, we atomically claim this specific document. If a concurrent request already claimed it (deletedCount === 0), we throw and the transaction rolls back, leaving the User document untouched. */
             const deleteResult = await getPasswordResetCollection().deleteOne(
-               { _id: passwordReset._id },
+               {
+                  _id: passwordReset._id,
+               } satisfies StrictMongoFilter<IPasswordResetDocument>,
                { session }
             );
 
@@ -85,13 +94,19 @@ export async function resetPasswordController(
             }
 
             await getUserCollection().updateOne(
-               { _id: passwordReset.userId },
-               { $set: { passwordHash: newPasswordHash } }
+               {
+                  _id: passwordReset.userId,
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  $set: { passwordHash: newPasswordHash },
+               } satisfies StrictUpdate<IUserDocument>
             );
 
             /* Kill all active sessions. The user just proved control of their email address, which is the recovery credential — all other devices should be forced to -authenticate against the new password. */
             await getSessionCollection().deleteMany(
-               { userId: passwordReset.userId },
+               {
+                  userId: passwordReset.userId,
+               } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
          });

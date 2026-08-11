@@ -2,7 +2,7 @@ import type { Request, Response, NextFunction } from 'express';
 import { ParseResult, Runtime, Cause } from 'effect';
 import { MongoError, MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
-import logger from 'logger.ts';
+import logger from './logger.ts';
 
 // ===== Every possible machine-readable error code (so far) =======================
 const ALL_ERROR_CODES = [
@@ -94,10 +94,7 @@ interface StatusCodeOnlyError extends Error {
 
 // The union of all four
 export type HttpErrorLike =
-   | BodyParserError
-   | HttpCreatedError
-   | StatusOnlyError
-   | StatusCodeOnlyError;
+   BodyParserError | HttpCreatedError | StatusOnlyError | StatusCodeOnlyError;
 
 // ===== Type guards for Http-related errors =======================================
 /* Body parser error: has `status` AND `type`, but not `expose`. We check `type` as a string but wait until the handler to compare it to 'entity.parse.failed' — the guard's job is existence and type, not value. */
@@ -105,9 +102,9 @@ function isBodyParserError(err: unknown): err is BodyParserError {
    return (
       err instanceof Error &&
       'status' in err &&
-      typeof (err as Record<string, unknown>)['status'] === 'number' &&
+      typeof err.status === 'number' &&
       'type' in err &&
-      typeof (err as Record<string, unknown>)['type'] === 'string'
+      typeof err.type === 'string'
    );
 }
 
@@ -116,20 +113,18 @@ function isHttpCreatedError(err: unknown): err is HttpCreatedError {
    return (
       err instanceof Error &&
       'status' in err &&
-      typeof (err as Record<string, unknown>)['status'] === 'number' &&
+      typeof err.status === 'number' &&
       'statusCode' in err &&
-      typeof (err as Record<string, unknown>)['statusCode'] === 'number' &&
+      typeof err.statusCode === 'number' &&
       'expose' in err &&
-      typeof (err as Record<string, unknown>)['expose'] === 'boolean'
+      typeof err.expose === 'boolean'
    );
 }
 
 /* Generic status-only: has `status` as a number, but nothing else specific. */
 function isStatusOnlyError(err: unknown): err is StatusOnlyError {
    return (
-      err instanceof Error &&
-      'status' in err &&
-      typeof (err as Record<string, unknown>)['status'] === 'number'
+      err instanceof Error && 'status' in err && typeof err.status === 'number'
    );
 }
 
@@ -138,7 +133,7 @@ function isStatusCodeOnlyError(err: unknown): err is StatusCodeOnlyError {
    return (
       err instanceof Error &&
       'statusCode' in err &&
-      typeof (err as Record<string, unknown>)['statusCode'] === 'number'
+      typeof err.statusCode === 'number'
    );
 }
 
@@ -169,8 +164,8 @@ const OPERATIONAL_ERROR_NAMES = new Set([
 function isOperationalError(err: unknown): boolean {
    if (!(err instanceof Error)) return false;
 
-   /* Check the error's name property against our known operational error names. We also check err.code for ErrnoException variants, because Node's filesystem errors often carry the POSIX code ('ENOENT', 'EACCES', etc.) as `err.code` rather than as `err.name`. */
-   const code = (err as NodeJS.ErrnoException).code;
+   /* Check the error's name property against our known operational error names. We also check err.code for ErrnoException variants, because Node's filesystem errors often carry the POSIX code ('ENOENT', 'EACCES', etc.) as `err.code` rather than as `err.name`. The `in` check narrows `err.code` to `unknown` without a cast — same pattern as `isAppError` above. */
+   const code = 'code' in err ? err.code : undefined;
    return (
       OPERATIONAL_ERROR_NAMES.has(err.name) ||
       (typeof code === 'string' && OPERATIONAL_ERROR_NAMES.has(code))
@@ -467,8 +462,8 @@ export function handleEnoentError(
       return (
          err instanceof Error &&
          'code' in err &&
-         typeof (err as NodeJS.ErrnoException).code === 'string' &&
-         (err as NodeJS.ErrnoException).code === 'ENOENT'
+         typeof err.code === 'string' &&
+         err.code === 'ENOENT'
       );
    }
 
@@ -495,6 +490,27 @@ export function handleEnoentError(
       );
 }
 
+/* Turns an arbitrary thrown value into a log-safe string, for the rare case where something threw a non-Error (a string, a plain object, etc). We branch on `typeof` explicitly rather than calling `String(err)` on the `unknown` value directly — `String()` on a plain object silently falls back to Object.prototype.toString ('[object Object]'), which tells you nothing about what was actually thrown. JSON.stringify gives an inspectable payload instead, but it can itself throw on circular references or BigInts — a real possibility for objects built from user input or SDK internals — so that path is wrapped in a try/catch with a safe fallback. */
+function describeThrownValue(err: unknown): string {
+   if (typeof err === 'string') return err;
+   if (
+      typeof err === 'number' ||
+      typeof err === 'boolean' ||
+      typeof err === 'bigint'
+   ) {
+      return String(err);
+   }
+   if (typeof err === 'symbol') return err.toString();
+   if (err === null || err === undefined) return String(err);
+
+   // Anything left is an object (or function) — never trust its default toString.
+   try {
+      return JSON.stringify(err) ?? Object.prototype.toString.call(err);
+   } catch {
+      return Object.prototype.toString.call(err);
+   }
+}
+
 // ===== Catch-All specialist/handler ==============================================
 export function handleCatchAll(
    err: unknown,
@@ -519,9 +535,7 @@ export function handleCatchAll(
    const error =
       err instanceof Error
          ? err
-         : new Error(
-              `Non-Error thrown: ${typeof err === 'object' ? JSON.stringify(err) : String(err)}`
-           );
+         : new Error(`Non-Error thrown: ${describeThrownValue(err)}`);
 
    const operational = isOperationalError(error);
 

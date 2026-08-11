@@ -1,6 +1,6 @@
 import type { Request, NextFunction } from 'express';
 
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    getUserCollection,
    type IUserDocument,
@@ -14,7 +14,7 @@ import {
 } from '@models/Invite_v3.model.ts';
 
 import { hashPassword } from '@utils/hashAndVerify.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
@@ -23,7 +23,6 @@ import { Either, Schema } from 'effect';
 import {
    StrictFindOneAndUpdateOptions,
    StrictMongoFilter,
-   StrictMongoFilterFields,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
 

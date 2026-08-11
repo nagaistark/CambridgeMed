@@ -1,10 +1,14 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection } from '@models/User_v3.model.ts';
+import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
-import { createErrorResponse } from 'errorHandlers.ts';
+import { createErrorResponse } from '../errorHandlers.ts';
 import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { ObjectId } from 'mongodb';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 
 export async function meController(
    _req: Request,
@@ -19,8 +23,10 @@ export async function meController(
 
       /* Only fetch the data that is safe to expose (SAFE_USER_PROJECTION). */
       const user = await getUserCollection().findOne(
-         { _id: new ObjectId(sub) },
-         { projection: SAFE_USER_PROJECTION }
+         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: SAFE_USER_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserDocument>
       );
 
       if (!user) {

@@ -18,7 +18,7 @@ import {
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
-import { DatabaseManager } from 'mongoDBConnect.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 
 /* Input schema: what arrives over HTTP. */
 export const UserInputSchema = Schema.Struct({
@@ -30,7 +30,6 @@ export const UserInputSchema = Schema.Struct({
 
 /* Document schema: composed from the SAME field atoms, extended with server-generated fields. No duplication of firstName/lastName/email rules. */
 export const UserDocumentSchema = Schema.Struct({
-   _id: stringToObjectId,
    passwordHash: argon2HashString,
    previousNames: Schema.Array(
       Schema.Struct({
@@ -63,8 +62,6 @@ export const UserDocumentSchema = Schema.Struct({
 
    invitedBy: Schema.optional(stringToObjectId),
    isActive: Schema.Boolean,
-   createdAt: Schema.ValidDateFromSelf,
-   updatedAt: Schema.ValidDateFromSelf,
 }).pipe(
    Schema.extend(serverGeneratedFields),
    Schema.extend(UserInputSchema.omit('password')),

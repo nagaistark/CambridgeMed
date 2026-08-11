@@ -1,5 +1,5 @@
 import { Resend } from 'resend';
-import { myEnv } from 'validateConfig.ts';
+import { myEnv } from '../validateConfig.ts';
 import { Redacted } from 'effect';
 import type { AllowedUserRole } from '@ssot/user_roles_constants.ts';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
