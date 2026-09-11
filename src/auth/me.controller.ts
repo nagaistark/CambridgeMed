@@ -1,5 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   ISafeUser,
+} from '@models/User_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
@@ -22,11 +26,11 @@ export async function meController(
       const { sub } = res.locals.authenticatedUser;
 
       /* Only fetch the data that is safe to expose (SAFE_USER_PROJECTION). */
-      const user = await getUserCollection().findOne(
+      const user = await getUserCollection().findOne<ISafeUser>(
          { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: SAFE_USER_PROJECTION,
-         } satisfies StrictFindOneOptions<IUserDocument>
+         } satisfies StrictFindOneOptions<ISafeUser>
       );
 
       if (!user) {
@@ -49,7 +53,7 @@ export async function meController(
             );
       }
 
-      /* At this point the `user` is already `SafeUser`. */
+      /* At this point the `user` is already `ISafeUser`. */
       return void res.status(200).json(buildMeResponse('Session valid.', user));
    } catch (err) {
       next(err);

@@ -1,16 +1,16 @@
 import { ISafeInvite } from '@models/Invite_v3.model.ts';
-import type { SafeUser, PublicUser } from '@models/User_v3.model.ts';
+import type { ISafeUser, IPublicUser } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
    IPatientDocument,
    IPatientInitial,
 } from '@models/Patient_v3.model.ts';
 import { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
-import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
 /* Field projections defined once at module level. Using MongoDB-level projection means `passwordHash` never travels over the wire from MongoDB to the Node process. */
-export const SAFE_USER_PROJECTION: Record<keyof SafeUser, 1> = {
-   // Annotated with SafeUser, which excludes (doesn't list) `passwordHash`.
+export const SAFE_USER_PROJECTION: Record<keyof ISafeUser, 1> = {
+   // Annotated with ISafeUser, which excludes (doesn't list) `passwordHash`.
    email: 1,
    firstName: 1,
    lastName: 1,
@@ -28,7 +28,7 @@ export const SAFE_USER_PROJECTION: Record<keyof SafeUser, 1> = {
    updatedAt: 1,
 } as const;
 
-export const PUBLIC_USER_PROJECTION: Record<keyof PublicUser, 1> = {
+export const PUBLIC_USER_PROJECTION: Record<keyof IPublicUser, 1> = {
    _id: 1,
    firstName: 1,
    lastName: 1,
@@ -68,7 +68,7 @@ export const LIST_PATIENT_PROJECTION: Partial<
 /* ClinicalOnlyFields is computed as the set difference between the full and initial patient definitions. Currently that resolves to the single key 'clinicalInfo', but if a second top-level clinical field is ever added to IPatientDocument, TypeScript will require it to appear here too. */
 type ClinicalOnlyFields = Exclude<
    keyof IPatientDocument,
-   keyof IPatientInitial | keyof ServerGeneratedFields
+   keyof IPatientInitial | keyof IServerGeneratedFields
 >;
 
 export const INTAKE_ONLY_PATIENT_PROJECTION: Record<ClinicalOnlyFields, 0> = {

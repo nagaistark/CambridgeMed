@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import {
+   EmailChangeDocumentValidator,
    getEmailChangeCollection,
    IEmailChangeDocument,
 } from '@models/EmailChange_v3.model.ts';
@@ -14,6 +15,7 @@ import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from '../logger.ts';
 import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 type CancelParams = { token: string };
 
@@ -31,12 +33,12 @@ export async function cancelEmailChangeController(
       const userCollection = getUserCollection();
 
       // ── Look up the EmailChange record ─────────────────────────────────────────
-      const emailChange = await emailChangeCollection.findOne({
+      const emailChangeRaw = await emailChangeCollection.findOne({
          cancelTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
       } satisfies StrictMongoFilter<IEmailChangeDocument>);
 
-      if (!emailChange) {
+      if (!emailChangeRaw) {
          return void res
             .status(404)
             .json(
@@ -47,6 +49,16 @@ export async function cancelEmailChangeController(
                )
             );
       }
+
+      const decodedEmailChange = Schema.decodeUnknownEither(
+         EmailChangeDocumentValidator
+      )(emailChangeRaw);
+
+      if (Either.isLeft(decodedEmailChange)) {
+         throw decodedEmailChange.left;
+      }
+
+      const validatedEmailChange = decodedEmailChange.right;
 
       // ── Simple cancel / deletion and reversion ─────────────────────────────────
 
@@ -66,18 +78,18 @@ export async function cancelEmailChangeController(
       const session = authConnection.startSession();
       try {
          await session.withTransaction(async () => {
-            isReversion = emailChange.confirmedAt !== null;
+            isReversion = validatedEmailChange.confirmedAt !== null;
 
             if (isReversion) {
                await userCollection.updateOne(
                   {
-                     _id: emailChange.userId,
+                     _id: validatedEmailChange.userId,
                   } satisfies StrictMongoFilter<IUserDocument>,
                   {
-                     $set: { email: emailChange.oldEmail },
+                     $set: { email: validatedEmailChange.oldEmail },
                      $push: {
                         previousEmails: {
-                           email: emailChange.newEmail,
+                           email: validatedEmailChange.newEmail,
                            archivedAt: new Date(),
                         },
                      },
@@ -89,14 +101,14 @@ export async function cancelEmailChangeController(
                /* Nuclear logout inside the transaction. */
                await getSessionCollection().deleteMany(
                   {
-                     userId: emailChange.userId,
+                     userId: validatedEmailChange.userId,
                   } satisfies StrictMongoFilter<ISessionDocument>,
                   { session }
                );
             }
 
             const deleteResult = await getEmailChangeCollection().deleteOne(
-               { _id: emailChange._id },
+               { _id: validatedEmailChange._id },
                { session }
             );
 
@@ -112,7 +124,7 @@ export async function cancelEmailChangeController(
             logger.info(
                `Email change ${isReversion ? 'reverted' : 'cancelled'}`,
                {
-                  userId: emailChange.userId,
+                  userId: validatedEmailChange.userId,
                   requestId,
                }
             );

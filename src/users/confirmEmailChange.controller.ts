@@ -1,6 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import {
+   EmailChangeDocumentValidator,
    getEmailChangeCollection,
    IEmailChangeDocument,
 } from '@models/EmailChange_v3.model.ts';
@@ -14,6 +15,7 @@ import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from '../logger.ts';
 import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 type ConfirmParams = { token: string };
 
@@ -31,12 +33,12 @@ export async function confirmEmailChangeController(
       const userCollection = getUserCollection();
 
       // ── Look up the EmailChange record ─────────────────────────────────────────
-      const emailChange = await emailChangeCollection.findOne({
+      const emailChangeRaw = await emailChangeCollection.findOne({
          confirmTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
       } satisfies StrictMongoFilter<IEmailChangeDocument>);
 
-      if (!emailChange) {
+      if (!emailChangeRaw) {
          return void res
             .status(404)
             .json(
@@ -48,8 +50,18 @@ export async function confirmEmailChangeController(
             );
       }
 
+      const decodedEmailChange = Schema.decodeUnknownEither(
+         EmailChangeDocumentValidator
+      )(emailChangeRaw);
+
+      if (Either.isLeft(decodedEmailChange)) {
+         throw decodedEmailChange.left;
+      }
+
+      const validatedEmailChange = decodedEmailChange.right;
+
       // ── State guard ────────────────────────────────────────────────────────────
-      if (emailChange.confirmedAt !== null) {
+      if (validatedEmailChange.confirmedAt !== null) {
          return void res
             .status(409)
             .json(
@@ -74,7 +86,7 @@ export async function confirmEmailChangeController(
          await session.withTransaction(async () => {
             const updateResult = await emailChangeCollection.updateOne(
                {
-                  _id: emailChange._id,
+                  _id: validatedEmailChange._id,
                   confirmedAt: null,
                } satisfies StrictMongoFilter<IEmailChangeDocument>,
                {
@@ -92,13 +104,13 @@ export async function confirmEmailChangeController(
             /* The old email is pushed to the archive BEFORE being overwritten. archivedAt records the moment it stopped being the live address. */
             await userCollection.updateOne(
                {
-                  _id: emailChange.userId,
+                  _id: validatedEmailChange.userId,
                } satisfies StrictMongoFilter<IUserDocument>,
                {
-                  $set: { email: emailChange.newEmail },
+                  $set: { email: validatedEmailChange.newEmail },
                   $push: {
                      previousEmails: {
-                        email: emailChange.oldEmail,
+                        email: validatedEmailChange.oldEmail,
                         archivedAt: new Date(),
                      },
                   },
@@ -110,15 +122,15 @@ export async function confirmEmailChangeController(
             /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
             await getSessionCollection().deleteMany(
                {
-                  userId: emailChange.userId,
+                  userId: validatedEmailChange.userId,
                } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
 
             logger.info(
-               `New email ${emailChange.newEmail} has been confirmed.`,
+               `New email ${validatedEmailChange.newEmail} has been confirmed.`,
                {
-                  userId: emailChange.userId,
+                  userId: validatedEmailChange.userId,
                   requestId,
                }
             );

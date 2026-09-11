@@ -1,6 +1,10 @@
 import type { Request, NextFunction } from 'express';
 
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   UserDocumentValidator,
+} from '@models/User_v3.model.ts';
 import {
    getSessionCollection,
    ISessionDocument,
@@ -16,6 +20,7 @@ import {
 import type { ChangePasswordBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
 import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 export async function changePasswordController(
    _req: Request,
@@ -28,12 +33,12 @@ export async function changePasswordController(
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({
+      const userRaw = await userCollection.findOne({
          _id: new ObjectId(sub),
       } satisfies StrictMongoFilter<IUserDocument>);
 
       /* Should never be null (the user just passed authenticate), but we guard defensively rather than using a non-null assertion. */
-      if (!user) {
+      if (!userRaw) {
          return void res
             .status(404)
             .json(
@@ -41,9 +46,20 @@ export async function changePasswordController(
             );
       }
 
-      // ── Step 1: verify the current password ────────────────────────────────────
+      // ── Step 1: Validate the fetched document against the schema ───────────────
+      const decodedUser = Schema.decodeUnknownEither(UserDocumentValidator)(
+         userRaw
+      );
+      if (Either.isLeft(decodedUser)) {
+         throw decodedUser.left;
+      }
+
+      // ── Use the validated invite document from now on ──────────────────────────
+      const validatedUser = decodedUser.right;
+
+      // ── Step 2: verify the current password ────────────────────────────────────
       const isCurrentValid = await verifyPassword(
-         user.passwordHash,
+         validatedUser.passwordHash,
          currentPassword
       );
 
@@ -59,11 +75,11 @@ export async function changePasswordController(
             );
       }
 
-      // ── Step 2: hash the new password before opening the transaction ───────────
+      // ── Step 3: hash the new password before opening the transaction ───────────
       /* Hashing optimistically up front. If anything downstream fails, the hash is discarded. The same-password case is already caught by the cross-field validation in ChangePasswordSchema. No duplicate `verifyPassword` call is needed here. */
       const newPasswordHash = await hashPassword(newPassword);
 
-      // ── Step 3: atomic update + session destruction ────────────────────────────
+      // ── Step 4: atomic update + session destruction ────────────────────────────
       /* Transaction because the two writes must succeed OR fail as a unit. */
       const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {

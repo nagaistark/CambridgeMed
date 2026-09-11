@@ -16,12 +16,12 @@ import type {
    AuthUserResponse,
    AuthUserResponseLogout,
    IUserDocument,
-   SafeUser,
+   ISafeUser,
 } from '@models/User_v3.model.ts';
 import { encodeCursor } from '@utils/cursorPagination.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
-/* These return the minimal PublicUser shape (there is no need to send the full profile, history arrays, or counters on every token operation.
+/* These return the minimal IPublicUser shape (there is no need to send the full profile, history arrays, or counters on every token operation.
 
 Function overloads: when called with a user argument, the return type is AuthUserResponse... */
 export function buildAuthResponse(
@@ -63,10 +63,10 @@ The separation into a dedicated function (rather than a third overload) is inten
 export type MeResponse = {
    success: true;
    message: string;
-   user: SafeUser;
+   user: ISafeUser;
 };
 
-export function buildMeResponse(message: string, user: SafeUser): MeResponse {
+export function buildMeResponse(message: string, user: ISafeUser): MeResponse {
    return { success: true, message, user };
 }
 

@@ -12,6 +12,10 @@ import { acceptInviteController } from '@invites/acceptInvite.controller.ts';
 import { validateParams } from '@middleware/validateParams.ts';
 import { MongoIdParamsSchema } from '@utils/effectSchemaReusables.ts';
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
+import {
+   inviteAcceptRateLimiter,
+   invitePreviewRateLimiter,
+} from '@/utils/rateLimiters.ts';
 
 const inviteRouter = Router();
 
@@ -44,6 +48,7 @@ inviteRouter.get(
 // Public: the invitee has no session yet — authenticate must not appear here.
 inviteRouter.get(
    '/:token/preview',
+   invitePreviewRateLimiter,
    requireValidRawToken('This invite link is invalid or has expired.'),
    previewInviteController
 );
@@ -51,6 +56,7 @@ inviteRouter.get(
 // Public: the registering user has no session. validateBody runs the full UserRegistrationSchema (firstName, lastName, email, password). The raw token arrives as a path parameter, not in the body.
 inviteRouter.post(
    '/:token/accept',
+   inviteAcceptRateLimiter,
    requireValidRawToken('This invite link is invalid or has expired.'),
    validateBody(UserInputSchema),
    acceptInviteController

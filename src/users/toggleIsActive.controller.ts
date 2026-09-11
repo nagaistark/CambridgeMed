@@ -1,5 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   UserDocumentValidator,
+} from '@models/User_v3.model.ts';
 import {
    getSessionCollection,
    ISessionDocument,
@@ -14,6 +18,7 @@ import type { SetIsActiveBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 export async function toggleIsActiveController(
    _req: Request,
@@ -43,11 +48,11 @@ export async function toggleIsActiveController(
       }
 
       const userCollection = getUserCollection();
-      const targetUser = await userCollection.findOne({
+      const targetUserRaw = await userCollection.findOne({
          _id: new ObjectId(id),
       } satisfies StrictMongoFilter<IUserDocument>);
 
-      if (!targetUser) {
+      if (!targetUserRaw) {
          return void res
             .status(404)
             .json(
@@ -55,9 +60,19 @@ export async function toggleIsActiveController(
             );
       }
 
+      const decodedTargetUser = Schema.decodeUnknownEither(
+         UserDocumentValidator
+      )(targetUserRaw);
+
+      if (Either.isLeft(decodedTargetUser)) {
+         throw decodedTargetUser.left;
+      }
+
+      const validatedTargetUser = decodedTargetUser.right;
+
       // ── Superadmin self-deactivation guard ─────────────────────────────────────
       /* The superadmin deactivating themselves would immediately lock the only administrative account out of the system with no recovery path short of a direct database intervention. This is almost certainly a mistake. */
-      if (targetUser.role === 'superadmin') {
+      if (validatedTargetUser.role === 'superadmin') {
          return void res
             .status(403)
             .json(
@@ -70,7 +85,7 @@ export async function toggleIsActiveController(
       }
 
       // ── No-op guard ────────────────────────────────────────────────────────────
-      if (targetUser.isActive === isActive) {
+      if (validatedTargetUser.isActive === isActive) {
          return void res
             .status(400)
             .json(
@@ -83,7 +98,9 @@ export async function toggleIsActiveController(
       }
 
       await userCollection.updateOne(
-         { _id: targetUser._id } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            _id: validatedTargetUser._id,
+         } satisfies StrictMongoFilter<IUserDocument>,
          { $set: { isActive } } satisfies StrictUpdate<IUserDocument>
       );
 
@@ -91,7 +108,7 @@ export async function toggleIsActiveController(
       /* Deactivating an account must immediately invalidate all live sessions. Without this, a deactivated user holding a valid refresh token could continue rotating for up to a week. The loginController and meController check isActive, which blocks access token use — but a session kill here removes the refresh token lifeline entirely. On reactivation, no session work is needed: the user simply logs in fresh, which creates a new session. */
       if (!isActive) {
          await getSessionCollection().deleteMany({
-            userId: targetUser._id,
+            userId: validatedTargetUser._id,
          } satisfies StrictMongoFilter<ISessionDocument>);
       }
 

@@ -18,7 +18,7 @@ import { createErrorResponse } from '../errorHandlers.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
-import { ClientSession, ObjectId } from 'mongodb';
+import { ClientSession, CountDocumentsOptions, ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
 import {
    StrictFindOneAndUpdateOptions,
@@ -178,14 +178,36 @@ export async function acceptInviteController(
       const { token } = req.params;
       const { email, firstName, lastName, password } = res.locals.validatedBody;
 
-      // ── Step 1: Hash the password BEFORE opening the transaction ───────────────
+      // ── Step 1: Derive the token hash ──────────────────────────────────────────
+      const tokenHash = generateStandardHash(token);
+
+      // ── Step 2: Check the validity of the token ────────────────────────────────
+      /* The `requireValidRawToken` middleware (that precedes the `acceptInviteController`) only checks if the token is shaped like a valid token (HEX96_REGEX). It doesn't check if the token exists. To prevent a textbook resource-exhaustion vector on an anonymous endpoint (where any request with a well-formed password and 96 random hex characters forces a full Argon2id hash (deliberately expensive) before the system ever checks whether the invite is real), we perform that check BEFORE Argon2 comes into play. */
+      const exist = await getInviteCollection().countDocuments(
+         {
+            tokenHash,
+            usedAt: null,
+            expiresAt: { $gt: new Date() },
+         } satisfies StrictMongoFilter<IInviteDocument>,
+         { limit: 1 } satisfies CountDocumentsOptions
+      );
+      if (exist === 0) {
+         return void res
+            .status(404)
+            .json(
+               createErrorResponse(
+                  'NOT_FOUND',
+                  `This invite link is invalid or has expired.`,
+                  requestId
+               )
+            );
+      }
+
+      // ── Step 3: Hash the password BEFORE opening the transaction ───────────────
       /* Keeping a MongoDB transaction open while Argon2 churns for 100–300ms would hold server-side resources unnecessarily. */
       const passwordHash = await hashPassword(password);
 
-      // ── Step 2: Derive the token hash ──────────────────────────────────────────
-      const tokenHash = generateStandardHash(token);
-
-      // ── Step 3: Acquire the native client and start a session (synchronous!) ───
+      // ── Step 4: Acquire the native client and start a session (synchronous!) ───
       /* The server bootstrap guarantees this is never null, and any unexpected throw here is caught by the outer try/catch. */
       const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
@@ -194,7 +216,7 @@ export async function acceptInviteController(
          );
       }
 
-      // ── Step 4: Run the transaction ────────────────────────────────────────────
+      // ── Step 5: Run the transaction ────────────────────────────────────────────
       const session = authConnection.startSession();
 
       /* The try/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
@@ -211,7 +233,7 @@ export async function acceptInviteController(
          await session.endSession();
       }
 
-      // ── Step 5: Send the HTTP response ─────────────────────────────────────────
+      // ── Step 6: Send the HTTP response ─────────────────────────────────────────
       if (outcome.status === 'invalid_token') {
          return void res
             .status(404)

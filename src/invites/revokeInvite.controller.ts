@@ -2,6 +2,7 @@ import type { Request, NextFunction } from 'express';
 import {
    getInviteCollection,
    IInviteDocument,
+   InviteDocumentValidator,
 } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import {
@@ -10,6 +11,8 @@ import {
 } from '@utils/customTypedResponses.ts';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import { ObjectId } from 'mongodb';
+import { Schema, Either } from 'effect';
 
 export async function revokeInviteController(
    _req: Request,
@@ -24,10 +27,10 @@ export async function revokeInviteController(
       const inviteCollection = getInviteCollection();
 
       // ── Fetch the invite ───────────────────────────────────────────────────────
-      const invite = await inviteCollection.findOne({
+      const inviteRaw = await inviteCollection.findOne({
          _id: id,
       } satisfies StrictMongoFilter<IInviteDocument>);
-      if (!invite) {
+      if (!inviteRaw) {
          return void res
             .status(404)
             .json(
@@ -35,8 +38,20 @@ export async function revokeInviteController(
             );
       }
 
+      // ── Validate the fetched document against the schema ───────────────────────
+      const decodedInvite = Schema.decodeUnknownEither(InviteDocumentValidator)(
+         inviteRaw
+      );
+
+      if (Either.isLeft(decodedInvite)) {
+         throw decodedInvite.left;
+      }
+
+      // ── Use the validated invite document from now on ──────────────────────────
+      const validatedInvite = decodedInvite.right;
+
       // ── Accepted invites are immutable — refuse revocation ─────────────────────
-      if (invite.usedAt !== null) {
+      if (validatedInvite.usedAt !== null) {
          return void res
             .status(409)
             .json(
@@ -51,7 +66,7 @@ export async function revokeInviteController(
       // ── Ownership check ────────────────────────────────────────────────────────
       /* The superadmin can revoke any invite regardless of who issued it. Any other canIssueInvites user may only revoke their own. */
       const isSuperAdmin: boolean = role === 'superadmin';
-      const isIssuer: boolean = invite.issuedBy.toString() === sub;
+      const isIssuer: boolean = validatedInvite.issuedBy.toString() === sub;
 
       if (!isSuperAdmin && !isIssuer) {
          return void res
@@ -66,9 +81,15 @@ export async function revokeInviteController(
       }
 
       // ── Hard delete ────────────────────────────────────────────────────────────
+      const ownershipFilter: Pick<
+         StrictMongoFilter<IInviteDocument>,
+         'issuedBy'
+      > = !isSuperAdmin ? { issuedBy: new ObjectId(sub) } : {};
+
       const deleteResult = await inviteCollection.deleteOne({
-         _id: invite._id,
+         _id: validatedInvite._id,
          usedAt: null, // atomically fails if it was accepted between your findOne and this call
+         ...ownershipFilter,
       } satisfies StrictMongoFilter<IInviteDocument>);
 
       if (deleteResult.deletedCount === 0) {

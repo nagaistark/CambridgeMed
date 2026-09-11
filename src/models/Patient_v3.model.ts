@@ -26,7 +26,7 @@ import {
    suffixes,
    typeOfPhones,
 } from '@ssot/policy_constants.ts';
-import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import { LIST_PATIENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import {
    baseString,
@@ -95,8 +95,7 @@ export const PatientInputSchema = Schema.Struct({
 
             if (
                core.enrollmentStatus === 'inactive' &&
-               (!core.enrollmentTerminationDate ||
-                  !core.enrollmentTerminationReason)
+               (!core.enrollmentTerminationDate || !core.enrollmentTerminationReason)
             ) {
                issues.push({
                   path: ['enrollmentTerminationDate'],
@@ -195,10 +194,8 @@ export const PatientInputSchema = Schema.Struct({
             }).pipe(
                Schema.filter(addresses => {
                   if (
-                     (addresses.country === 'Canada' &&
-                        addresses.province === 'Outside') ||
-                     (addresses.country !== 'Canada' &&
-                        addresses.province !== 'Outside')
+                     (addresses.country === 'Canada' && addresses.province === 'Outside') ||
+                     (addresses.country !== 'Canada' && addresses.province !== 'Outside')
                   ) {
                      return {
                         path: ['province'],
@@ -280,22 +277,14 @@ export const PatientInputSchema = Schema.Struct({
             Schema.filter(immunizations => {
                const issues: Array<Schema.FilterIssue> = [];
 
-               if (
-                  (immunizations.route === 'intramuscular' ||
-                     immunizations.route === 'subcutaneous') &&
-                  !immunizations.site
-               ) {
+               if ((immunizations.route === 'intramuscular' || immunizations.route === 'subcutaneous') && !immunizations.site) {
                   issues.push({
                      path: ['site'],
                      message: `Site selection is required for intramuscular or subcutaneous routes.`,
                   });
                }
 
-               if (
-                  immunizations.route !== 'intramuscular' &&
-                  immunizations.route !== 'subcutaneous' &&
-                  !immunizations.site
-               ) {
+               if (immunizations.route !== 'intramuscular' && immunizations.route !== 'subcutaneous' && !immunizations.site) {
                   issues.push({
                      path: ['site'],
                      message: `Site selection must be empty for  routes other than intramuscular or subcutaneous.`,
@@ -332,28 +321,20 @@ export const PatientInputSchema = Schema.Struct({
             type: baseString,
             granted: Schema.Boolean,
             date: Schema.optional(fullDateInThePast),
-            method: Schema.optional(
-               Schema.Literal(...consentCollectingMethods)
-            ),
+            method: Schema.optional(Schema.Literal(...consentCollectingMethods)),
             recordedBy: Schema.optional(stringToObjectId),
          }).pipe(
             Schema.filter(consents => {
                const issues: Array<Schema.FilterIssue> = [];
 
-               if (
-                  consents.granted &&
-                  (!consents.date || !consents.method || !consents.recordedBy)
-               ) {
+               if (consents.granted && (!consents.date || !consents.method || !consents.recordedBy)) {
                   issues.push({
                      path: ['granted'],
                      message: `When consent is granted, date, method, and the recording staff member are all required.`,
                   });
                }
 
-               if (
-                  !consents.granted &&
-                  (consents.date || consents.method || consents.recordedBy)
-               ) {
+               if (!consents.granted && (consents.date || consents.method || consents.recordedBy)) {
                   issues.push({
                      path: ['granted'],
                      message: `If not granted, date, method, and the recording staff member must be empty.`,
@@ -369,29 +350,18 @@ export const PatientInputSchema = Schema.Struct({
 
 export type IPatientInput = Schema.Schema.Type<typeof PatientInputSchema>;
 
-export const PatientDocumentSchema = Schema.extend(
-   serverGeneratedFields,
-   PatientInputSchema
-);
+export const PatientDocumentSchema = Schema.extend(ServerGeneratedFields, PatientInputSchema);
 
 export type IPatientDocument = Schema.Schema.Type<typeof PatientDocumentSchema>;
 
-export const PatientInitialSchema = PatientInputSchema.pick(
-   'isActive',
-   'primaryDoctorId',
-   'intakeInfo'
-);
+export const PatientInitialSchema = PatientInputSchema.pick('isActive', 'primaryDoctorId', 'intakeInfo');
 
 export type IPatientInitial = Schema.Schema.Type<typeof PatientInitialSchema>;
 
-export const PatientDocumentValidator = Schema.typeSchema(
-   PatientDocumentSchema
-);
+export const PatientDocumentValidator = Schema.typeSchema(PatientDocumentSchema);
 
 export function getPatientCollection(): Collection<IPatientDocument> {
-   return DatabaseManager.getInstance()
-      .clinic.db()
-      .collection<IPatientDocument>('patients');
+   return DatabaseManager.getInstance().clinic.db().collection<IPatientDocument>('patients');
 }
 
 export const patientIndexes = [
@@ -434,19 +404,10 @@ export type PatientCreateIntakeResponse = {
 // ── GET response types ───────────────────────────────────────────────────────────
 
 type IntakeInfoKey = keyof Pick<IPatientDocument, 'intakeInfo'>;
-type DemographicsKey = keyof Pick<
-   IPatientDocument['intakeInfo'],
-   'demographics'
->;
-type CoreIdentifiersKey = keyof Pick<
-   IPatientDocument['intakeInfo'],
-   'coreIdentifiers'
->;
+type DemographicsKey = keyof Pick<IPatientDocument['intakeInfo'], 'demographics'>;
+type CoreIdentifiersKey = keyof Pick<IPatientDocument['intakeInfo'], 'coreIdentifiers'>;
 
-export type PatientSummary = Pick<
-   IPatientDocument,
-   '_id' | 'isActive' | 'primaryDoctorId' | 'createdAt' | 'updatedAt'
-> & {
+export type PatientSummary = Pick<IPatientDocument, '_id' | 'isActive' | 'primaryDoctorId' | 'createdAt' | 'updatedAt'> & {
    [K in IntakeInfoKey]: {
       [D in DemographicsKey]: Pick<
          IPatientDocument['intakeInfo']['demographics'],
@@ -490,10 +451,7 @@ const ListPatientFilterSchema = Schema.Struct({
    ),
 });
 
-export const PatientQuerySchema = Schema.extend(
-   CursorPaginationSchema,
-   ListPatientFilterSchema
-);
+export const PatientQuerySchema = Schema.extend(CursorPaginationSchema, ListPatientFilterSchema);
 
 export type ListPatientsQuery = Schema.Schema.Type<typeof PatientQuerySchema>;
 

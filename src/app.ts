@@ -227,7 +227,7 @@ app.use('/api/*splat', (req: Request, res: Response) => {
 });
 
 /* Tier 2. Everything else → serve React's index.html */
-app.use('/{*splat}', (req: Request, res: Response) => {
+app.use('/{*splat}', (_req: Request, res: Response) => {
    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 

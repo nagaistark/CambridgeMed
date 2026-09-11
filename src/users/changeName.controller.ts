@@ -1,5 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   UserDocumentValidator,
+} from '@models/User_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
@@ -9,6 +13,7 @@ import type { ChangeNameBody } from '@users/User_v3.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 import { ObjectId } from 'mongodb';
 import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 export async function changeNameController(
    _req: Request,
@@ -21,11 +26,11 @@ export async function changeNameController(
       const { firstName, lastName } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({
+      const userRaw = await userCollection.findOne({
          _id: new ObjectId(sub),
       } satisfies StrictMongoFilter<IUserDocument>);
 
-      if (!user) {
+      if (!userRaw) {
          return void res
             .status(404)
             .json(
@@ -33,8 +38,17 @@ export async function changeNameController(
             );
       }
 
+      const decodedUser = Schema.decodeUnknownEither(UserDocumentValidator)(
+         userRaw
+      );
+      if (Either.isLeft(decodedUser)) {
+         throw decodedUser.left;
+      }
+
+      const validatedUser = decodedUser.right;
+
       // ── Cap check ──────────────────────────────────────────────────────────────
-      if (user.nameChangesUsed >= NAME_CHANGE_CAP) {
+      if (validatedUser.nameChangesUsed >= NAME_CHANGE_CAP) {
          return void res
             .status(409)
             .json(
@@ -48,10 +62,13 @@ export async function changeNameController(
 
       // ── No-op guard ────────────────────────────────────────────────────────────
       /* If the submitted values are identical to what's already stored, we reject early to avoid burning a name-change credit for a pointless write. */
-      const newFirstName = firstName ?? user.firstName;
-      const newLastName = lastName ?? user.lastName;
+      const newFirstName = firstName ?? validatedUser.firstName;
+      const newLastName = lastName ?? validatedUser.lastName;
 
-      if (newFirstName === user.firstName && newLastName === user.lastName) {
+      if (
+         newFirstName === validatedUser.firstName &&
+         newLastName === validatedUser.lastName
+      ) {
          return void res
             .status(400)
             .json(
@@ -75,8 +92,8 @@ export async function changeNameController(
             $set: updateFields,
             $push: {
                previousNames: {
-                  firstName: user.firstName,
-                  lastName: user.lastName,
+                  firstName: validatedUser.firstName,
+                  lastName: validatedUser.lastName,
                   archivedAt: new Date(),
                },
             },

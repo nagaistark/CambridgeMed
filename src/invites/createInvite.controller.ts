@@ -1,5 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   UserDocumentValidator,
+} from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
    IInviteDocument,
@@ -93,14 +97,25 @@ export async function createInviteController(
 
       // ── Fetch issuer's full name for the email body ────────────────────────────
       /* The access token carries sub but not the name, so we need one DB hit. This should never return null since the user just passed authenticate, but we throw explicitly rather than silently continuing with a broken state. */
-      const issuer = await userCollection.findOne({
+      const issuerRaw = await userCollection.findOne({
          _id: new ObjectId(sub),
       } satisfies StrictMongoFilter<IUserDocument>);
-      if (!issuer) {
+      if (!issuerRaw) {
          throw new Error(
             `Authenticated user not found in database during invite creation. userId=${sub}`
          );
       }
+
+      // ── Validate the fetched document against the schema ───────────────────────
+      const decodedIssuer = Schema.decodeUnknownEither(UserDocumentValidator)(
+         issuerRaw
+      );
+      if (Either.isLeft(decodedIssuer)) {
+         throw decodedIssuer.left;
+      }
+
+      // ── Use the validated invite document from now on ──────────────────────────
+      const validatedIssuer = decodedIssuer.right;
 
       // ── Persist the invite ─────────────────────────────────────────────────────
       const now = new Date();
@@ -122,14 +137,16 @@ export async function createInviteController(
          updatedAt: now,
       };
 
-      const decoded = Schema.decodeUnknownEither(InviteDocumentValidator)(
-         fullInvitePayload
-      );
-      if (Either.isLeft(decoded)) {
-         throw decoded.left;
+      const decodedInvitePayload = Schema.decodeUnknownEither(
+         InviteDocumentValidator
+      )(fullInvitePayload);
+      if (Either.isLeft(decodedInvitePayload)) {
+         throw decodedInvitePayload.left;
       }
 
-      const invite = await inviteCollection.insertOne(decoded.right);
+      const validatedInvite = await inviteCollection.insertOne(
+         decodedInvitePayload.right
+      );
 
       // ── Send the invite email — with rollback on failure ───────────────────────
       /* An invite whose email was never delivered is worse than no invite: it silently occupies the pending-invite slot for this address until it expires, blocking any re-invite attempt. Rolling back removes that risk. */
@@ -137,8 +154,8 @@ export async function createInviteController(
       try {
          await sendInviteEmail({
             to: email,
-            issuerFirstName: issuer.firstName,
-            issuerLastName: issuer.lastName,
+            issuerFirstName: validatedIssuer.firstName,
+            issuerLastName: validatedIssuer.lastName,
             role,
             canIssueInvites,
             registrationUrl,
@@ -147,10 +164,12 @@ export async function createInviteController(
       } catch (emailErr) {
          /* Best-effort rollback. If this deleteOne also fails, the catch-all handler will log it. The re-thrown emailErr is the primary failure. */
          try {
-            await inviteCollection.deleteOne({ _id: invite.insertedId });
+            await inviteCollection.deleteOne({
+               _id: validatedInvite.insertedId,
+            });
          } catch (rollbackErr) {
             logger.error(
-               `Failed to roll back orphaned invite ${invite.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
+               `Failed to roll back orphaned invite ${validatedInvite.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
             );
          }
          throw emailErr;

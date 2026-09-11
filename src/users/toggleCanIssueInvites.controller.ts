@@ -1,5 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   UserDocumentValidator,
+} from '@models/User_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
@@ -11,6 +15,7 @@ import { Permissions } from '@ssot/permissions_constants.ts';
 import { ObjectId } from 'mongodb';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 export async function toggleCanIssueInvitesController(
    _req: Request,
@@ -26,17 +31,27 @@ export async function toggleCanIssueInvitesController(
       const { canIssueInvites } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const targetUser = await userCollection.findOne({
+      const targetUserRaw = await userCollection.findOne({
          _id: new ObjectId(id),
       } satisfies StrictMongoFilter<IUserDocument>);
 
-      if (!targetUser) {
+      if (!targetUserRaw) {
          return void res
             .status(404)
             .json(
                createErrorResponse('NOT_FOUND', `User not found.`, requestId)
             );
       }
+
+      const decodedTargetUser = Schema.decodeUnknownEither(
+         UserDocumentValidator
+      )(targetUserRaw);
+
+      if (Either.isLeft(decodedTargetUser)) {
+         throw decodedTargetUser.left;
+      }
+
+      const validatedTargetUser = decodedTargetUser.right;
 
       // ── Authorisation ──────────────────────────────────────────────────────────
       /* Two principals may toggle this privilege:
@@ -46,8 +61,8 @@ export async function toggleCanIssueInvitesController(
       Crucially, the inviter retains this authority even if their *own* canIssueInvites has since been revoked — the invitedBy relationship is permanent and represents a lasting accountability link, not a delegated permission that expires when the delegator's own is removed. The chain is exactly one level deep: User 1 can toggle User 2 (if User 1 invited User 2), but NOT User 3 even if User 2 invited User 3. */
       const isSuperAdmin = role === 'superadmin';
       const isDirectInviter =
-         targetUser.invitedBy !== undefined &&
-         targetUser.invitedBy.toString() === sub;
+         validatedTargetUser.invitedBy !== null &&
+         validatedTargetUser.invitedBy.toString() === sub;
 
       if (!isSuperAdmin && !isDirectInviter) {
          return void res
@@ -65,7 +80,7 @@ export async function toggleCanIssueInvitesController(
       /* Reject if the submitted value matches what's already stored. This prevents burning a database write on a meaningless operation, and gives the caller clear feedback that the request had no effect. */
 
       const currentlyHas =
-         (targetUser.permissions & Permissions.ISSUE_INVITES) !== 0;
+         (validatedTargetUser.permissions & Permissions.ISSUE_INVITES) !== 0;
 
       if (currentlyHas === canIssueInvites) {
          return void res
@@ -80,11 +95,11 @@ export async function toggleCanIssueInvitesController(
       }
 
       const newPermissions = canIssueInvites
-         ? targetUser.permissions | Permissions.ISSUE_INVITES
-         : targetUser.permissions & ~Permissions.ISSUE_INVITES;
+         ? validatedTargetUser.permissions | Permissions.ISSUE_INVITES
+         : validatedTargetUser.permissions & ~Permissions.ISSUE_INVITES;
 
       await userCollection.updateOne(
-         { _id: targetUser._id },
+         { _id: validatedTargetUser._id },
          { $set: { permissions: newPermissions } }
       );
 

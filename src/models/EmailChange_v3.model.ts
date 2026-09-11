@@ -10,7 +10,7 @@ import {
 import { Collection } from 'mongodb';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
-import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
 export const EmailChangeDocumentSchema = Schema.Struct({
    confirmTokenHash: sha256HexString,
@@ -23,7 +23,7 @@ export const EmailChangeDocumentSchema = Schema.Struct({
    confirmedAt: Schema.NullOr(fullDateInThePast),
 }).pipe(
    Schema.extend(InitiateEmailChangeSchema),
-   Schema.extend(serverGeneratedFields)
+   Schema.extend(ServerGeneratedFields)
 );
 
 export const EmailChangeDocumentValidator = Schema.typeSchema(

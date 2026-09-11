@@ -1,11 +1,19 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IPublicUser,
+   ISafeUser,
+   IUserDocument,
+   PublicUserArrayValidator,
+   SafeUserArrayValidator,
+} from '@models/User_v3.model.ts';
 import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 export async function listUsersController(
    _req: Request,
@@ -18,27 +26,46 @@ export async function listUsersController(
       const userCollection = getUserCollection();
 
       if (isSuperAdmin) {
-         /* The superadmin sees everything except `passwordHash`. We're type-asserting because TypeScript cannot verify the projection at compile time. */
-         const users = await userCollection
-            .find({}, {
+         const safeUsersRaw = await userCollection
+            .find<ISafeUser>({}, {
                projection: SAFE_USER_PROJECTION,
             } satisfies StrictFindOptions<IUserDocument>)
             .toArray();
-         return void res.status(200).json({ success: true, users });
+
+         const decodedUsers = Schema.decodeUnknownEither(
+            SafeUserArrayValidator
+         )(safeUsersRaw);
+         if (Either.isLeft(decodedUsers)) {
+            throw decodedUsers.left;
+         }
+
+         return void res
+            .status(200)
+            .json({ success: true, users: decodedUsers.right });
       }
 
       /* Non-superadmin users see the minimal public shape: name, email, role, and permissions. */
-      const users = await userCollection
-         .find(
+      const publicUsersRaw = await userCollection
+         .find<IPublicUser>(
             {
                invitedBy: { $exists: true },
             } satisfies StrictMongoFilter<IUserDocument>,
             {
                projection: PUBLIC_USER_PROJECTION,
-            } satisfies StrictFindOptions<IUserDocument>
+            } satisfies StrictFindOptions<IPublicUser>
          )
          .toArray();
-      return void res.status(200).json({ success: true, users });
+
+      const decodedPublicUsers = Schema.decodeUnknownEither(
+         PublicUserArrayValidator
+      )(publicUsersRaw);
+      if (Either.isLeft(decodedPublicUsers)) {
+         throw decodedPublicUsers.left;
+      }
+
+      return void res
+         .status(200)
+         .json({ success: true, users: decodedPublicUsers.right });
    } catch (err) {
       next(err);
    }

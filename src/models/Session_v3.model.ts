@@ -1,4 +1,4 @@
-import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import {
    fullDateInTheFuture,
    ipAddress,
@@ -29,7 +29,7 @@ export const SessionDocumentSchema = Schema.Struct({
    /* Device-metadata (captured once at login, never mutated) */
    ipAddress: ipAddress,
    userAgent: longString,
-}).pipe(Schema.extend(serverGeneratedFields));
+}).pipe(Schema.extend(ServerGeneratedFields));
 
 export const SessionDocumentValidator = Schema.typeSchema(
    SessionDocumentSchema

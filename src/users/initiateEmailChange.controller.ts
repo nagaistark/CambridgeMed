@@ -1,5 +1,9 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   IUserDocument,
+   UserDocumentValidator,
+} from '@models/User_v3.model.ts';
 import {
    getEmailChangeCollection,
    IEmailChangeDocument,
@@ -24,6 +28,7 @@ import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import { Either, Schema } from 'effect';
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -39,10 +44,10 @@ export async function initiateEmailChangeController(
       const userCollection = getUserCollection();
       const emailChangeCollection = getEmailChangeCollection();
 
-      const user = await userCollection.findOne({
+      const userRaw = await userCollection.findOne({
          _id: new ObjectId(sub),
       } satisfies StrictMongoFilter<IUserDocument>);
-      if (!user) {
+      if (!userRaw) {
          return void res
             .status(404)
             .json(
@@ -50,8 +55,18 @@ export async function initiateEmailChangeController(
             );
       }
 
+      const decodedUser = Schema.decodeUnknownEither(UserDocumentValidator)(
+         userRaw
+      );
+
+      if (Either.isLeft(decodedUser)) {
+         throw decodedUser.left;
+      }
+
+      const validatedUser = decodedUser.right;
+
       // ── Guard 1: new email must differ from current ────────────────────────────
-      if (newEmail === user.email) {
+      if (newEmail === validatedUser.email) {
          return void res
             .status(400)
             .json(
@@ -64,7 +79,7 @@ export async function initiateEmailChangeController(
       }
 
       // ── Guard 2: lifetime cap ──────────────────────────────────────────────────
-      if (user.emailChangesUsed >= EMAIL_CHANGE_CAP) {
+      if (validatedUser.emailChangesUsed >= EMAIL_CHANGE_CAP) {
          return void res
             .status(409)
             .json(
@@ -164,7 +179,7 @@ export async function initiateEmailChangeController(
          confirmTokenHash,
          cancelTokenHash,
          userId: new ObjectId(sub),
-         oldEmail: user.email,
+         oldEmail: validatedUser.email,
          newEmail,
          expiresAt,
          confirmedAt: null,
@@ -182,8 +197,8 @@ export async function initiateEmailChangeController(
 
       try {
          await sendEmailChangeEmails({
-            firstName: user.firstName,
-            oldEmail: user.email,
+            firstName: validatedUser.firstName,
+            oldEmail: validatedUser.email,
             newEmail,
             confirmUrl,
             cancelUrl,

@@ -38,7 +38,7 @@ const usersRouter = Router();
    The ordering rule: all /me/* and /email/* routes come before /:id routes. */
 
 // ── User listing ─────────────────────────────────────────────────────────────────
-/* Superadmin: full SafeUser[]. Others: PublicUser[]. */
+/* Superadmin: full ISafeUser[]. Others: IPublicUser[]. */
 usersRouter.get('/', authenticate, listUsersController);
 
 // ── Self-mutation routes (/me/*) ─────────────────────────────────────────────────

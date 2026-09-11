@@ -14,6 +14,10 @@ import {
    FORGOT_PASSWORD_MAX_REQUESTS,
    RESET_PASSWORD_WINDOW_MS,
    RESET_PASSWORD_MAX_REQUESTS,
+   INVITE_ACCEPT_WINDOW_MS,
+   INVITE_ACCEPT_MAX_REQUESTS,
+   INVITE_PREVIEW_WINDOW_MS,
+   INVITE_PREVIEW_MAX_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 
 /* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-7'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
@@ -42,7 +46,6 @@ function makeRateLimiter(
 
 // ── Per-route limiter instances ──────────────────────────────────────────────────
 /* Each is instantiated once at module load and reused across all requests to its corresponding route. express-rate-limit stores state in memory by default (suitable for a single-process deployment on Render). If we later move to a multi-process setup, DON'T FORGET TO SWAP IN A REDIS STORE. */
-
 export const passwordChangeRateLimiter = makeRateLimiter(
    PASSWORD_CHANGE_WINDOW_MS,
    PASSWORD_CHANGE_MAX_REQUESTS
@@ -72,4 +75,15 @@ export const forgotPasswordRateLimiter = makeRateLimiter(
 export const resetPasswordRateLimiter = makeRateLimiter(
    RESET_PASSWORD_WINDOW_MS,
    RESET_PASSWORD_MAX_REQUESTS
+);
+
+/* Limiters designed to prevent (at least mitigate) CPU-exhaustion attacks on unauthenticated invite-related endpoints */
+export const inviteAcceptRateLimiter = makeRateLimiter(
+   INVITE_ACCEPT_WINDOW_MS,
+   INVITE_ACCEPT_MAX_REQUESTS
+);
+
+export const invitePreviewRateLimiter = makeRateLimiter(
+   INVITE_PREVIEW_WINDOW_MS,
+   INVITE_PREVIEW_MAX_REQUESTS
 );

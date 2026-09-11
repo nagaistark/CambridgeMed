@@ -10,7 +10,7 @@
       "dev": "tsx --env-file=.env src/server.ts",
       "test": "vitest --mode=test",
       "test:run": "vitest run --mode=test",
-      "lint": "oxlint . --type-aware"
+      "lint": "oxlint . --type-aware --type-check"
    },
    "keywords": [],
    "author": "",

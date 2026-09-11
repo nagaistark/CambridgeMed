@@ -1,5 +1,5 @@
 import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
-import { serverGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
 import {
    EMAIL_CHANGE_CAP,
@@ -28,8 +28,8 @@ export const UserInputSchema = Schema.Struct({
    password: passwordString,
 });
 
-/* Document schema: composed from the SAME field atoms, extended with server-generated fields. No duplication of firstName/lastName/email rules. */
-export const UserDocumentSchema = Schema.Struct({
+/* Document struct is composed from the SAME field atoms, extended with server-generated fields. No duplication of firstName/lastName/email rules. */
+export const UserDocumentStruct = Schema.Struct({
    passwordHash: argon2HashString,
    previousNames: Schema.Array(
       Schema.Struct({
@@ -60,89 +60,173 @@ export const UserDocumentSchema = Schema.Struct({
    }),
    totpLastUsedStep: nonNegativeIntegerStringToNumber,
 
-   invitedBy: Schema.optional(stringToObjectId),
+   invitedBy: Schema.NullOr(stringToObjectId),
    isActive: Schema.Boolean,
-}).pipe(
-   Schema.extend(serverGeneratedFields),
-   Schema.extend(UserInputSchema.omit('password')),
-   Schema.extend(AUTHENTICATED_USER.pick('role', 'permissions')),
-   Schema.filter(profile => {
-      const issues: Array<Schema.FilterIssue> = [];
 
-      if (profile.isTotpEnabled !== (profile.totpSecret !== null)) {
-         issues.push({
-            path: ['totpSecret'],
-            message: `totpSecret must be set if and only if TOTP is enabled.`,
-         });
-      }
+   ...UserInputSchema.omit('password').fields,
+   ...AUTHENTICATED_USER.pick('role', 'permissions').fields,
+   ...ServerGeneratedFields.fields,
+});
 
-      if (
-         profile.isTotpEnabled !==
-         (profile.totpRecoveryCodes.length === TOTP_RECOVERY_CODE_COUNT)
-      ) {
-         issues.push({
-            path: ['totpRecoveryCodes'],
-            message: `Recovery codes must be fully present if and only if TOTP is enabled.`,
-         });
-      }
+/* Standalone cross-field validation */
+export type IUserDocument = Schema.Schema.Type<typeof UserDocumentStruct>;
 
-      if (profile.createdAt > profile.updatedAt) {
-         issues.push({
-            path: ['updatedAt'],
-            message: `updatedAt cannot be chronologically before createdAt.`,
-         });
-      }
+const validateChronology = <
+   A extends Pick<IUserDocument, 'createdAt' | 'updatedAt'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(profile => {
+         const issues: Array<Schema.FilterIssue> = [];
 
-      if (profile.role === 'superadmin' && profile.invitedBy !== undefined) {
-         issues.push({
-            path: ['invitedBy'],
-            message: `Superadmins cannot have an invitedBy reference.`,
-         });
-      }
+         if (profile.createdAt > profile.updatedAt) {
+            issues.push({
+               path: ['updatedAt'],
+               message: `updatedAt cannot be chronologically before createdAt.`,
+            });
+         }
 
-      if (profile.role !== 'superadmin' && profile.invitedBy === undefined) {
-         issues.push({
-            path: ['invitedBy'],
-            message: `Non-superadmin users must have an invitedBy reference.`,
-         });
-      }
-      return issues;
-   })
+         return issues;
+      })
+   );
+};
+
+const validateInviteRole = <
+   A extends Pick<IUserDocument, 'role' | 'invitedBy'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(profile => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (profile.role === 'superadmin' && profile.invitedBy !== undefined) {
+            issues.push({
+               path: ['invitedBy'],
+               message: `Superadmins cannot have an invitedBy reference.`,
+            });
+         }
+
+         if (profile.role !== 'superadmin' && profile.invitedBy === undefined) {
+            issues.push({
+               path: ['invitedBy'],
+               message: `Non-superadmin users must have an invitedBy reference.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
+const validateTotp = <
+   A extends Pick<
+      IUserDocument,
+      'isTotpEnabled' | 'totpSecret' | 'totpRecoveryCodes'
+   >,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(profile => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (profile.isTotpEnabled !== (profile.totpSecret !== null)) {
+            issues.push({
+               path: ['totpSecret'],
+               message: `totpSecret must be set if and only if TOTP is enabled.`,
+            });
+         }
+
+         if (
+            profile.isTotpEnabled !==
+            (profile.totpRecoveryCodes.length === TOTP_RECOVERY_CODE_COUNT)
+         ) {
+            issues.push({
+               path: ['totpRecoveryCodes'],
+               message: `Recovery codes must be fully present if and only if TOTP is enabled.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
+/* Document Schema */
+export const UserDocumentSchema = UserDocumentStruct.pipe(
+   validateChronology,
+   validateInviteRole,
+   validateTotp
 );
 
+/* Projection Schema(s) and inferred types */
+
+/* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection for self-view (GET /api/auth/me) and superadmin views. */
+export const SafeUserSchema = UserDocumentStruct.omit(
+   'passwordHash',
+   'totpSecret',
+   'totpRecoveryCodes',
+   'totpLastUsedStep'
+).pipe(validateChronology, validateInviteRole);
+export type ISafeUser = Schema.Schema.Type<typeof SafeUserSchema>;
+
+/* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
+export const PublicUserSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'email',
+   'role',
+   'permissions'
+);
+export type IPublicUser = Schema.Schema.Type<typeof PublicUserSchema>;
+
+/* Accepted User (used by the listInvitesController) */
+export const AcceptedUserSchema = UserDocumentStruct.pick(
+   'email',
+   'firstName',
+   'lastName'
+);
+export type IAcceptedUser = Schema.Schema.Type<typeof AcceptedUserSchema>;
+
+/* Validators against which we validate the documents */
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
+export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
 
-export type IUserInput = Schema.Schema.Type<typeof UserInputSchema>;
-export type IUserDocument = Schema.Schema.Type<typeof UserDocumentSchema>;
+export const SafeUserValidator = Schema.typeSchema(SafeUserSchema);
+export const SafeUserArrayValidator = Schema.Array(SafeUserValidator);
 
+export const PublicUserValidator = Schema.typeSchema(PublicUserSchema);
+export const PublicUserArrayValidator = Schema.Array(PublicUserValidator);
+
+/* MongoDB Collection Connection */
 export function getUserCollection(): Collection<IUserDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
       .collection<IUserDocument>('users');
 }
 
+/* MongoDB "users" Collection Indexes */
 export const userIndexes = [
    { key: { email: 1 }, unique: true },
 ] satisfies readonly TypedIndexDescription<IUserDocument>[];
 
-// ── Types Used in MongoDB Projections ────────────────────────────────────────────
-/* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection for self-view (GET /api/auth/me) and superadmin views. */
-export type SafeUser = Omit<
-   IUserDocument,
-   'passwordHash' | 'totpSecret' | 'totpRecoveryCodes' | 'totpLastUsedStep'
->;
-
-/* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
-export type PublicUser = Pick<
-   IUserDocument,
-   '_id' | 'firstName' | 'lastName' | 'email' | 'role' | 'permissions'
->;
+/* Helper types */
+export type IUserInput = Schema.Schema.Type<typeof UserInputSchema>;
 
 // ── HTTP response types ──────────────────────────────────────────────────────────
 export type AuthUserResponse = {
    success: true;
    message: string;
-   user: PublicUser;
+   user: IPublicUser;
 };
 
 export type AuthUserResponseLogout = Omit<AuthUserResponse, 'user'>;

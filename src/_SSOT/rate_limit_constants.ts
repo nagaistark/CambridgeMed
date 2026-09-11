@@ -28,3 +28,13 @@ export const FORGOT_PASSWORD_MAX_REQUESTS = 3;
 /* The token itself is the credential, but we still limit redemption attempts to prevent brute-force enumeration of valid token hashes. */
 export const RESET_PASSWORD_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
 export const RESET_PASSWORD_MAX_REQUESTS = 10;
+
+// ── Invite acceptance (POST /api/invites/:token/accept) ──────────────────────────
+/* Fully public, unauthenticated endpoint. The token is the credential, but acceptance also runs an Argon2id hash before the transaction — so this limiter exists specifically to bound how many times an attacker can force that hash per token, not just to prevent brute-force enumeration. */
+export const INVITE_ACCEPT_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
+export const INVITE_ACCEPT_MAX_REQUESTS = 10;
+
+// ── Invite preview (GET /api/invites/:token/preview) ──────────────────────────────
+/* Cheap read (no hashing), but still public and token-guessable — same enumeration concern as EMAIL_TOKEN_*. */
+export const INVITE_PREVIEW_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
+export const INVITE_PREVIEW_MAX_REQUESTS = 20;
