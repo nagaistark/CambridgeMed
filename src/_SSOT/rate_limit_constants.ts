@@ -38,3 +38,8 @@ export const INVITE_ACCEPT_MAX_REQUESTS = 10;
 /* Cheap read (no hashing), but still public and token-guessable — same enumeration concern as EMAIL_TOKEN_*. */
 export const INVITE_PREVIEW_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
 export const INVITE_PREVIEW_MAX_REQUESTS = 20;
+
+// ── Per-user admin toggles (PATCH /api/users/:id/can-issue-invites, PATCH /api/users/:id/is-active) ─────
+/* Authenticated, role/ownership-gated mutations (superadmin or direct inviter). No CPU-exhaustion or enumeration vector like the public token endpoints. This limiter exists to bound the blast radius of a misbehaving admin client or compromised session, not to defend against anonymous abuse. Shared between both toggle endpoints since they present the same risk profile. */
+export const USER_ADMIN_TOGGLE_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
+export const USER_ADMIN_TOGGLE_MAX_REQUESTS = 20;

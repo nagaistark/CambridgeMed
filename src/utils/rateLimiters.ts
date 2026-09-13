@@ -18,6 +18,8 @@ import {
    INVITE_ACCEPT_MAX_REQUESTS,
    INVITE_PREVIEW_WINDOW_MS,
    INVITE_PREVIEW_MAX_REQUESTS,
+   USER_ADMIN_TOGGLE_WINDOW_MS,
+   USER_ADMIN_TOGGLE_MAX_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 
 /* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-7'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
@@ -86,4 +88,10 @@ export const inviteAcceptRateLimiter = makeRateLimiter(
 export const invitePreviewRateLimiter = makeRateLimiter(
    INVITE_PREVIEW_WINDOW_MS,
    INVITE_PREVIEW_MAX_REQUESTS
+);
+
+/* Per-user admin toggle endpoints */
+export const userAdminToggleRateLimiter = makeRateLimiter(
+   USER_ADMIN_TOGGLE_WINDOW_MS,
+   USER_ADMIN_TOGGLE_MAX_REQUESTS
 );

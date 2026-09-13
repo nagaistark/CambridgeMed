@@ -15,7 +15,7 @@ import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import {
    inviteAcceptRateLimiter,
    invitePreviewRateLimiter,
-} from '@/utils/rateLimiters.ts';
+} from '@utils/rateLimiters.ts';
 
 const inviteRouter = Router();
 

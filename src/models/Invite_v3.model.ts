@@ -112,7 +112,11 @@ export function getInviteCollection(): Collection<IInviteDocument> {
 
 /* MongoDB "invites" Collection Indexes */
 export const inviteIndexes = [
-   { key: { email: 1 }, unique: true, partialFilterExpression: { usedAt: 1 } },
+   {
+      key: { email: 1 },
+      unique: true,
+      partialFilterExpression: { usedAt: null },
+   },
    { key: { tokenHash: 1 }, unique: true },
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
 ] satisfies readonly TypedIndexDescription<IInviteDocument>[];
