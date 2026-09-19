@@ -9,7 +9,8 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   InviteDocumentValidator,
+   ISafeInvite,
+   SafeInviteValidator,
    type IInviteDocument,
 } from '@models/Invite_v3.model.ts';
 
@@ -25,6 +26,7 @@ import {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -75,44 +77,43 @@ async function runRegistrationTransaction(
             - expiresAt > now   → not expired, regardless of TTL janitor lag
    
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
-         const claimedInviteRaw: IInviteDocument | null =
-            await inviteCollection.findOneAndUpdate(
-               {
-                  tokenHash,
-                  usedAt: null,
-                  expiresAt: { $gt: new Date() },
-               } satisfies StrictMongoFilter<IInviteDocument>,
-               {
-                  $set: {
-                     usedAt: new Date(),
-                  },
-               } satisfies StrictUpdate<IInviteDocument>,
-               {
-                  returnDocument: 'after',
-                  session,
-               } satisfies StrictFindOneAndUpdateOptions<IInviteDocument>
-            );
+         const claimedInviteRaw = await inviteCollection.findOneAndUpdate(
+            {
+               tokenHash,
+               usedAt: null,
+               expiresAt: { $gt: new Date() },
+            } satisfies StrictMongoFilter<IInviteDocument>,
+            {
+               $set: {
+                  usedAt: new Date(),
+               },
+            } satisfies StrictUpdate<IInviteDocument>,
+            {
+               projection: SAFE_INVITE_PROJECTION,
+               returnDocument: 'after',
+               session,
+            } satisfies StrictFindOneAndUpdateOptions<ISafeInvite>
+         );
 
          if (!claimedInviteRaw) {
             throw new TransactionAbortError({ status: 'invalid_token' });
          }
 
          /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. The driver's generic type (Collection<IInviteDoc>) is a compile-time cast, not a runtime guarantee. */
-         const decodedInvite = Schema.decodeUnknownEither(
-            InviteDocumentValidator
-         )(claimedInviteRaw);
-         if (Either.isLeft(decodedInvite)) {
+         const decodedClaimedInvite =
+            Schema.decodeUnknownEither(SafeInviteValidator)(claimedInviteRaw);
+         if (Either.isLeft(decodedClaimedInvite)) {
             /* A stored invite failing its own document schema means data drift or corruption, not a client mistake — let it surface as a real error rather than silently trusting bad data. */
-            throw decodedInvite;
+            throw decodedClaimedInvite;
          }
 
-         const claimedInvite = decodedInvite.right;
+         const validatedClaimedInvite = decodedClaimedInvite.right;
 
          // ── Email confirmation check ────────────────────────────────────────────
          /* We compare the body email against claimedInvite.email (the value locked in at invite creation time) to confirm the registering person is the intended recipient.
    
          If mismatch, set the outcome BEFORE returning. withTransaction() aborts, rolling back the findOneAndUpdate above and leaving usedAt as null. The invite is fully unclaimed and reusable. */
-         if (claimedInvite.email !== email) {
+         if (validatedClaimedInvite.email !== email) {
             throw new TransactionAbortError({ status: 'email_mismatch' });
          }
 
@@ -122,12 +123,14 @@ async function runRegistrationTransaction(
             _id: new ObjectId(),
             firstName,
             lastName,
-            email: claimedInvite.email,
+            email: validatedClaimedInvite.email,
             passwordHash,
-            role: claimedInvite.role,
+            role: validatedClaimedInvite.role,
             permissions:
-               ROLE_PERMISSIONS[claimedInvite.role] |
-               (claimedInvite.canIssueInvites ? Permissions.ISSUE_INVITES : 0),
+               ROLE_PERMISSIONS[validatedClaimedInvite.role] |
+               (validatedClaimedInvite.canIssueInvites
+                  ? Permissions.ISSUE_INVITES
+                  : 0),
             previousNames: [],
             previousEmails: [],
             nameChangesUsed: 0,
@@ -136,7 +139,7 @@ async function runRegistrationTransaction(
             totpSecret: null,
             totpRecoveryCodes: [],
             totpLastUsedStep: 0,
-            invitedBy: claimedInvite.issuedBy,
+            invitedBy: validatedClaimedInvite.issuedBy,
             isActive: true,
             createdAt: now,
             updatedAt: now,

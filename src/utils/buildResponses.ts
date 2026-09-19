@@ -17,6 +17,7 @@ import type {
    AuthUserResponseLogout,
    IUserDocument,
    ISafeUser,
+   IPublicUser,
 } from '@models/User_v3.model.ts';
 import { encodeCursor } from '@utils/cursorPagination.ts';
 
@@ -85,6 +86,39 @@ export function buildCreateInviteResponse(
       message: 'Invite sent successfully.',
       inv,
    };
+}
+
+// ── User responses ───────────────────────────────────────────────────────────────
+export function buildGetUserResponse(user: ISafeUser): {
+   success: true;
+   user: ISafeUser;
+};
+export function buildGetUserResponse(user: IPublicUser): {
+   success: true;
+   user: IPublicUser;
+};
+export function buildGetUserResponse(user: ISafeUser | IPublicUser): {
+   success: true;
+   user: ISafeUser | IPublicUser;
+} {
+   return { success: true, user };
+}
+
+export function buildListUsersResponse(users: readonly ISafeUser[]): {
+   success: true;
+   users: readonly ISafeUser[];
+};
+export function buildListUsersResponse(users: readonly IPublicUser[]): {
+   success: true;
+   users: readonly IPublicUser[];
+};
+export function buildListUsersResponse(
+   users: readonly ISafeUser[] | readonly IPublicUser[]
+): {
+   success: true;
+   users: readonly ISafeUser[] | readonly IPublicUser[];
+} {
+   return { success: true, users };
 }
 
 // ── Patient responses ────────────────────────────────────────────────────────────

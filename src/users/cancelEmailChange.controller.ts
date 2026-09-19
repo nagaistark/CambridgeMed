@@ -10,7 +10,7 @@ import {
    ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from '../logger.ts';
@@ -81,7 +81,7 @@ export async function cancelEmailChangeController(
             isReversion = validatedEmailChange.confirmedAt !== null;
 
             if (isReversion) {
-               await userCollection.updateOne(
+               const userUpdateResult = await userCollection.updateOne(
                   {
                      _id: validatedEmailChange.userId,
                   } satisfies StrictMongoFilter<IUserDocument>,
@@ -97,6 +97,15 @@ export async function cancelEmailChangeController(
                   } satisfies StrictUpdate<IUserDocument>,
                   { session }
                );
+
+               if (userUpdateResult.matchedCount === 0) {
+                  throw makeAppError(
+                     'CONCURRENCY_ERROR',
+                     409,
+                     'CONFLICT',
+                     `User ${validatedEmailChange.userId} not found...`
+                  );
+               }
 
                /* Nuclear logout inside the transaction. */
                await getSessionCollection().deleteMany(
@@ -115,8 +124,11 @@ export async function cancelEmailChangeController(
             // Fail-fast: check if the document was actually there to be deleted
             if (deleteResult.deletedCount === 0) {
                // This triggers the rollback.
-               throw new Error(
-                  `CONCURRENCY_ERROR: Document already processed.`
+               throw makeAppError(
+                  'CONCURRENCY_ERROR',
+                  409,
+                  'CONFLICT',
+                  `Document already processed.`
                );
             }
 

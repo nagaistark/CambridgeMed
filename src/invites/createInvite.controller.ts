@@ -2,7 +2,8 @@ import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
    IUserDocument,
-   UserDocumentValidator,
+   IUserIdName,
+   UserIdNameValidator,
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
@@ -22,13 +23,17 @@ import {
    generateRandomToken,
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
+import { USER_ID_NAME_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { myEnv } from '../validateConfig.ts';
 import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
 import { Either, Schema } from 'effect';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
-import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 
 export async function createInviteController(
    _req: Request,
@@ -91,15 +96,20 @@ export async function createInviteController(
       const tokenHash = generateStandardHash(raw);
 
       // ── Calculate expiry (next Monday 00:00 Toronto time) ──────────────────────
-      /* We reuse the same Monday-reset logic as refresh tokens. RTEXP is the Unix timestamp (ms) of the next reset boundary. */
+      /* We reuse the same Monday-reset logic as refresh tokens. `refreshTokenExpirationTimestampMS` is the Unix timestamp (ms) of the next reset boundary. */
       const { refreshTokenExpirationTimestampMS } = getMaxAgeTokens();
       const expiresAt = new Date(refreshTokenExpirationTimestampMS);
 
       // ── Fetch issuer's full name for the email body ────────────────────────────
       /* The access token carries sub but not the name, so we need one DB hit. This should never return null since the user just passed authenticate, but we throw explicitly rather than silently continuing with a broken state. */
-      const issuerRaw = await userCollection.findOne({
-         _id: new ObjectId(sub),
-      } satisfies StrictMongoFilter<IUserDocument>);
+      const issuerRaw = await userCollection.findOne<IUserIdName>(
+         {
+            _id: new ObjectId(sub),
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_ID_NAME_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserIdName>
+      );
       if (!issuerRaw) {
          throw new Error(
             `Authenticated user not found in database during invite creation. userId=${sub}`
@@ -107,9 +117,8 @@ export async function createInviteController(
       }
 
       // ── Validate the fetched document against the schema ───────────────────────
-      const decodedIssuer = Schema.decodeUnknownEither(UserDocumentValidator)(
-         issuerRaw
-      );
+      const decodedIssuer =
+         Schema.decodeUnknownEither(UserIdNameValidator)(issuerRaw);
       if (Either.isLeft(decodedIssuer)) {
          throw decodedIssuer.left;
       }
@@ -121,18 +130,18 @@ export async function createInviteController(
       const now = new Date();
 
       const safeInvitePayload: ISafeInvite = {
+         _id: new ObjectId(),
          email,
          role,
          canIssueInvites,
          expiresAt,
          usedAt: null,
+         issuedBy: new ObjectId(sub),
       };
 
       const fullInvitePayload: IInviteDocument = {
          ...safeInvitePayload,
-         _id: new ObjectId(),
          tokenHash,
-         issuedBy: new ObjectId(sub),
          createdAt: now,
          updatedAt: now,
       };

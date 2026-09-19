@@ -1,22 +1,30 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   IAcceptedUser,
+   IUserIdName,
+   IUserNameEmail,
+   UserIdNameArrayValidator,
+   UserNameEmailArrayValidator,
    type IUserDocument,
 } from '@models/User_v3.model.ts';
 import {
    BaseInviteItem,
    getInviteCollection,
    IAcceptedInviteItem,
-   IInviteIssuer,
-   InviteDocumentArrayValidator,
    IPendingInviteItem,
+   ISafeInvite,
+   SafeInviteArrayValidator,
    type IInviteDocument,
 } from '@models/Invite_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { ObjectId } from 'mongodb';
 import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 import { Schema, Either } from 'effect';
+import {
+   SAFE_INVITE_PROJECTION,
+   USER_ID_NAME_PROJECTION,
+   USER_NAME_EMAIL_PROJECTION,
+} from '@ssot/user_mongodb_query_projection_constants.ts';
 
 type IInviteListItem = IPendingInviteItem | IAcceptedInviteItem;
 
@@ -49,10 +57,15 @@ export async function listInvitesController(
            } satisfies StrictMongoFilter<IInviteDocument>);
 
       const invitesRaw = await inviteCollection
-         .find({
-            ...statusFilter,
-            ...ownershipFilter,
-         } satisfies StrictMongoFilter<IInviteDocument>)
+         .find<ISafeInvite>(
+            {
+               ...statusFilter,
+               ...ownershipFilter,
+            } satisfies StrictMongoFilter<IInviteDocument>, // StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type.
+            {
+               projection: SAFE_INVITE_PROJECTION,
+            } satisfies StrictFindOptions<ISafeInvite>
+         )
          .toArray();
 
       if (invitesRaw.length === 0) {
@@ -64,7 +77,7 @@ export async function listInvitesController(
 
       // ── Validate the fetched array of invites ──────────────────────────────────
       const decodedInvites = Schema.decodeUnknownEither(
-         InviteDocumentArrayValidator
+         SafeInviteArrayValidator
       )(invitesRaw);
 
       if (Either.isLeft(decodedInvites)) {
@@ -81,23 +94,33 @@ export async function listInvitesController(
          .map(inv => inv.email);
 
       const acceptedUsersMap = new Map<
-         string,
-         { firstName: string; lastName: string }
+         IUserDocument['email'],
+         Pick<IUserDocument, 'firstName' | 'lastName'>
       >();
 
       if (acceptedEmails.length > 0) {
-         const acceptedUsers = await userCollection
-            .find<IAcceptedUser>(
+         const acceptedUsersRaw = await userCollection
+            .find<IUserNameEmail>(
                {
                   email: { $in: acceptedEmails },
                } satisfies StrictMongoFilter<IUserDocument>,
                {
-                  projection: { email: 1, firstName: 1, lastName: 1 },
-               } satisfies StrictFindOptions<IAcceptedUser> // projection: fetch only what we need
+                  projection: USER_NAME_EMAIL_PROJECTION,
+               } satisfies StrictFindOptions<IUserNameEmail>
             )
             .toArray();
 
-         for (const user of acceptedUsers) {
+         const decodedAcceptedUsers = Schema.decodeUnknownEither(
+            UserNameEmailArrayValidator
+         )(acceptedUsersRaw);
+
+         if (Either.isLeft(decodedAcceptedUsers)) {
+            throw decodedAcceptedUsers.left;
+         }
+
+         const validatedAcceptedUsers = decodedAcceptedUsers.right;
+
+         for (const user of validatedAcceptedUsers) {
             acceptedUsersMap.set(user.email, {
                firstName: user.firstName,
                lastName: user.lastName,
@@ -107,7 +130,7 @@ export async function listInvitesController(
 
       // ── Batch-fetch issuers (superadmin only) ──────────────────────────────────
       /* Same batch pattern. We collect unique issuedBy ObjectIds, fetch their User documents in one query, and build a map keyed by stringified id. */
-      const issuerMap = new Map<string, IInviteIssuer>();
+      const issuerMap = new Map<string, IUserIdName>();
 
       if (isSuperAdmin) {
          const uniqueIssuerIds = [
@@ -119,18 +142,28 @@ export async function listInvitesController(
             ).values(),
          ];
 
-         const issuers = await userCollection
-            .find<IInviteIssuer>(
+         const issuersRaw = await userCollection
+            .find<IUserIdName>(
                {
                   _id: { $in: uniqueIssuerIds },
                } satisfies StrictMongoFilter<IUserDocument>,
                {
-                  projection: { _id: 1, firstName: 1, lastName: 1 },
-               } satisfies StrictFindOptions<IInviteIssuer> // projection: only what we need
+                  projection: USER_ID_NAME_PROJECTION,
+               } satisfies StrictFindOptions<IUserIdName> // projection: only what we need
             )
             .toArray();
 
-         for (const issuer of issuers) {
+         const decodedIssuers = Schema.decodeUnknownEither(
+            UserIdNameArrayValidator
+         )(issuersRaw);
+
+         if (Either.isLeft(decodedIssuers)) {
+            throw decodedIssuers.left;
+         }
+
+         const validatedIssuers = decodedIssuers.right;
+
+         for (const issuer of validatedIssuers) {
             issuerMap.set(issuer._id.toString(), {
                _id: issuer._id,
                firstName: issuer.firstName,

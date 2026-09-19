@@ -2,7 +2,8 @@ import type { Request, NextFunction } from 'express';
 import {
    getInviteCollection,
    IInviteDocument,
-   InviteDocumentValidator,
+   IInviteRevocation,
+   InviteRevocationValidator,
 } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import {
@@ -10,9 +11,13 @@ import {
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
-import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 import { ObjectId } from 'mongodb';
 import { Schema, Either } from 'effect';
+import { INVITE_REVOCATION_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function revokeInviteController(
    _req: Request,
@@ -27,9 +32,14 @@ export async function revokeInviteController(
       const inviteCollection = getInviteCollection();
 
       // ── Fetch the invite ───────────────────────────────────────────────────────
-      const inviteRaw = await inviteCollection.findOne({
-         _id: id,
-      } satisfies StrictMongoFilter<IInviteDocument>);
+      const inviteRaw = await inviteCollection.findOne<IInviteRevocation>(
+         {
+            _id: id,
+         } satisfies StrictMongoFilter<IInviteDocument>,
+         {
+            projection: INVITE_REVOCATION_PROJECTION,
+         } satisfies StrictFindOneOptions<IInviteRevocation>
+      );
       if (!inviteRaw) {
          return void res
             .status(404)
@@ -39,9 +49,9 @@ export async function revokeInviteController(
       }
 
       // ── Validate the fetched document against the schema ───────────────────────
-      const decodedInvite = Schema.decodeUnknownEither(InviteDocumentValidator)(
-         inviteRaw
-      );
+      const decodedInvite = Schema.decodeUnknownEither(
+         InviteRevocationValidator
+      )(inviteRaw);
 
       if (Either.isLeft(decodedInvite)) {
          throw decodedInvite.left;

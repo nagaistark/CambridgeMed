@@ -2,7 +2,8 @@ import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
    IUserDocument,
-   UserDocumentValidator,
+   IUserNameEmail,
+   UserNameEmailValidator,
 } from '@models/User_v3.model.ts';
 import {
    getEmailChangeCollection,
@@ -27,8 +28,12 @@ import { myEnv } from '../validateConfig.ts';
 import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
-import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
+import { USER_NAME_EMAIL_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -44,9 +49,15 @@ export async function initiateEmailChangeController(
       const userCollection = getUserCollection();
       const emailChangeCollection = getEmailChangeCollection();
 
-      const userRaw = await userCollection.findOne({
-         _id: new ObjectId(sub),
-      } satisfies StrictMongoFilter<IUserDocument>);
+      const userRaw = await userCollection.findOne<IUserNameEmail>(
+         {
+            _id: new ObjectId(sub),
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_NAME_EMAIL_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserNameEmail>
+      );
+
       if (!userRaw) {
          return void res
             .status(404)
@@ -55,7 +66,7 @@ export async function initiateEmailChangeController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(UserDocumentValidator)(
+      const decodedUser = Schema.decodeUnknownEither(UserNameEmailValidator)(
          userRaw
       );
 

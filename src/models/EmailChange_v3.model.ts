@@ -12,7 +12,7 @@ import { DatabaseManager } from '../mongoDBConnect.ts';
 import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
-export const EmailChangeDocumentSchema = Schema.Struct({
+export const EmailChangeDocumentStruct = Schema.Struct({
    confirmTokenHash: sha256HexString,
    cancelTokenHash: sha256HexString,
    userId: objectIdInstance,
@@ -21,25 +21,56 @@ export const EmailChangeDocumentSchema = Schema.Struct({
    /* TTL index target. Both tokens expire together at this moment regardless of their individual usage state. */
    expiresAt: fullDateInTheFuture,
    confirmedAt: Schema.NullOr(fullDateInThePast),
-}).pipe(
-   Schema.extend(InitiateEmailChangeSchema),
-   Schema.extend(ServerGeneratedFields)
-);
 
+   ...InitiateEmailChangeSchema.fields,
+   ...ServerGeneratedFields.fields,
+});
+
+/* Standalone modular cross-field filters */
+export type IEmailChangeDocument = Schema.Schema.Type<
+   typeof EmailChangeDocumentStruct
+>;
+
+const validateChronology = <
+   A extends Pick<IEmailChangeDocument, 'createdAt' | 'updatedAt'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(profile => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (profile.createdAt > profile.updatedAt) {
+            issues.push({
+               path: ['updatedAt'],
+               message: `updatedAt cannot be chronologically before createdAt.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
+/* Full EmailChange Document Schema */
+export const EmailChangeDocumentSchema =
+   EmailChangeDocumentStruct.pipe(validateChronology);
+
+// ===== Validators against which we validate the documents ========================
 export const EmailChangeDocumentValidator = Schema.typeSchema(
    EmailChangeDocumentSchema
 );
 
-export type IEmailChangeDocument = Schema.Schema.Type<
-   typeof EmailChangeDocumentSchema
->;
-
+/* MongoDB Collection Connection */
 export function getEmailChangeCollection(): Collection<IEmailChangeDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
       .collection<IEmailChangeDocument>('emailchanges');
 }
 
+/* MongoDB "emailchanges" Collection Indexes */
 export const emailChangeIndexes = [
    /* Unique indexes on both hashes. Primary lookup keys for their respective controllers. */
    { key: { confirmTokenHash: 1 }, unique: true },

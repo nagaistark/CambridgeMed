@@ -1,5 +1,11 @@
-import { ISafeInvite } from '@models/Invite_v3.model.ts';
-import type { ISafeUser, IPublicUser } from '@models/User_v3.model.ts';
+import { IInviteRevocation, ISafeInvite } from '@models/Invite_v3.model.ts';
+import type {
+   ISafeUser,
+   IPublicUser,
+   IUserNameEmail,
+   IUserIdName,
+   IUserIdPasswordHash,
+} from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
    IPatientDocument,
@@ -29,7 +35,6 @@ export const SAFE_USER_PROJECTION: Record<keyof ISafeUser, 1> = {
 } as const;
 
 export const PUBLIC_USER_PROJECTION: Record<keyof IPublicUser, 1> = {
-   _id: 1,
    firstName: 1,
    lastName: 1,
    email: 1,
@@ -37,13 +42,45 @@ export const PUBLIC_USER_PROJECTION: Record<keyof IPublicUser, 1> = {
    permissions: 1,
 } as const;
 
+export const USER_ID_PASSWORDHASH_PROJECTION: Record<
+   keyof IUserIdPasswordHash,
+   1
+> = {
+   _id: 1,
+   passwordHash: 1,
+};
+
+export const USER_ID_NAME_PROJECTION: Record<keyof IUserIdName, 1> = {
+   _id: 1,
+   firstName: 1,
+   lastName: 1,
+};
+
+export const USER_NAME_EMAIL_PROJECTION: Record<keyof IUserNameEmail, 1> = {
+   _id: 1,
+   firstName: 1,
+   lastName: 1,
+   nameChangesUsed: 1,
+   email: 1,
+   emailChangesUsed: 1,
+};
+
 export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInvite, 1> = {
+   _id: 1,
    email: 1,
    role: 1,
    canIssueInvites: 1,
    expiresAt: 1,
    usedAt: 1,
+   issuedBy: 1,
 };
+
+export const INVITE_REVOCATION_PROJECTION: Record<keyof IInviteRevocation, 1> =
+   {
+      _id: 1,
+      usedAt: 1,
+      issuedBy: 1,
+   };
 
 // ── Patient projections ──────────────────────────────────────────────────────────
 /* The inclusion projection for GET /api/patients. Its type is derived directly from PatientSummary via LeafPaths, so it stays in sync automatically. clinicalInfo is absent because PatientSummary doesn't include it — the constraint enforces this without any manual bookkeeping. */

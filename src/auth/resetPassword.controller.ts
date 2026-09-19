@@ -99,7 +99,8 @@ export async function resetPasswordController(
                } satisfies StrictMongoFilter<IUserDocument>,
                {
                   $set: { passwordHash: newPasswordHash },
-               } satisfies StrictUpdate<IUserDocument>
+               } satisfies StrictUpdate<IUserDocument>,
+               { session }
             );
 
             /* Kill all active sessions. The user just proved control of their email address, which is the recovery credential — all other devices should be forced to -authenticate against the new password. */

@@ -3,7 +3,8 @@ import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
    IUserDocument,
-   UserDocumentValidator,
+   IUserIdPasswordHash,
+   UserIdPasswordHashValidator,
 } from '@models/User_v3.model.ts';
 import {
    getSessionCollection,
@@ -11,7 +12,7 @@ import {
 } from '@models/Session_v3.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    AuthenticatedResponse,
@@ -19,8 +20,14 @@ import {
 } from '@utils/customTypedResponses.ts';
 import type { ChangePasswordBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+   StrictUpdate,
+} from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
+import logger from '../logger.ts';
+import { USER_ID_PASSWORDHASH_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function changePasswordController(
    _req: Request,
@@ -33,9 +40,14 @@ export async function changePasswordController(
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const userRaw = await userCollection.findOne({
-         _id: new ObjectId(sub),
-      } satisfies StrictMongoFilter<IUserDocument>);
+      const userRaw = await userCollection.findOne<IUserIdPasswordHash>(
+         {
+            _id: new ObjectId(sub),
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_ID_PASSWORDHASH_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserIdPasswordHash>
+      );
 
       /* Should never be null (the user just passed authenticate), but we guard defensively rather than using a non-null assertion. */
       if (!userRaw) {
@@ -47,9 +59,9 @@ export async function changePasswordController(
       }
 
       // ── Step 1: Validate the fetched document against the schema ───────────────
-      const decodedUser = Schema.decodeUnknownEither(UserDocumentValidator)(
-         userRaw
-      );
+      const decodedUser = Schema.decodeUnknownEither(
+         UserIdPasswordHashValidator
+      )(userRaw);
       if (Either.isLeft(decodedUser)) {
          throw decodedUser.left;
       }
@@ -91,20 +103,35 @@ export async function changePasswordController(
       const session = authConnection.startSession();
       try {
          await session.withTransaction(async () => {
-            await userCollection.updateOne(
+            const updateResult = await userCollection.updateOne(
                {
                   _id: new ObjectId(sub),
                } satisfies StrictMongoFilter<IUserDocument>,
                {
                   $set: { passwordHash: newPasswordHash },
-               } satisfies StrictUpdate<IUserDocument>
+               } satisfies StrictUpdate<IUserDocument>,
+               { session }
             );
 
-            await getSessionCollection().deleteMany(
+            if (updateResult.matchedCount === 0) {
+               throw makeAppError(
+                  'CONCURRENCY_ERROR',
+                  409,
+                  'CONFLICT',
+                  `User ${sub} not found...`
+               );
+            }
+
+            const deleteResult = await getSessionCollection().deleteMany(
                {
                   userId: new ObjectId(sub),
                } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
+            );
+
+            logger.info(
+               `Password changed and ${deleteResult.deletedCount} session(s) invalidated.`,
+               { userId: sub, requestId }
             );
          });
       } finally {

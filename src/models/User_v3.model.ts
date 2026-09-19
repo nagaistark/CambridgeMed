@@ -161,16 +161,15 @@ const validateTotp = <
 };
 
 /* Document Schema */
-export const UserDocumentSchema = UserDocumentStruct.pipe(
+const UserDocumentSchema = UserDocumentStruct.pipe(
    validateChronology,
    validateInviteRole,
    validateTotp
 );
 
-/* Projection Schema(s) and inferred types */
-
-/* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection for self-view (GET /api/auth/me) and superadmin views. */
-export const SafeUserSchema = UserDocumentStruct.omit(
+// ===== PROJECTION SCHEMA(S) AND INFERRED TYPES ===================================
+/* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection. Used for self-view (GET /api/auth/me) and superadmin views (getUserController, listUsersController). */
+const SafeUserSchema = UserDocumentStruct.omit(
    'passwordHash',
    'totpSecret',
    'totpRecoveryCodes',
@@ -178,9 +177,8 @@ export const SafeUserSchema = UserDocumentStruct.omit(
 ).pipe(validateChronology, validateInviteRole);
 export type ISafeUser = Schema.Schema.Type<typeof SafeUserSchema>;
 
-/* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues. */
-export const PublicUserSchema = UserDocumentStruct.pick(
-   '_id',
+/* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues (getUserController, listUsersController). */
+const PublicUserSchema = UserDocumentStruct.pick(
    'firstName',
    'lastName',
    'email',
@@ -189,15 +187,32 @@ export const PublicUserSchema = UserDocumentStruct.pick(
 );
 export type IPublicUser = Schema.Schema.Type<typeof PublicUserSchema>;
 
-/* Accepted User (used by the listInvitesController) */
-export const AcceptedUserSchema = UserDocumentStruct.pick(
-   'email',
+/* _id + passwordHash. Used in changePasswordController. */
+const UserIdPasswordHashSchema = UserDocumentStruct.pick('_id', 'passwordHash');
+export type IUserIdPasswordHash = Schema.Schema.Type<
+   typeof UserIdPasswordHashSchema
+>;
+
+/* Minimal user name info. Used in createInviteController and changeNameController.  */
+const UserIdNameSchema = UserDocumentStruct.pick(
+   '_id',
    'firstName',
    'lastName'
 );
-export type IAcceptedUser = Schema.Schema.Type<typeof AcceptedUserSchema>;
+export type IUserIdName = Schema.Schema.Type<typeof UserIdNameSchema>;
 
-/* Validators against which we validate the documents */
+/* User name + email info. Used in changeNameController */
+const UserNameEmailSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'nameChangesUsed',
+   'email',
+   'emailChangesUsed'
+);
+export type IUserNameEmail = Schema.Schema.Type<typeof UserNameEmailSchema>;
+
+// ===== Validators against which we validate the documents ========================
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
 
@@ -206,6 +221,19 @@ export const SafeUserArrayValidator = Schema.Array(SafeUserValidator);
 
 export const PublicUserValidator = Schema.typeSchema(PublicUserSchema);
 export const PublicUserArrayValidator = Schema.Array(PublicUserValidator);
+
+export const UserIdPasswordHashValidator = Schema.typeSchema(
+   UserIdPasswordHashSchema
+);
+export const UserIdPasswordHashArrayValidator = Schema.Array(
+   UserIdPasswordHashValidator
+);
+
+export const UserIdNameValidator = Schema.typeSchema(UserIdNameSchema);
+export const UserIdNameArrayValidator = Schema.Array(UserIdNameValidator);
+
+export const UserNameEmailValidator = Schema.typeSchema(UserNameEmailSchema);
+export const UserNameEmailArrayValidator = Schema.Array(UserNameEmailValidator);
 
 /* MongoDB Collection Connection */
 export function getUserCollection(): Collection<IUserDocument> {

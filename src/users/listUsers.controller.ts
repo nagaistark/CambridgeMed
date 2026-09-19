@@ -14,6 +14,7 @@ import {
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
+import { buildListUsersResponse } from '@utils/buildResponses.ts';
 
 export async function listUsersController(
    _req: Request,
@@ -41,7 +42,7 @@ export async function listUsersController(
 
          return void res
             .status(200)
-            .json({ success: true, users: decodedUsers.right });
+            .json(buildListUsersResponse(decodedUsers.right));
       }
 
       /* Non-superadmin users see the minimal public shape: name, email, role, and permissions. */
@@ -65,7 +66,7 @@ export async function listUsersController(
 
       return void res
          .status(200)
-         .json({ success: true, users: decodedPublicUsers.right });
+         .json(buildListUsersResponse(decodedPublicUsers.right));
    } catch (err) {
       next(err);
    }

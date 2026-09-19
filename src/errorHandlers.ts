@@ -578,3 +578,13 @@ export function handleCatchAll(
 
    // Notice: no next(err) here, ever (except in the headersSent guard above). This handler is the terminal station. There is nobody left to pass to.
 }
+
+// ===== Small factory for errors that come from my code (not external code) =======
+export function makeAppError(
+   _tag: string,
+   status: number,
+   code: ErrorCode,
+   message: string
+): Error & AppErrorShape {
+   return Object.assign(new Error(message), { _tag, status, code });
+}

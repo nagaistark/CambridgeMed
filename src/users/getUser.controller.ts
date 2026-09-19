@@ -22,6 +22,7 @@ import {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
+import { buildGetUserResponse } from '@utils/buildResponses.ts';
 
 export async function getUserController(
    _req: Request,
@@ -59,7 +60,7 @@ export async function getUserController(
 
          return void res
             .status(200)
-            .json({ success: true, user: decodedSafeUser.right });
+            .json(buildGetUserResponse(decodedSafeUser.right));
       }
 
       const publicUserRaw = await userCollection.findOne<IPublicUser>(
@@ -84,7 +85,7 @@ export async function getUserController(
 
       return void res
          .status(200)
-         .json({ success: true, user: decodedPublicUser.right });
+         .json(buildGetUserResponse(decodedPublicUser.right));
    } catch (err) {
       next(err);
    }

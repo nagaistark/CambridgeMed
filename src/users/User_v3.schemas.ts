@@ -1,5 +1,3 @@
-// ── Change password ──────────────────────────────────────────────────────────────
-
 import {
    baseString,
    clinicStaffEmail,
@@ -8,7 +6,7 @@ import {
 } from '@utils/effectSchemaReusables.ts';
 import { Schema } from 'effect';
 
-/* currentPassword has no complexity rules. We are verifying against an existing hash, not enforcing creation constraints. baseString's `baseStringMaxLength` makes sure an over-long payload is rejected before we touch the database. newPassword runs the full complexity suite identical to registration. */
+/* The schema handles SYNTACTIC checks (Is it a string? Is it non-empty? Do the fields satisfy pure relational logic like A != B?). The SEMANTIC check (does A actually match the stored hash in the database for the user making the request?) is performed by the controller down the middleware chain. */
 export const ChangePasswordSchema = Schema.Struct({
    currentPassword: baseString,
    newPassword: passwordString,

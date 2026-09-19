@@ -19,6 +19,7 @@ export const InviteInputSchema = Schema.Struct({
    role: Schema.Literal(...allowedRoles),
    canIssueInvites: Schema.Boolean,
 });
+export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
 
 /* Struct = Input Schema + Server-generated fields */
 const InviteDocumentStruct = Schema.Struct({
@@ -60,20 +61,19 @@ const validateChronology = <
 export const InviteDocumentSchema =
    InviteDocumentStruct.pipe(validateChronology);
 
-/* Projection Schema(s) and inferred types */
+// ===== PROJECTION SCHEMA(S) AND INFERRED TYPES ===================================
+/* Excludes the sensitive tokenHash info in particular. Used in createInviteController and previewInviteController. */
 export const SafeInviteSchema = InviteDocumentStruct.pick(
+   '_id',
    'email',
    'role',
    'canIssueInvites',
    'expiresAt',
-   'usedAt'
+   'usedAt',
+   'issuedBy'
 );
 export type ISafeInvite = Schema.Schema.Type<typeof SafeInviteSchema>;
 
-const InviteIssuer = UserDocumentStruct.pick('_id', 'firstName', 'lastName');
-export type IInviteIssuer = Schema.Schema.Type<typeof InviteIssuer>;
-
-/* Projections for listing Invite items */
 const baseInviteItem = Schema.Struct({
    ...InviteDocumentStruct.pick('_id', 'email', 'role', 'canIssueInvites')
       .fields,
@@ -96,12 +96,30 @@ export const AcceptedInviteItem = Schema.Struct({
 });
 export type IAcceptedInviteItem = Schema.Schema.Type<typeof AcceptedInviteItem>;
 
-/* Validators against which we validate the documents */
+/* Minimal issuedBy, usedAt + _id fields used by revokeInviteController */
+export const InviteRevocationSchema = InviteDocumentStruct.pick(
+   '_id',
+   'usedAt',
+   'issuedBy'
+);
+export type IInviteRevocation = Schema.Schema.Type<
+   typeof InviteRevocationSchema
+>;
+
+// ===== Validators against which we validate the documents ========================
 export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
 export const InviteDocumentArrayValidator = Schema.Array(
    InviteDocumentValidator
 );
 export const SafeInviteValidator = Schema.typeSchema(SafeInviteSchema);
+export const SafeInviteArrayValidator = Schema.Array(SafeInviteValidator);
+
+export const InviteRevocationValidator = Schema.typeSchema(
+   InviteRevocationSchema
+);
+export const InviteRevocationArrayValidator = Schema.Array(
+   InviteRevocationValidator
+);
 
 /* MongoDB Collection Connection */
 export function getInviteCollection(): Collection<IInviteDocument> {
@@ -120,9 +138,6 @@ export const inviteIndexes = [
    { key: { tokenHash: 1 }, unique: true },
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
 ] satisfies readonly TypedIndexDescription<IInviteDocument>[];
-
-/* Helper types */
-export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
 
 // ── HTTP response types ──────────────────────────────────────────────────────────
 export type ICreateInviteResponse = {

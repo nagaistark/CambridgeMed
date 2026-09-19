@@ -1,10 +1,11 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
+   ISafeUser,
    IUserDocument,
-   UserDocumentValidator,
+   SafeUserValidator,
 } from '@models/User_v3.model.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -14,8 +15,13 @@ import type { SetCanIssueInvitesBody } from '@users/User_v3.schemas.ts';
 import { Permissions } from '@ssot/permissions_constants.ts';
 import { ObjectId } from 'mongodb';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
-import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import {
+   StrictFindOptions,
+   StrictMongoFilter,
+   StrictUpdate,
+} from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
+import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function toggleCanIssueInvitesController(
    _req: Request,
@@ -31,9 +37,14 @@ export async function toggleCanIssueInvitesController(
       const { canIssueInvites } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const targetUserRaw = await userCollection.findOne({
-         _id: new ObjectId(id),
-      } satisfies StrictMongoFilter<IUserDocument>);
+      const targetUserRaw = await userCollection.findOne<ISafeUser>(
+         {
+            _id: new ObjectId(id),
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: SAFE_USER_PROJECTION,
+         } satisfies StrictFindOptions<ISafeUser>
+      );
 
       if (!targetUserRaw) {
          return void res
@@ -43,9 +54,8 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
-      const decodedTargetUser = Schema.decodeUnknownEither(
-         UserDocumentValidator
-      )(targetUserRaw);
+      const decodedTargetUser =
+         Schema.decodeUnknownEither(SafeUserValidator)(targetUserRaw);
 
       if (Either.isLeft(decodedTargetUser)) {
          throw decodedTargetUser.left;
@@ -98,10 +108,23 @@ export async function toggleCanIssueInvitesController(
          ? validatedTargetUser.permissions | Permissions.ISSUE_INVITES
          : validatedTargetUser.permissions & ~Permissions.ISSUE_INVITES;
 
-      await userCollection.updateOne(
-         { _id: validatedTargetUser._id },
-         { $set: { permissions: newPermissions } }
+      const updateResult = await userCollection.updateOne(
+         {
+            _id: validatedTargetUser._id,
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            $set: { permissions: newPermissions },
+         } satisfies StrictUpdate<IUserDocument>
       );
+
+      if (updateResult.matchedCount === 0) {
+         throw makeAppError(
+            'CONCURRENCY_ERROR',
+            409,
+            'CONFLICT',
+            `User ${id} not found...`
+         );
+      }
 
       return void res.status(200).json({
          success: true,

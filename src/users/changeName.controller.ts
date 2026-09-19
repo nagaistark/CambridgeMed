@@ -1,19 +1,25 @@
 import type { Request, NextFunction } from 'express';
+import { Either, Schema } from 'effect';
 import {
    getUserCollection,
    IUserDocument,
-   UserDocumentValidator,
+   IUserNameEmail,
+   UserNameEmailValidator,
 } from '@models/User_v3.model.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { ChangeNameBody } from '@users/User_v3.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
+import { USER_NAME_EMAIL_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { ObjectId } from 'mongodb';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
+import {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+   StrictUpdate,
+} from '@utils/pathFinder_v3.ts';
 
 export async function changeNameController(
    _req: Request,
@@ -26,9 +32,14 @@ export async function changeNameController(
       const { firstName, lastName } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const userRaw = await userCollection.findOne({
-         _id: new ObjectId(sub),
-      } satisfies StrictMongoFilter<IUserDocument>);
+      const userRaw = await userCollection.findOne<IUserNameEmail>(
+         {
+            _id: new ObjectId(sub),
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_NAME_EMAIL_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserNameEmail>
+      );
 
       if (!userRaw) {
          return void res
@@ -38,7 +49,7 @@ export async function changeNameController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(UserDocumentValidator)(
+      const decodedUser = Schema.decodeUnknownEither(UserNameEmailValidator)(
          userRaw
       );
       if (Either.isLeft(decodedUser)) {
@@ -86,7 +97,7 @@ export async function changeNameController(
       if (firstName !== undefined) updateFields.firstName = firstName;
       if (lastName !== undefined) updateFields.lastName = lastName;
 
-      await userCollection.updateOne(
+      const updateResult = await userCollection.updateOne(
          { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: updateFields,
@@ -100,6 +111,15 @@ export async function changeNameController(
             $inc: { nameChangesUsed: 1 },
          } satisfies StrictUpdate<IUserDocument>
       );
+
+      if (updateResult.matchedCount === 0) {
+         throw makeAppError(
+            'CONCURRENCY_ERROR',
+            409,
+            'CONFLICT',
+            `User ${sub} not found...`
+         );
+      }
 
       return void res.status(200).json({
          success: true,

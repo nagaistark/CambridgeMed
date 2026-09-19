@@ -10,7 +10,7 @@ import {
    ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from '../logger.ts';
@@ -84,25 +84,29 @@ export async function confirmEmailChangeController(
       const session = authConnection.startSession();
       try {
          await session.withTransaction(async () => {
-            const updateResult = await emailChangeCollection.updateOne(
-               {
-                  _id: validatedEmailChange._id,
-                  confirmedAt: null,
-               } satisfies StrictMongoFilter<IEmailChangeDocument>,
-               {
-                  $set: { confirmedAt: new Date() },
-               } satisfies StrictUpdate<IEmailChangeDocument>,
-               { session }
-            );
+            const emailChangeUpdateResult =
+               await emailChangeCollection.updateOne(
+                  {
+                     _id: validatedEmailChange._id,
+                     confirmedAt: null,
+                  } satisfies StrictMongoFilter<IEmailChangeDocument>,
+                  {
+                     $set: { confirmedAt: new Date() },
+                  } satisfies StrictUpdate<IEmailChangeDocument>,
+                  { session }
+               );
 
-            if (updateResult.modifiedCount === 0) {
-               throw new Error(
-                  'CONCURRENCY_ERROR: Email change already confirmed.'
+            if (emailChangeUpdateResult.modifiedCount === 0) {
+               throw makeAppError(
+                  'CONCURRENCY_ERROR',
+                  409,
+                  'CONFLICT',
+                  `Email Change already confirmed.`
                );
             }
 
             /* The old email is pushed to the archive BEFORE being overwritten. archivedAt records the moment it stopped being the live address. */
-            await userCollection.updateOne(
+            const userUpdateResult = await userCollection.updateOne(
                {
                   _id: validatedEmailChange.userId,
                } satisfies StrictMongoFilter<IUserDocument>,
@@ -118,6 +122,15 @@ export async function confirmEmailChangeController(
                } satisfies StrictUpdate<IUserDocument>,
                { session }
             );
+
+            if (userUpdateResult.matchedCount === 0) {
+               throw makeAppError(
+                  'CONCURRENCY_ERROR',
+                  409,
+                  'CONFLICT',
+                  `User ${validatedEmailChange.userId} not found...`
+               );
+            }
 
             /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
             await getSessionCollection().deleteMany(
