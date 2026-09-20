@@ -1,4 +1,4 @@
-import { IInviteRevocation, ISafeInvite } from '@models/Invite_v3.model.ts';
+import { IInviteRevocation, ISafeInviteRead } from '@models/Invite_v3.model.ts';
 import type {
    ISafeUser,
    IPublicUser,
@@ -35,6 +35,7 @@ export const SAFE_USER_PROJECTION: Record<keyof ISafeUser, 1> = {
 } as const;
 
 export const PUBLIC_USER_PROJECTION: Record<keyof IPublicUser, 1> = {
+   _id: 1,
    firstName: 1,
    lastName: 1,
    email: 1,
@@ -65,7 +66,7 @@ export const USER_NAME_EMAIL_PROJECTION: Record<keyof IUserNameEmail, 1> = {
    emailChangesUsed: 1,
 };
 
-export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInvite, 1> = {
+export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {
    _id: 1,
    email: 1,
    role: 1,

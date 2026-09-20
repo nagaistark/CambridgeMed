@@ -179,6 +179,7 @@ export type ISafeUser = Schema.Schema.Type<typeof SafeUserSchema>;
 
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues (getUserController, listUsersController). */
 const PublicUserSchema = UserDocumentStruct.pick(
+   '_id',
    'firstName',
    'lastName',
    'email',

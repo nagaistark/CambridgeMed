@@ -9,8 +9,8 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   ISafeInvite,
-   SafeInviteValidator,
+   ISafeInviteRead,
+   SafeInviteReadValidator,
    type IInviteDocument,
 } from '@models/Invite_v3.model.ts';
 
@@ -92,7 +92,7 @@ async function runRegistrationTransaction(
                projection: SAFE_INVITE_PROJECTION,
                returnDocument: 'after',
                session,
-            } satisfies StrictFindOneAndUpdateOptions<ISafeInvite>
+            } satisfies StrictFindOneAndUpdateOptions<ISafeInviteRead>
          );
 
          if (!claimedInviteRaw) {
@@ -100,11 +100,12 @@ async function runRegistrationTransaction(
          }
 
          /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. The driver's generic type (Collection<IInviteDoc>) is a compile-time cast, not a runtime guarantee. */
-         const decodedClaimedInvite =
-            Schema.decodeUnknownEither(SafeInviteValidator)(claimedInviteRaw);
+         const decodedClaimedInvite = Schema.decodeUnknownEither(
+            SafeInviteReadValidator
+         )(claimedInviteRaw);
          if (Either.isLeft(decodedClaimedInvite)) {
             /* A stored invite failing its own document schema means data drift or corruption, not a client mistake — let it surface as a real error rather than silently trusting bad data. */
-            throw decodedClaimedInvite;
+            throw decodedClaimedInvite.left;
          }
 
          const validatedClaimedInvite = decodedClaimedInvite.right;

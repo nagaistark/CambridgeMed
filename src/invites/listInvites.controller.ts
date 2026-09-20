@@ -12,8 +12,8 @@ import {
    getInviteCollection,
    IAcceptedInviteItem,
    IPendingInviteItem,
-   ISafeInvite,
-   SafeInviteArrayValidator,
+   ISafeInviteRead,
+   SafeInviteReadArrayValidator,
    type IInviteDocument,
 } from '@models/Invite_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
@@ -57,14 +57,14 @@ export async function listInvitesController(
            } satisfies StrictMongoFilter<IInviteDocument>);
 
       const invitesRaw = await inviteCollection
-         .find<ISafeInvite>(
+         .find<ISafeInviteRead>(
             {
                ...statusFilter,
                ...ownershipFilter,
             } satisfies StrictMongoFilter<IInviteDocument>, // StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type.
             {
                projection: SAFE_INVITE_PROJECTION,
-            } satisfies StrictFindOptions<ISafeInvite>
+            } satisfies StrictFindOptions<ISafeInviteRead>
          )
          .toArray();
 
@@ -77,7 +77,7 @@ export async function listInvitesController(
 
       // ── Validate the fetched array of invites ──────────────────────────────────
       const decodedInvites = Schema.decodeUnknownEither(
-         SafeInviteArrayValidator
+         SafeInviteReadArrayValidator
       )(invitesRaw);
 
       if (Either.isLeft(decodedInvites)) {

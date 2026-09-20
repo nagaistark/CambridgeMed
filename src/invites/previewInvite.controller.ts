@@ -2,8 +2,8 @@ import type { Request, Response, NextFunction } from 'express';
 import {
    getInviteCollection,
    IInviteDocument,
-   ISafeInvite,
-   SafeInviteValidator,
+   ISafeInviteRead,
+   SafeInviteReadValidator,
 } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
@@ -29,12 +29,13 @@ export async function previewInviteController(
 
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
-      const safeInviteRaw = await getInviteCollection().findOne<ISafeInvite>(
-         { tokenHash } satisfies StrictMongoFilter<IInviteDocument>,
-         {
-            projection: SAFE_INVITE_PROJECTION,
-         } satisfies StrictFindOneOptions<ISafeInvite>
-      );
+      const safeInviteRaw =
+         await getInviteCollection().findOne<ISafeInviteRead>(
+            { tokenHash } satisfies StrictMongoFilter<IInviteDocument>,
+            {
+               projection: SAFE_INVITE_PROJECTION,
+            } satisfies StrictFindOneOptions<ISafeInviteRead>
+         );
 
       // ── Existence check ────────────────────────────────────────────────────────
       if (!safeInviteRaw) {
@@ -50,8 +51,9 @@ export async function previewInviteController(
       }
 
       // ── Validate the fetched safe invite against the schema ────────────────────
-      const decodedSafeInvite =
-         Schema.decodeUnknownEither(SafeInviteValidator)(safeInviteRaw);
+      const decodedSafeInvite = Schema.decodeUnknownEither(
+         SafeInviteReadValidator
+      )(safeInviteRaw);
 
       if (Either.isLeft(decodedSafeInvite)) {
          throw decodedSafeInvite.left;

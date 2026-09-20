@@ -22,17 +22,29 @@ export const InviteInputSchema = Schema.Struct({
 export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
 
 /* Struct = Input Schema + Server-generated fields */
-const InviteDocumentStruct = Schema.Struct({
+const InviteDocumentBase = Schema.Struct({
    tokenHash: sha256HexString,
-   usedAt: Schema.NullOr(fullDateInThePast),
-   expiresAt: fullDateInTheFuture,
    issuedBy: stringToObjectId,
    ...InviteInputSchema.fields,
    ...ServerGeneratedFields.fields,
 });
 
-/* Standalone modular cross-field filters */
-export type IInviteDocument = Schema.Schema.Type<typeof InviteDocumentStruct>;
+const InviteDocumentCreateStruct = Schema.Struct({
+   ...InviteDocumentBase.fields,
+   usedAt: Schema.Null,
+   expiresAt: fullDateInTheFuture,
+});
+
+const InviteDocumentReadStruct = Schema.Struct({
+   ...InviteDocumentBase.fields,
+   usedAt: Schema.NullOr(Schema.ValidDateFromSelf),
+   expiresAt: Schema.ValidDateFromSelf,
+});
+
+// ===== Standalone modular cross-field filters ====================================
+export type IInviteDocument = Schema.Schema.Type<
+   typeof InviteDocumentReadStruct
+>;
 
 const validateChronology = <
    A extends Pick<IInviteDocument, 'createdAt' | 'updatedAt'>,
@@ -57,25 +69,73 @@ const validateChronology = <
    );
 };
 
-/* Full Invite Document Schema */
-export const InviteDocumentSchema =
-   InviteDocumentStruct.pipe(validateChronology);
+const validateInviteTimeline = <
+   A extends Pick<IInviteDocument, 'createdAt' | 'expiresAt' | 'usedAt'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(doc => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (doc.expiresAt.getTime() <= doc.createdAt.getTime()) {
+            issues.push({
+               path: ['expiresAt'],
+               message: `expiresAt must be chronologically after createdAt.`,
+            });
+         }
+
+         if (
+            doc.usedAt !== null &&
+            doc.usedAt.getTime() < doc.createdAt.getTime()
+         ) {
+            issues.push({
+               path: ['usedAt'],
+               message: `usedAt cannot be chronologically before createdAt.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
+// ===== Full Invite Document Schemas ==============================================
+export const InviteDocumentCreateSchema =
+   InviteDocumentCreateStruct.pipe(validateChronology);
+
+export const InviteDocumentReadSchema = InviteDocumentReadStruct.pipe(
+   validateChronology,
+   validateInviteTimeline
+);
 
 // ===== PROJECTION SCHEMA(S) AND INFERRED TYPES ===================================
-/* Excludes the sensitive tokenHash info in particular. Used in createInviteController and previewInviteController. */
-export const SafeInviteSchema = InviteDocumentStruct.pick(
+/* Safe Invite Schemas. Excluding the sensitive tokenHash info in particular. Used in createInviteController and previewInviteController. */
+const SAFE_INVITE_KEYS = [
    '_id',
    'email',
    'role',
    'canIssueInvites',
    'expiresAt',
    'usedAt',
-   'issuedBy'
-);
-export type ISafeInvite = Schema.Schema.Type<typeof SafeInviteSchema>;
+   'issuedBy',
+] as const satisfies readonly (keyof IInviteDocument)[];
 
+const SafeInviteCreateSchema = InviteDocumentCreateStruct.pick(
+   ...SAFE_INVITE_KEYS
+);
+export type ISafeInviteCreate = Schema.Schema.Type<
+   typeof SafeInviteCreateSchema
+>;
+
+const SafeInviteReadSchema = InviteDocumentReadStruct.pick(...SAFE_INVITE_KEYS);
+export type ISafeInviteRead = Schema.Schema.Type<typeof SafeInviteReadSchema>;
+
+/* Helpers used in listInvitesController. */
 const baseInviteItem = Schema.Struct({
-   ...InviteDocumentStruct.pick('_id', 'email', 'role', 'canIssueInvites')
+   ...InviteDocumentReadStruct.pick('_id', 'email', 'role', 'canIssueInvites')
       .fields,
    issuerInfo: Schema.optional(stringToObjectId),
 });
@@ -83,7 +143,7 @@ export type BaseInviteItem = Schema.Schema.Type<typeof baseInviteItem>;
 
 export const PendingInviteItem = Schema.Struct({
    ...baseInviteItem.fields,
-   ...InviteDocumentStruct.pick('expiresAt').fields,
+   ...InviteDocumentReadStruct.pick('expiresAt').fields,
    status: Schema.Literal('pending'),
 });
 export type IPendingInviteItem = Schema.Schema.Type<typeof PendingInviteItem>;
@@ -97,7 +157,7 @@ export const AcceptedInviteItem = Schema.Struct({
 export type IAcceptedInviteItem = Schema.Schema.Type<typeof AcceptedInviteItem>;
 
 /* Minimal issuedBy, usedAt + _id fields used by revokeInviteController */
-export const InviteRevocationSchema = InviteDocumentStruct.pick(
+export const InviteRevocationSchema = InviteDocumentReadStruct.pick(
    '_id',
    'usedAt',
    'issuedBy'
@@ -107,12 +167,26 @@ export type IInviteRevocation = Schema.Schema.Type<
 >;
 
 // ===== Validators against which we validate the documents ========================
-export const InviteDocumentValidator = Schema.typeSchema(InviteDocumentSchema);
-export const InviteDocumentArrayValidator = Schema.Array(
-   InviteDocumentValidator
+export const InviteDocumentCreateValidator = Schema.typeSchema(
+   InviteDocumentCreateSchema
 );
-export const SafeInviteValidator = Schema.typeSchema(SafeInviteSchema);
-export const SafeInviteArrayValidator = Schema.Array(SafeInviteValidator);
+
+export const InviteDocumentReadValidator = Schema.typeSchema(
+   InviteDocumentReadSchema
+);
+export const InviteDocumentReadArrayValidator = Schema.Array(
+   InviteDocumentReadValidator
+);
+
+export const SafeInviteCreateValidator = Schema.typeSchema(
+   SafeInviteCreateSchema
+);
+// no SafeInviteCreateArrayValidator because we do not create invites in bulk
+
+export const SafeInviteReadValidator = Schema.typeSchema(SafeInviteReadSchema);
+export const SafeInviteReadArrayValidator = Schema.Array(
+   SafeInviteReadValidator
+);
 
 export const InviteRevocationValidator = Schema.typeSchema(
    InviteRevocationSchema
@@ -121,14 +195,14 @@ export const InviteRevocationArrayValidator = Schema.Array(
    InviteRevocationValidator
 );
 
-/* MongoDB Collection Connection */
+// ===== MongoDB Collection Connection =============================================
 export function getInviteCollection(): Collection<IInviteDocument> {
    return DatabaseManager.getInstance()
       .auth.db()
       .collection<IInviteDocument>('invites');
 }
 
-/* MongoDB "invites" Collection Indexes */
+// ===== MongoDB "invites" Collection Indexes ======================================
 export const inviteIndexes = [
    {
       key: { email: 1 },
@@ -143,10 +217,10 @@ export const inviteIndexes = [
 export type ICreateInviteResponse = {
    success: true;
    message: string;
-   inv: ISafeInvite;
+   inv: ISafeInviteCreate;
 };
 
 export type IPreviewInviteResponse = {
    success: true;
-   inv: ISafeInvite;
+   inv: ISafeInviteRead;
 };

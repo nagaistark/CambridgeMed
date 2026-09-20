@@ -1,7 +1,8 @@
 import {
    ICreateInviteResponse,
    IPreviewInviteResponse,
-   ISafeInvite,
+   ISafeInviteCreate,
+   ISafeInviteRead,
 } from '@models/Invite_v3.model.ts';
 import {
    IPatientDocument,
@@ -73,13 +74,13 @@ export function buildMeResponse(message: string, user: ISafeUser): MeResponse {
 
 // ── Invite responses ─────────────────────────────────────────────────────────────
 export function buildPreviewInviteResponse(
-   inv: ISafeInvite
+   inv: ISafeInviteRead
 ): IPreviewInviteResponse {
    return { success: true, inv };
 }
 
 export function buildCreateInviteResponse(
-   inv: ISafeInvite
+   inv: ISafeInviteCreate
 ): ICreateInviteResponse {
    return {
       success: true,

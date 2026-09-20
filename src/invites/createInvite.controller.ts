@@ -9,8 +9,8 @@ import {
    getInviteCollection,
    IInviteDocument,
    IInviteInput,
-   InviteDocumentValidator,
-   ISafeInvite,
+   InviteDocumentCreateValidator,
+   ISafeInviteCreate,
 } from '@models/Invite_v3.model.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import {
@@ -129,7 +129,7 @@ export async function createInviteController(
       // ── Persist the invite ─────────────────────────────────────────────────────
       const now = new Date();
 
-      const safeInvitePayload: ISafeInvite = {
+      const safeInvitePayload: ISafeInviteCreate = {
          _id: new ObjectId(),
          email,
          role,
@@ -147,13 +147,13 @@ export async function createInviteController(
       };
 
       const decodedInvitePayload = Schema.decodeUnknownEither(
-         InviteDocumentValidator
+         InviteDocumentCreateValidator
       )(fullInvitePayload);
       if (Either.isLeft(decodedInvitePayload)) {
          throw decodedInvitePayload.left;
       }
 
-      const validatedInvite = await inviteCollection.insertOne(
+      const validatedInvitePayload = await inviteCollection.insertOne(
          decodedInvitePayload.right
       );
 
@@ -174,11 +174,11 @@ export async function createInviteController(
          /* Best-effort rollback. If this deleteOne also fails, the catch-all handler will log it. The re-thrown emailErr is the primary failure. */
          try {
             await inviteCollection.deleteOne({
-               _id: validatedInvite.insertedId,
+               _id: validatedInvitePayload.insertedId,
             });
          } catch (rollbackErr) {
             logger.error(
-               `Failed to roll back orphaned invite ${validatedInvite.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
+               `Failed to roll back orphaned invite ${validatedInvitePayload.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
             );
          }
          throw emailErr;
