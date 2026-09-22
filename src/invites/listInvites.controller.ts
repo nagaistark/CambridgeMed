@@ -14,7 +14,7 @@ import {
    IPendingInviteItem,
    ISafeInviteRead,
    SafeInviteReadArrayValidator,
-   type IInviteDocument,
+   type IInviteDocumentRead,
 } from '@models/Invite_v3.model.ts';
 import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { ObjectId } from 'mongodb';
@@ -47,21 +47,21 @@ export async function listInvitesController(
             { usedAt: { $ne: null } },
             { usedAt: null, expiresAt: { $gt: new Date() } },
          ],
-      } satisfies StrictMongoFilter<IInviteDocument>;
+      } satisfies StrictMongoFilter<IInviteDocumentRead>;
 
       /* Non-superadmin users only see invites they personally issued. The superadmin sees everything, so no issuedBy constraint is added. */
       const ownershipFilter = isSuperAdmin
          ? {}
          : ({
               issuedBy: new ObjectId(sub),
-           } satisfies StrictMongoFilter<IInviteDocument>);
+           } satisfies StrictMongoFilter<IInviteDocumentRead>);
 
       const invitesRaw = await inviteCollection
          .find<ISafeInviteRead>(
             {
                ...statusFilter,
                ...ownershipFilter,
-            } satisfies StrictMongoFilter<IInviteDocument>, // StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type.
+            } satisfies StrictMongoFilter<IInviteDocumentRead>, // StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type.
             {
                projection: SAFE_INVITE_PROJECTION,
             } satisfies StrictFindOptions<ISafeInviteRead>

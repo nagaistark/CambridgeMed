@@ -1,9 +1,9 @@
 import type { Request, Response, NextFunction } from 'express';
 import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
 import {
-   EmailChangeDocumentValidator,
+   EmailChangeDocumentReadValidator,
    getEmailChangeCollection,
-   IEmailChangeDocument,
+   IEmailChangeDocumentRead,
 } from '@models/EmailChange_v3.model.ts';
 import {
    getSessionCollection,
@@ -36,7 +36,7 @@ export async function confirmEmailChangeController(
       const emailChangeRaw = await emailChangeCollection.findOne({
          confirmTokenHash: tokenHash,
          expiresAt: { $gt: new Date() },
-      } satisfies StrictMongoFilter<IEmailChangeDocument>);
+      } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
 
       if (!emailChangeRaw) {
          return void res
@@ -51,7 +51,7 @@ export async function confirmEmailChangeController(
       }
 
       const decodedEmailChange = Schema.decodeUnknownEither(
-         EmailChangeDocumentValidator
+         EmailChangeDocumentReadValidator
       )(emailChangeRaw);
 
       if (Either.isLeft(decodedEmailChange)) {
@@ -89,10 +89,10 @@ export async function confirmEmailChangeController(
                   {
                      _id: validatedEmailChange._id,
                      confirmedAt: null,
-                  } satisfies StrictMongoFilter<IEmailChangeDocument>,
+                  } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
                   {
                      $set: { confirmedAt: new Date() },
-                  } satisfies StrictUpdate<IEmailChangeDocument>,
+                  } satisfies StrictUpdate<IEmailChangeDocumentRead>,
                   { session }
                );
 

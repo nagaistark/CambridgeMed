@@ -105,14 +105,14 @@ const validateInviteRole = <
       Schema.filter(profile => {
          const issues: Array<Schema.FilterIssue> = [];
 
-         if (profile.role === 'superadmin' && profile.invitedBy !== undefined) {
+         if (profile.role === 'superadmin' && profile.invitedBy !== null) {
             issues.push({
                path: ['invitedBy'],
                message: `Superadmins cannot have an invitedBy reference.`,
             });
          }
 
-         if (profile.role !== 'superadmin' && profile.invitedBy === undefined) {
+         if (profile.role !== 'superadmin' && profile.invitedBy === null) {
             issues.push({
                path: ['invitedBy'],
                message: `Non-superadmin users must have an invitedBy reference.`,

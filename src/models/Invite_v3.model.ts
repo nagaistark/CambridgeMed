@@ -1,9 +1,11 @@
-import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import {
+   ServerGeneratedFields,
+   validateChronology,
+} from '@ssot/serverGeneratedFields.ts';
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
 import {
    clinicStaffEmail,
    fullDateInTheFuture,
-   fullDateInThePast,
    sha256HexString,
    stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
@@ -41,36 +43,17 @@ const InviteDocumentReadStruct = Schema.Struct({
    expiresAt: Schema.ValidDateFromSelf,
 });
 
-// ===== Standalone modular cross-field filters ====================================
-export type IInviteDocument = Schema.Schema.Type<
+export type IInviteDocumentRead = Schema.Schema.Type<
    typeof InviteDocumentReadStruct
 >;
 
-const validateChronology = <
-   A extends Pick<IInviteDocument, 'createdAt' | 'updatedAt'>,
-   I,
-   R,
->(
-   schema: Schema.Schema<A, I, R>
-) => {
-   return schema.pipe(
-      Schema.filter(profile => {
-         const issues: Array<Schema.FilterIssue> = [];
+export type IInviteDocumentCreate = Schema.Schema.Type<
+   typeof InviteDocumentCreateStruct
+>;
 
-         if (profile.createdAt > profile.updatedAt) {
-            issues.push({
-               path: ['updatedAt'],
-               message: `updatedAt cannot be chronologically before createdAt.`,
-            });
-         }
-
-         return issues;
-      })
-   );
-};
-
+// ===== Standalone modular cross-field filters ====================================
 const validateInviteTimeline = <
-   A extends Pick<IInviteDocument, 'createdAt' | 'expiresAt' | 'usedAt'>,
+   A extends Pick<IInviteDocumentRead, 'createdAt' | 'expiresAt' | 'usedAt'>,
    I,
    R,
 >(
@@ -111,8 +94,7 @@ export const InviteDocumentReadSchema = InviteDocumentReadStruct.pipe(
    validateInviteTimeline
 );
 
-// ===== PROJECTION SCHEMA(S) AND INFERRED TYPES ===================================
-/* Safe Invite Schemas. Excluding the sensitive tokenHash info in particular. Used in createInviteController and previewInviteController. */
+// ===== PARTIAL SCHEMA(S) FOR PROJECTIONS AND INFERRED TYPES ===================================
 const SAFE_INVITE_KEYS = [
    '_id',
    'email',
@@ -121,8 +103,9 @@ const SAFE_INVITE_KEYS = [
    'expiresAt',
    'usedAt',
    'issuedBy',
-] as const satisfies readonly (keyof IInviteDocument)[];
+] as const satisfies readonly (keyof IInviteDocumentRead)[];
 
+/* Safe Invite Schemas. Excluding the sensitive tokenHash info in particular. */
 const SafeInviteCreateSchema = InviteDocumentCreateStruct.pick(
    ...SAFE_INVITE_KEYS
 );
@@ -152,7 +135,7 @@ export const AcceptedInviteItem = Schema.Struct({
    ...baseInviteItem.fields,
    ...UserDocumentStruct.pick('firstName', 'lastName').fields,
    status: Schema.Literal('accepted'),
-   usedAt: fullDateInThePast, // "Accepted" Invite means usedAt is guaranteed non-null.
+   usedAt: Schema.ValidDateFromSelf, // "Accepted" Invite means usedAt is guaranteed non-null.
 });
 export type IAcceptedInviteItem = Schema.Schema.Type<typeof AcceptedInviteItem>;
 
@@ -178,11 +161,6 @@ export const InviteDocumentReadArrayValidator = Schema.Array(
    InviteDocumentReadValidator
 );
 
-export const SafeInviteCreateValidator = Schema.typeSchema(
-   SafeInviteCreateSchema
-);
-// no SafeInviteCreateArrayValidator because we do not create invites in bulk
-
 export const SafeInviteReadValidator = Schema.typeSchema(SafeInviteReadSchema);
 export const SafeInviteReadArrayValidator = Schema.Array(
    SafeInviteReadValidator
@@ -196,10 +174,10 @@ export const InviteRevocationArrayValidator = Schema.Array(
 );
 
 // ===== MongoDB Collection Connection =============================================
-export function getInviteCollection(): Collection<IInviteDocument> {
+export function getInviteCollection(): Collection<IInviteDocumentRead> {
    return DatabaseManager.getInstance()
       .auth.db()
-      .collection<IInviteDocument>('invites');
+      .collection<IInviteDocumentRead>('invites');
 }
 
 // ===== MongoDB "invites" Collection Indexes ======================================
@@ -211,7 +189,7 @@ export const inviteIndexes = [
    },
    { key: { tokenHash: 1 }, unique: true },
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
-] satisfies readonly TypedIndexDescription<IInviteDocument>[];
+] satisfies readonly TypedIndexDescription<IInviteDocumentRead>[];
 
 // ── HTTP response types ──────────────────────────────────────────────────────────
 export type ICreateInviteResponse = {

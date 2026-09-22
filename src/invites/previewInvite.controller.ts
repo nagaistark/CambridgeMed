@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import {
    getInviteCollection,
-   IInviteDocument,
+   IInviteDocumentRead,
    ISafeInviteRead,
    SafeInviteReadValidator,
 } from '@models/Invite_v3.model.ts';
@@ -31,7 +31,7 @@ export async function previewInviteController(
       const tokenHash = generateStandardHash(token);
       const safeInviteRaw =
          await getInviteCollection().findOne<ISafeInviteRead>(
-            { tokenHash } satisfies StrictMongoFilter<IInviteDocument>,
+            { tokenHash } satisfies StrictMongoFilter<IInviteDocumentRead>,
             {
                projection: SAFE_INVITE_PROJECTION,
             } satisfies StrictFindOneOptions<ISafeInviteRead>

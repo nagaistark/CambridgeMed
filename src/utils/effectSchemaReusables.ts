@@ -230,7 +230,7 @@ const fullDateStringToJSDate = Schema.transform(
 
 export const fullDateInThePast = fullDateStringToJSDate.pipe(
    Schema.filter(
-      (dateObj: Date) => dateObj.getTime() < DateTime.now().valueOf(),
+      (dateObj: Date) => dateObj.getTime() <= DateTime.now().valueOf(),
       {
          message: () => `The date must be in the past (fullDateInThePast).`,
       }

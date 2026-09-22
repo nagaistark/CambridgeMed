@@ -11,7 +11,7 @@ import {
    getInviteCollection,
    ISafeInviteRead,
    SafeInviteReadValidator,
-   type IInviteDocument,
+   type IInviteDocumentRead,
 } from '@models/Invite_v3.model.ts';
 
 import { hashPassword } from '@utils/hashAndVerify.ts';
@@ -55,7 +55,7 @@ type RegistrationParams = Pick<
    IUserDocument,
    'firstName' | 'lastName' | 'passwordHash'
 > &
-   Pick<IInviteDocument, 'email' | 'tokenHash'>;
+   Pick<IInviteDocumentRead, 'email' | 'tokenHash'>;
 
 async function runRegistrationTransaction(
    session: ClientSession,
@@ -82,12 +82,12 @@ async function runRegistrationTransaction(
                tokenHash,
                usedAt: null,
                expiresAt: { $gt: new Date() },
-            } satisfies StrictMongoFilter<IInviteDocument>,
+            } satisfies StrictMongoFilter<IInviteDocumentRead>,
             {
                $set: {
                   usedAt: new Date(),
                },
-            } satisfies StrictUpdate<IInviteDocument>,
+            } satisfies StrictUpdate<IInviteDocumentRead>,
             {
                projection: SAFE_INVITE_PROJECTION,
                returnDocument: 'after',
@@ -192,7 +192,7 @@ export async function acceptInviteController(
             tokenHash,
             usedAt: null,
             expiresAt: { $gt: new Date() },
-         } satisfies StrictMongoFilter<IInviteDocument>,
+         } satisfies StrictMongoFilter<IInviteDocumentRead>,
          { limit: 1 } satisfies CountDocumentsOptions
       );
       if (exist === 0) {

@@ -1,7 +1,7 @@
 import type { Request, NextFunction } from 'express';
 import {
    getInviteCollection,
-   IInviteDocument,
+   IInviteDocumentRead,
    IInviteRevocation,
    InviteRevocationValidator,
 } from '@models/Invite_v3.model.ts';
@@ -35,7 +35,7 @@ export async function revokeInviteController(
       const inviteRaw = await inviteCollection.findOne<IInviteRevocation>(
          {
             _id: id,
-         } satisfies StrictMongoFilter<IInviteDocument>,
+         } satisfies StrictMongoFilter<IInviteDocumentRead>,
          {
             projection: INVITE_REVOCATION_PROJECTION,
          } satisfies StrictFindOneOptions<IInviteRevocation>
@@ -92,7 +92,7 @@ export async function revokeInviteController(
 
       // ── Hard delete ────────────────────────────────────────────────────────────
       const ownershipFilter: Pick<
-         StrictMongoFilter<IInviteDocument>,
+         StrictMongoFilter<IInviteDocumentRead>,
          'issuedBy'
       > = !isSuperAdmin ? { issuedBy: new ObjectId(sub) } : {};
 
@@ -100,7 +100,7 @@ export async function revokeInviteController(
          _id: validatedInvite._id,
          usedAt: null, // atomically fails if it was accepted between your findOne and this call
          ...ownershipFilter,
-      } satisfies StrictMongoFilter<IInviteDocument>);
+      } satisfies StrictMongoFilter<IInviteDocumentRead>);
 
       if (deleteResult.deletedCount === 0) {
          return void res

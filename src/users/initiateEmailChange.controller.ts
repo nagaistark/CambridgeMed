@@ -7,7 +7,8 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getEmailChangeCollection,
-   IEmailChangeDocument,
+   IEmailChangeDocumentCreate,
+   IEmailChangeDocumentRead,
 } from '@models/EmailChange_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import {
@@ -131,7 +132,7 @@ export async function initiateEmailChangeController(
                newEmail,
                confirmedAt: null,
                expiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<IEmailChangeDocument>,
+            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
             { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
       if (emailClaimedByPendingChange) {
@@ -152,14 +153,14 @@ export async function initiateEmailChangeController(
       await emailChangeCollection.deleteMany({
          userId: new ObjectId(sub),
          expiresAt: { $lte: now },
-      } satisfies StrictMongoFilter<IEmailChangeDocument>);
+      } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
 
       const userHasActiveChange =
          (await emailChangeCollection.countDocuments(
             {
                userId: new ObjectId(sub),
                expiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<IEmailChangeDocument>,
+            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
             { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
 
@@ -185,7 +186,7 @@ export async function initiateEmailChangeController(
       const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TOKEN_EXPIRY_MS);
 
       // ── Persist the EmailChange record ─────────────────────────────────────────
-      const emailChangePayload: IEmailChangeDocument = {
+      const emailChangePayload: IEmailChangeDocumentCreate = {
          _id: new ObjectId(),
          confirmTokenHash,
          cancelTokenHash,
