@@ -195,7 +195,7 @@ export type IUserIdPasswordHash = Schema.Schema.Type<
 >;
 
 /* Minimal user name info. Used in createInviteController and changeNameController.  */
-const UserIdNameSchema = UserDocumentStruct.pick(
+export const UserIdNameSchema = UserDocumentStruct.pick(
    '_id',
    'firstName',
    'lastName'

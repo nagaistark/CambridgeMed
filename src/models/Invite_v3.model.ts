@@ -13,7 +13,7 @@ import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
 import { DatabaseManager } from '../mongoDBConnect.ts';
-import { UserDocumentStruct } from '@models/User_v3.model.ts';
+import { UserDocumentStruct, UserIdNameSchema } from '@models/User_v3.model.ts';
 
 /* Input schema: what arrives over HTTP. */
 export const InviteInputSchema = Schema.Struct({
@@ -120,7 +120,7 @@ export type ISafeInviteRead = Schema.Schema.Type<typeof SafeInviteReadSchema>;
 const baseInviteItem = Schema.Struct({
    ...InviteDocumentReadStruct.pick('_id', 'email', 'role', 'canIssueInvites')
       .fields,
-   issuerInfo: Schema.optional(stringToObjectId),
+   issuer: Schema.optional(UserIdNameSchema),
 });
 export type BaseInviteItem = Schema.Schema.Type<typeof baseInviteItem>;
 
@@ -188,7 +188,11 @@ export const inviteIndexes = [
       partialFilterExpression: { usedAt: null },
    },
    { key: { tokenHash: 1 }, unique: true },
-   { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
+   {
+      key: { expiresAt: 1 },
+      expireAfterSeconds: 0,
+      partialFilterExpression: { usedAt: null }, // ← only sweep NEVER-accepted invites
+   },
 ] satisfies readonly TypedIndexDescription<IInviteDocumentRead>[];
 
 // ── HTTP response types ──────────────────────────────────────────────────────────

@@ -178,7 +178,7 @@ export async function listInvitesController(
 
       for (const validatedInvite of validatedInvites) {
          const _id = validatedInvite._id;
-         const issuerInfo = isSuperAdmin
+         const issuerRecord = isSuperAdmin
             ? issuerMap.get(validatedInvite.issuedBy.toString())
             : undefined;
 
@@ -187,7 +187,15 @@ export async function listInvitesController(
             email: validatedInvite.email,
             role: validatedInvite.role,
             canIssueInvites: validatedInvite.canIssueInvites,
-            ...(issuerInfo !== undefined && issuerInfo),
+            ...(issuerRecord === undefined
+               ? {}
+               : {
+                    issuer: {
+                       _id: issuerRecord._id,
+                       firstName: issuerRecord.firstName,
+                       lastName: issuerRecord.lastName,
+                    },
+                 }),
          };
 
          if (validatedInvite.usedAt !== null) {
