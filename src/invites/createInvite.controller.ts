@@ -2,8 +2,8 @@ import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
    IUserDocument,
-   IUserIdName,
-   UserIdNameValidator,
+   IUserInviteIssuer,
+   UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
@@ -24,7 +24,8 @@ import {
    generateRandomToken,
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
-import { USER_ID_NAME_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { USER_INVITE_ISSUER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 import { myEnv } from '../validateConfig.ts';
 import { CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
@@ -48,6 +49,55 @@ export async function createInviteController(
 
       const userCollection = getUserCollection();
       const inviteCollection = getInviteCollection();
+
+      // ── Guard #0: Check privilege first ────────────────────────────────────────
+      /* Before we proceed, we need to know if the user has the right to issue an invite in the first place. This should never return null since the user just passed authenticate. */
+      const issuerRaw = await userCollection.findOne<IUserInviteIssuer>(
+         {
+            _id: new ObjectId(sub),
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_INVITE_ISSUER_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserInviteIssuer>
+      );
+      if (!issuerRaw) {
+         throw new Error(
+            `Authenticated user not found in database during invite creation. userId=${sub}`
+         );
+      }
+
+      // ── Validate the fetched document against the schema ───────────────────────
+      const decodedIssuer = Schema.decodeUnknownEither(
+         UserInviteIssuerValidator
+      )(issuerRaw);
+      if (Either.isLeft(decodedIssuer)) {
+         throw decodedIssuer.left;
+      }
+
+      const validatedIssuer = decodedIssuer.right;
+
+      /* DB values, not the JWT: the token can be up to 60s stale. */
+      const isForbidden =
+         !validatedIssuer.isActive ||
+         (validatedIssuer.permissions & Permissions.ISSUE_INVITES) === 0 ||
+         (validatedIssuer.role !== 'superadmin' &&
+            (ROLE_PERMISSIONS[role] & ~validatedIssuer.permissions) !== 0);
+
+      if (isForbidden) {
+         logger.warn(
+            `Blocked invite creation: insufficient privileges or inactive issuer.`,
+            { requestId, issuerId: sub, requestedRole: role }
+         );
+         return void res
+            .status(403)
+            .json(
+               createErrorResponse(
+                  'FORBIDDEN',
+                  `You do not have permission to issue this invite.`,
+                  requestId
+               )
+            );
+      }
 
       // ── Guard #1: email must not belong to an existing user ────────────────────
       /* We limit `.countDocuments()` to 1 so that it stops at the first match. */
@@ -100,32 +150,6 @@ export async function createInviteController(
       /* We reuse the same Monday-reset logic as refresh tokens. `refreshTokenExpirationTimestampMS` is the Unix timestamp (ms) of the next reset boundary. */
       const { refreshTokenExpirationTimestampMS } = getMaxAgeTokens();
       const expiresAt = new Date(refreshTokenExpirationTimestampMS);
-
-      // ── Fetch issuer's full name for the email body ────────────────────────────
-      /* The access token carries sub but not the name, so we need one DB hit. This should never return null since the user just passed authenticate, but we throw explicitly rather than silently continuing with a broken state. */
-      const issuerRaw = await userCollection.findOne<IUserIdName>(
-         {
-            _id: new ObjectId(sub),
-         } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            projection: USER_ID_NAME_PROJECTION,
-         } satisfies StrictFindOneOptions<IUserIdName>
-      );
-      if (!issuerRaw) {
-         throw new Error(
-            `Authenticated user not found in database during invite creation. userId=${sub}`
-         );
-      }
-
-      // ── Validate the fetched document against the schema ───────────────────────
-      const decodedIssuer =
-         Schema.decodeUnknownEither(UserIdNameValidator)(issuerRaw);
-      if (Either.isLeft(decodedIssuer)) {
-         throw decodedIssuer.left;
-      }
-
-      // ── Use the validated invite document from now on ──────────────────────────
-      const validatedIssuer = decodedIssuer.right;
 
       // ── Persist the invite ─────────────────────────────────────────────────────
       const now = new Date();

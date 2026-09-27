@@ -5,6 +5,7 @@ import type {
    IUserNameEmail,
    IUserIdName,
    IUserIdPasswordHash,
+   IUserInviteIssuer,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -56,6 +57,16 @@ export const USER_ID_NAME_PROJECTION: Record<keyof IUserIdName, 1> = {
    firstName: 1,
    lastName: 1,
 };
+
+export const USER_INVITE_ISSUER_PROJECTION: Record<keyof IUserInviteIssuer, 1> =
+   {
+      _id: 1,
+      firstName: 1,
+      lastName: 1,
+      role: 1,
+      permissions: 1,
+      isActive: 1,
+   };
 
 export const USER_NAME_EMAIL_PROJECTION: Record<keyof IUserNameEmail, 1> = {
    _id: 1,

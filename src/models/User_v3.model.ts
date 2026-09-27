@@ -1,5 +1,6 @@
 import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
 import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import { arePermissionsValidForRole } from '@ssot/permissions_constants.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
 import {
    EMAIL_CHANGE_CAP,
@@ -70,6 +71,29 @@ export const UserDocumentStruct = Schema.Struct({
 
 /* Standalone cross-field validation */
 export type IUserDocument = Schema.Schema.Type<typeof UserDocumentStruct>;
+
+const validatePermissionsForRole = <
+   A extends Pick<IUserDocument, 'role' | 'permissions'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(profile => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (!arePermissionsValidForRole(profile.role, profile.permissions)) {
+            issues.push({
+               path: ['permissions'],
+               message: `Permissions are inconsistent with the ${profile.role} role.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
 
 const validateChronology = <
    A extends Pick<IUserDocument, 'createdAt' | 'updatedAt'>,
@@ -164,6 +188,7 @@ const validateTotp = <
 const UserDocumentSchema = UserDocumentStruct.pipe(
    validateChronology,
    validateInviteRole,
+   validatePermissionsForRole,
    validateTotp
 );
 
@@ -174,7 +199,7 @@ const SafeUserSchema = UserDocumentStruct.omit(
    'totpSecret',
    'totpRecoveryCodes',
    'totpLastUsedStep'
-).pipe(validateChronology, validateInviteRole);
+).pipe(validateChronology, validateInviteRole, validatePermissionsForRole);
 export type ISafeUser = Schema.Schema.Type<typeof SafeUserSchema>;
 
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues (getUserController, listUsersController). */
@@ -185,7 +210,7 @@ const PublicUserSchema = UserDocumentStruct.pick(
    'email',
    'role',
    'permissions'
-);
+).pipe(validatePermissionsForRole);
 export type IPublicUser = Schema.Schema.Type<typeof PublicUserSchema>;
 
 /* _id + passwordHash. Used in changePasswordController. */
@@ -201,6 +226,19 @@ export const UserIdNameSchema = UserDocumentStruct.pick(
    'lastName'
 );
 export type IUserIdName = Schema.Schema.Type<typeof UserIdNameSchema>;
+
+/* User fields used in createInviteController. */
+const UserInviteIssuerSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'role',
+   'permissions',
+   'isActive'
+).pipe(validatePermissionsForRole);
+export type IUserInviteIssuer = Schema.Schema.Type<
+   typeof UserInviteIssuerSchema
+>;
 
 /* User name + email info. Used in changeNameController */
 const UserNameEmailSchema = UserDocumentStruct.pick(
@@ -232,6 +270,10 @@ export const UserIdPasswordHashArrayValidator = Schema.Array(
 
 export const UserIdNameValidator = Schema.typeSchema(UserIdNameSchema);
 export const UserIdNameArrayValidator = Schema.Array(UserIdNameValidator);
+
+export const UserInviteIssuerValidator = Schema.typeSchema(
+   UserInviteIssuerSchema
+);
 
 export const UserNameEmailValidator = Schema.typeSchema(UserNameEmailSchema);
 export const UserNameEmailArrayValidator = Schema.Array(UserNameEmailValidator);

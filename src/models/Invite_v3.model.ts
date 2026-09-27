@@ -3,6 +3,7 @@ import {
    validateChronology,
 } from '@ssot/serverGeneratedFields.ts';
 import { allowedRoles } from '@ssot/user_roles_constants.ts';
+import { canBeDelegated } from '@ssot/permissions_constants.ts';
 import {
    clinicStaffEmail,
    fullDateInTheFuture,
@@ -16,18 +17,17 @@ import { DatabaseManager } from '../mongoDBConnect.ts';
 import { UserDocumentStruct, UserIdNameSchema } from '@models/User_v3.model.ts';
 
 /* Input schema: what arrives over HTTP. */
-export const InviteInputSchema = Schema.Struct({
+const InviteInputStruct = Schema.Struct({
    email: clinicStaffEmail,
    role: Schema.Literal(...allowedRoles),
    canIssueInvites: Schema.Boolean,
 });
-export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
 
 /* Struct = Input Schema + Server-generated fields */
 const InviteDocumentBase = Schema.Struct({
    tokenHash: sha256HexString,
    issuedBy: stringToObjectId,
-   ...InviteInputSchema.fields,
+   ...InviteInputStruct.fields,
    ...ServerGeneratedFields.fields,
 });
 
@@ -43,15 +43,36 @@ const InviteDocumentReadStruct = Schema.Struct({
    expiresAt: Schema.ValidDateFromSelf,
 });
 
-export type IInviteDocumentRead = Schema.Schema.Type<
-   typeof InviteDocumentReadStruct
->;
-
-export type IInviteDocumentCreate = Schema.Schema.Type<
-   typeof InviteDocumentCreateStruct
->;
-
 // ===== Standalone modular cross-field filters ====================================
+const validateInvitePrivilege = <
+   A extends Pick<
+      Schema.Schema.Type<typeof InviteInputStruct>,
+      'role' | 'canIssueInvites'
+   >,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(invite => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (
+            invite.canIssueInvites &&
+            !canBeDelegated(invite.role, 'ISSUE_INVITES')
+         ) {
+            issues.push({
+               path: ['canIssueInvites'],
+               message: `The ${invite.role} role cannot be granted invite privileges.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
 const validateInviteTimeline = <
    A extends Pick<IInviteDocumentRead, 'createdAt' | 'expiresAt' | 'usedAt'>,
    I,
@@ -85,14 +106,32 @@ const validateInviteTimeline = <
    );
 };
 
-// ===== Full Invite Document Schemas ==============================================
-export const InviteDocumentCreateSchema =
-   InviteDocumentCreateStruct.pipe(validateChronology);
+// ===== Invite Input Schema And Type ==============================================
+export const InviteInputSchema = InviteInputStruct.pipe(
+   validateInvitePrivilege
+);
+
+export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
+
+// ===== Full Invite Document Schemas And Types ====================================
+export const InviteDocumentCreateSchema = InviteDocumentCreateStruct.pipe(
+   validateChronology,
+   validateInvitePrivilege
+);
+
+export type IInviteDocumentCreate = Schema.Schema.Type<
+   typeof InviteDocumentCreateStruct
+>;
 
 export const InviteDocumentReadSchema = InviteDocumentReadStruct.pipe(
    validateChronology,
-   validateInviteTimeline
+   validateInviteTimeline,
+   validateInvitePrivilege
 );
+
+export type IInviteDocumentRead = Schema.Schema.Type<
+   typeof InviteDocumentReadStruct
+>;
 
 // ===== PARTIAL SCHEMA(S) FOR PROJECTIONS AND INFERRED TYPES ===================================
 const SAFE_INVITE_KEYS = [
@@ -108,12 +147,14 @@ const SAFE_INVITE_KEYS = [
 /* Safe Invite Schemas. Excluding the sensitive tokenHash info in particular. */
 const SafeInviteCreateSchema = InviteDocumentCreateStruct.pick(
    ...SAFE_INVITE_KEYS
-);
+).pipe(validateInvitePrivilege);
 export type ISafeInviteCreate = Schema.Schema.Type<
    typeof SafeInviteCreateSchema
 >;
 
-const SafeInviteReadSchema = InviteDocumentReadStruct.pick(...SAFE_INVITE_KEYS);
+const SafeInviteReadSchema = InviteDocumentReadStruct.pick(
+   ...SAFE_INVITE_KEYS
+).pipe(validateInvitePrivilege);
 export type ISafeInviteRead = Schema.Schema.Type<typeof SafeInviteReadSchema>;
 
 /* Helpers used in listInvitesController. */

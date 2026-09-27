@@ -12,7 +12,10 @@ import {
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import type { SetCanIssueInvitesBody } from '@users/User_v3.schemas.ts';
-import { Permissions } from '@ssot/permissions_constants.ts';
+import {
+   arePermissionsValidForRole,
+   Permissions,
+} from '@ssot/permissions_constants.ts';
 import { ObjectId } from 'mongodb';
 import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import {
@@ -107,6 +110,20 @@ export async function toggleCanIssueInvitesController(
       const newPermissions = canIssueInvites
          ? validatedTargetUser.permissions | Permissions.ISSUE_INVITES
          : validatedTargetUser.permissions & ~Permissions.ISSUE_INVITES;
+
+      if (
+         !arePermissionsValidForRole(validatedTargetUser.role, newPermissions)
+      ) {
+         return void res
+            .status(403)
+            .json(
+               createErrorResponse(
+                  'FORBIDDEN',
+                  `Invite privileges cannot be ${canIssueInvites ? 'granted to' : 'revoked from'} a ${validatedTargetUser.role}.`,
+                  requestId
+               )
+            );
+      }
 
       const updateResult = await userCollection.updateOne(
          {

@@ -18,7 +18,10 @@ import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
-import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
+import {
+   Permissions,
+   resolvePermissions,
+} from '@ssot/permissions_constants.ts';
 import { ClientSession, CountDocumentsOptions, ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
 import {
@@ -127,11 +130,12 @@ async function runRegistrationTransaction(
             email: validatedClaimedInvite.email,
             passwordHash,
             role: validatedClaimedInvite.role,
-            permissions:
-               ROLE_PERMISSIONS[validatedClaimedInvite.role] |
-               (validatedClaimedInvite.canIssueInvites
+            permissions: resolvePermissions(
+               validatedClaimedInvite.role,
+               validatedClaimedInvite.canIssueInvites
                   ? Permissions.ISSUE_INVITES
-                  : 0),
+                  : 0
+            ),
             previousNames: [],
             previousEmails: [],
             nameChangesUsed: 0,
