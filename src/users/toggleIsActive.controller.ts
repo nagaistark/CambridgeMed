@@ -26,6 +26,10 @@ import {
 import { Either, Schema } from 'effect';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import {
+   getInviteCollection,
+   type IInviteDocumentRead,
+} from '@models/Invite_v3.model.ts';
 
 export async function toggleIsActiveController(
    _req: Request,
@@ -136,12 +140,23 @@ export async function toggleIsActiveController(
             }
 
             // ── Kill sessions on deactivation ──────────────────────────────────────────
-            /* Deactivating an account must immediately invalidate all live sessions. Without this, a deactivated user holding a valid refresh token could continue rotating for up to a week. The loginController and meController check isActive, which blocks access token use — but a session kill here removes the refresh token lifeline entirely. On reactivation, no session work is needed: the user simply logs in fresh, which creates a new session. */
+            /* Deactivating an account must revoke every live credential it controls:
+               1. Sessions: removes the refresh-token lifeline. Note that `authenticate` does NOT check `isActive`, so an access token that was already issued keeps working until it expires (at most JWT_ACCESS_TOKEN_EXPIRY_MS, i.e. 60s). The loginController and meController check isActive, but they only block new logins and profile reads.
+               2. Pending invites: an unaccepted invite is a bearer credential that outlives its issuer. Anyone holding the link could still register with the invited role. Accepted invites (usedAt !== null) are deliberately left alone: those people are real users now, and their standing is independent of who invited them.
+               On reactivation, no work is needed: the user simply logs in fresh. Their swept invites are not restored; they must issue new ones. */
             if (!isActive) {
                await getSessionCollection().deleteMany(
                   {
                      userId: validatedTargetUser._id,
                   } satisfies StrictMongoFilter<ISessionDocument>,
+                  { session }
+               );
+
+               await getInviteCollection().deleteMany(
+                  {
+                     issuedBy: validatedTargetUser._id,
+                     usedAt: null,
+                  } satisfies StrictMongoFilter<IInviteDocumentRead>,
                   { session }
                );
             }
