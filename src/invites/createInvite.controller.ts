@@ -36,6 +36,7 @@ import {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
+import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 
 export async function createInviteController(
    _req: Request,
@@ -178,9 +179,34 @@ export async function createInviteController(
          throw decodedInvitePayload.left;
       }
 
-      const insertResult = await inviteCollection.insertOne(
-         decodedInvitePayload.right
-      );
+      /* Guard #2 is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
+      await inviteCollection.deleteMany({
+         email,
+         usedAt: null,
+         expiresAt: { $lte: now },
+      } satisfies StrictMongoFilter<IInviteDocumentRead>);
+
+      /* The unique index is the true arbiter under concurrency. */
+      let insertedId: ObjectId;
+      try {
+         const insertResult = await inviteCollection.insertOne(
+            decodedInvitePayload.right
+         );
+         insertedId = insertResult.insertedId;
+      } catch (insertErr) {
+         if (isDuplicateKeyOnField(insertErr, 'email')) {
+            return void res
+               .status(409)
+               .json(
+                  createErrorResponse(
+                     'CONFLICT',
+                     `A pending invite for this email address already exists.`,
+                     requestId
+                  )
+               );
+         }
+         throw insertErr;
+      }
 
       // ── Send the invite email — with rollback on failure ───────────────────────
       /* An invite whose email was never delivered is worse than no invite: it silently occupies the pending-invite slot for this address until it expires, blocking any re-invite attempt. Rolling back removes that risk. */
@@ -199,11 +225,11 @@ export async function createInviteController(
          /* Best-effort rollback. If this deleteOne also fails, the catch-all handler will log it. The re-thrown emailErr is the primary failure. */
          try {
             await inviteCollection.deleteOne({
-               _id: insertResult.insertedId,
+               _id: insertedId,
             });
          } catch (rollbackErr) {
             logger.error(
-               `Failed to roll back orphaned invite ${insertResult.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
+               `Failed to roll back orphaned invite ${insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
             );
          }
          throw emailErr;
