@@ -33,6 +33,11 @@ import {
 } from './errorHandlers.ts';
 
 import { DateTime } from 'luxon';
+import {
+   FALLBACK_HEX_SECRET_PATTERN,
+   SENSITIVE_URL_PARAM_NAMES,
+} from '@ssot/logging_constants.ts';
+import { escapeRegex } from './utils/escapeRegex.ts';
 
 // ===== APP INITIALIZATION & CONFIG ===============================================
 const app: Express = express();
@@ -53,16 +58,26 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
    next();
 });
 
-/* B. Morgan config
-   Registering the token once, before the Morgan middleware */
-morgan.token('request-id', (_req: Request, res: Response): string => {
-   return res.locals['requestId'] ?? 'unknown';
+/* B. Morgan config. Registering the token once, before the Morgan middleware */
+morgan.token('safe-url', (req: Request): string => {
+   let url = req.originalUrl;
+
+   /* Layer 1 — precise: redact by known route-param identity. */
+   for (const paramName of SENSITIVE_URL_PARAM_NAMES) {
+      const value = req.params[paramName];
+      if (typeof value === 'string' && value.length > 0) {
+         url = url.replace(new RegExp(escapeRegex(value), 'g'), '[REDACTED]');
+      }
+   }
+
+   /* Layer 2 — safety net: anything token-shaped that layer 1 missed (unmatched routes, future token types nobody registered above). */
+   return url.replace(FALLBACK_HEX_SECRET_PATTERN, '[REDACTED]');
 });
-// Including it in a custom format string
+
 const morganFormat =
    process.env.NODE_ENV === 'production'
-      ? ':request-id :remote-addr :method :url :status :res[content-length] - :response-time ms'
-      : ':request-id :method :url :status :response-time ms';
+      ? ':request-id :remote-addr :method :safe-url :status :res[content-length] - :response-time ms'
+      : ':request-id :method :safe-url :status :response-time ms';
 
 app.use(
    morgan(morganFormat, {
@@ -220,7 +235,7 @@ app.use('/api/*splat', (req: Request, res: Response) => {
    res.status(404).json(
       createErrorResponse(
          'NOT_FOUND',
-         `API route ${req.originalUrl} not found.`,
+         `API route ${req.originalUrl.replace(FALLBACK_HEX_SECRET_PATTERN, '[REDACTED]')} not found.`,
          requestId
       )
    );
