@@ -9,9 +9,11 @@ import {
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   ISafeInviteRead,
    SafeInviteReadValidator,
+   type IInviteEmailCheck,
+   type ISafeInviteRead,
    type IInviteDocumentRead,
+   InviteEmailCheckValidator,
 } from '@models/Invite_v3.model.ts';
 
 import { hashPassword } from '@utils/hashAndVerify.ts';
@@ -22,16 +24,23 @@ import {
    Permissions,
    resolvePermissions,
 } from '@ssot/permissions_constants.ts';
-import { ClientSession, CountDocumentsOptions, ObjectId } from 'mongodb';
+import { ClientSession, ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
 import {
    StrictFindOneAndUpdateOptions,
+   StrictFindOneOptions,
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import {
+   INVITE_EMAIL_CHECK_PROJECTION,
+   SAFE_INVITE_PROJECTION,
+} from '@ssot/user_mongodb_query_projection_constants.ts';
 
 type AcceptInviteParams = { token: string };
+
+const EMAIL_MISMATCH_MESSAGE =
+   `The email address you entered does not match the one this invite was sent to.` as const;
 
 // ── Transaction outcome ──────────────────────────────────────────────────────────
 /* A discriminated union describing every meaningful result the transaction can produce. Each member is identifiable by its `status` field, which TypeScript uses to narrow the type in conditional branches. There is no 'pending' member — every outcome that leaves this module is a genuine, settled result. */
@@ -189,23 +198,46 @@ export async function acceptInviteController(
       // ── Step 1: Derive the token hash ──────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
 
-      // ── Step 2: Check the validity of the token ────────────────────────────────
-      /* The `requireValidRawToken` middleware (that precedes the `acceptInviteController`) only checks if the token is shaped like a valid token (HEX96_REGEX). It doesn't check if the token exists. To prevent a textbook resource-exhaustion vector on an anonymous endpoint (where any request with a well-formed password and 96 random hex characters forces a full Argon2id hash (deliberately expensive) before the system ever checks whether the invite is real), we perform that check BEFORE Argon2 comes into play. */
-      const exist = await getInviteCollection().countDocuments(
+      // ── Step 2: Cheap pre-flight (before Argon2) ───────────────────────────────
+      /* Two things are checked here, both cheaper than a hash: (a) the invite exists, is unused and unexpired; (b) the submitted email matches the one locked in at invite creation. This read is advisory. The atomic claim inside the transaction remains the authority. */
+
+      const inviteRaw = await getInviteCollection().findOne<IInviteEmailCheck>(
          {
             tokenHash,
             usedAt: null,
             expiresAt: { $gt: new Date() },
          } satisfies StrictMongoFilter<IInviteDocumentRead>,
-         { limit: 1 } satisfies CountDocumentsOptions
+         {
+            projection: INVITE_EMAIL_CHECK_PROJECTION,
+         } satisfies StrictFindOneOptions<IInviteEmailCheck>
       );
-      if (exist === 0) {
+
+      if (!inviteRaw) {
          return void res
             .status(404)
             .json(
                createErrorResponse(
                   'NOT_FOUND',
                   `This invite link is invalid or has expired.`,
+                  requestId
+               )
+            );
+      }
+
+      const decodedInvite = Schema.decodeUnknownEither(
+         InviteEmailCheckValidator
+      )(inviteRaw);
+      if (Either.isLeft(decodedInvite)) {
+         throw decodedInvite.left;
+      }
+
+      if (decodedInvite.right.email !== email) {
+         return void res
+            .status(400)
+            .json(
+               createErrorResponse(
+                  'VALIDATION_ERROR',
+                  EMAIL_MISMATCH_MESSAGE,
                   requestId
                )
             );
@@ -260,7 +292,7 @@ export async function acceptInviteController(
             .json(
                createErrorResponse(
                   'VALIDATION_ERROR',
-                  `The email address you entered does not match the one this invite was sent to.`,
+                  EMAIL_MISMATCH_MESSAGE,
                   requestId
                )
             );

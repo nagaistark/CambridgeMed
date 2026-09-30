@@ -190,6 +190,15 @@ export type IInviteRevocation = Schema.Schema.Type<
    typeof InviteRevocationSchema
 >;
 
+/* Minimal shape for the pre-hash email pre-flight in acceptInviteController. */
+export const InviteEmailCheckSchema = InviteDocumentReadStruct.pick(
+   '_id',
+   'email'
+);
+export type IInviteEmailCheck = Schema.Schema.Type<
+   typeof InviteEmailCheckSchema
+>;
+
 // ===== Validators against which we validate the documents ========================
 export const InviteDocumentCreateValidator = Schema.typeSchema(
    InviteDocumentCreateSchema
@@ -212,6 +221,10 @@ export const InviteRevocationValidator = Schema.typeSchema(
 );
 export const InviteRevocationArrayValidator = Schema.Array(
    InviteRevocationValidator
+);
+
+export const InviteEmailCheckValidator = Schema.typeSchema(
+   InviteEmailCheckSchema
 );
 
 // ===== MongoDB Collection Connection =============================================

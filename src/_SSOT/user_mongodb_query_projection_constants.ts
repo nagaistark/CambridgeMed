@@ -1,4 +1,8 @@
-import { IInviteRevocation, ISafeInviteRead } from '@models/Invite_v3.model.ts';
+import type {
+   IInviteEmailCheck,
+   IInviteRevocation,
+   ISafeInviteRead,
+} from '@models/Invite_v3.model.ts';
 import type {
    ISafeUser,
    IPublicUser,
@@ -13,7 +17,7 @@ import type {
    IPatientInitial,
 } from '@models/Patient_v3.model.ts';
 import { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
-import { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
 /* Field projections defined once at module level. Using MongoDB-level projection means `passwordHash` never travels over the wire from MongoDB to the Node process. */
 export const SAFE_USER_PROJECTION: Record<keyof ISafeUser, 1> = {
@@ -92,6 +96,12 @@ export const INVITE_REVOCATION_PROJECTION: Record<keyof IInviteRevocation, 1> =
       _id: 1,
       usedAt: 1,
       issuedBy: 1,
+   };
+
+export const INVITE_EMAIL_CHECK_PROJECTION: Record<keyof IInviteEmailCheck, 1> =
+   {
+      _id: 1,
+      email: 1,
    };
 
 // ── Patient projections ──────────────────────────────────────────────────────────
