@@ -1,10 +1,10 @@
-import {
+import type {
    ICreateInviteResponse,
+   IInvitePreview,
    IPreviewInviteResponse,
    ISafeInviteCreate,
-   ISafeInviteRead,
 } from '@models/Invite_v3.model.ts';
-import {
+import type {
    IPatientDocument,
    PatientCreateFullResponse,
    PatientCreateIntakeResponse,
@@ -74,7 +74,7 @@ export function buildMeResponse(message: string, user: ISafeUser): MeResponse {
 
 // ── Invite responses ─────────────────────────────────────────────────────────────
 export function buildPreviewInviteResponse(
-   inv: ISafeInviteRead
+   inv: IInvitePreview
 ): IPreviewInviteResponse {
    return { success: true, inv };
 }

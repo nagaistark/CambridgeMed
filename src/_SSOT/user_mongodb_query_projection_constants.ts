@@ -1,5 +1,6 @@
 import type {
    IInviteEmailCheck,
+   IInvitePreview,
    IInviteRevocation,
    ISafeInviteRead,
 } from '@models/Invite_v3.model.ts';
@@ -103,6 +104,12 @@ export const INVITE_EMAIL_CHECK_PROJECTION: Record<keyof IInviteEmailCheck, 1> =
       _id: 1,
       email: 1,
    };
+
+export const INVITE_PREVIEW_PROJECTION: Record<keyof IInvitePreview, 1> = {
+   role: 1,
+   expiresAt: 1,
+   usedAt: 1,
+};
 
 // ── Patient projections ──────────────────────────────────────────────────────────
 /* The inclusion projection for GET /api/patients. Its type is derived directly from PatientSummary via LeafPaths, so it stays in sync automatically. clinicalInfo is absent because PatientSummary doesn't include it — the constraint enforces this without any manual bookkeeping. */

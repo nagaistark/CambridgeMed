@@ -1,14 +1,14 @@
 import type { Request, Response, NextFunction } from 'express';
 import {
    getInviteCollection,
-   IInviteDocumentRead,
-   ISafeInviteRead,
-   SafeInviteReadValidator,
+   type IInviteDocumentRead,
+   type IInvitePreview,
+   InvitePreviewValidator,
 } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { buildPreviewInviteResponse } from '@utils/buildResponses.ts';
-import { SAFE_INVITE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { INVITE_PREVIEW_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import {
    StrictFindOneOptions,
    StrictMongoFilter,
@@ -29,16 +29,15 @@ export async function previewInviteController(
 
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
-      const safeInviteRaw =
-         await getInviteCollection().findOne<ISafeInviteRead>(
-            { tokenHash } satisfies StrictMongoFilter<IInviteDocumentRead>,
-            {
-               projection: SAFE_INVITE_PROJECTION,
-            } satisfies StrictFindOneOptions<ISafeInviteRead>
-         );
+      const inviteRaw = await getInviteCollection().findOne<IInvitePreview>(
+         { tokenHash } satisfies StrictMongoFilter<IInviteDocumentRead>,
+         {
+            projection: INVITE_PREVIEW_PROJECTION,
+         } satisfies StrictFindOneOptions<IInvitePreview>
+      );
 
       // ── Existence check ────────────────────────────────────────────────────────
-      if (!safeInviteRaw) {
+      if (!inviteRaw) {
          return void res
             .status(404)
             .json(
@@ -52,19 +51,19 @@ export async function previewInviteController(
 
       // ── Validate the fetched safe invite against the schema ────────────────────
       const decodedSafeInvite = Schema.decodeUnknownEither(
-         SafeInviteReadValidator
-      )(safeInviteRaw);
+         InvitePreviewValidator
+      )(inviteRaw);
 
       if (Either.isLeft(decodedSafeInvite)) {
          throw decodedSafeInvite.left;
       }
 
       // ── Use the validated safe invite from now on ──────────────────────────────
-      const validatedSafeInvite = decodedSafeInvite.right;
+      const validatedInvitePreview = decodedSafeInvite.right;
 
       // ── Expiry check ───────────────────────────────────────────────────────────
       /* We check expiresAt even if the document exists, because MongoDB's TTL janitor runs on a background thread and may lag by up to a minute. This ensures the response is always logically correct, not just contingent on when the janitor last ran. */
-      if (validatedSafeInvite.expiresAt <= new Date()) {
+      if (validatedInvitePreview.expiresAt <= new Date()) {
          return void res
             .status(404)
             .json(
@@ -77,7 +76,7 @@ export async function previewInviteController(
       }
 
       // ── Already-accepted check ─────────────────────────────────────────────────
-      if (validatedSafeInvite.usedAt !== null) {
+      if (validatedInvitePreview.usedAt !== null) {
          return void res
             .status(409)
             .json(
@@ -92,7 +91,7 @@ export async function previewInviteController(
       // ── Return the safe preview ────────────────────────────────────────────────
       return void res
          .status(200)
-         .json(buildPreviewInviteResponse(validatedSafeInvite));
+         .json(buildPreviewInviteResponse(validatedInvitePreview));
    } catch (err) {
       next(err);
    }

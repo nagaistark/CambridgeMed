@@ -165,14 +165,14 @@ const baseInviteItem = Schema.Struct({
 });
 export type BaseInviteItem = Schema.Schema.Type<typeof baseInviteItem>;
 
-export const PendingInviteItem = Schema.Struct({
+const PendingInviteItem = Schema.Struct({
    ...baseInviteItem.fields,
    ...InviteDocumentReadStruct.pick('expiresAt').fields,
    status: Schema.Literal('pending'),
 });
 export type IPendingInviteItem = Schema.Schema.Type<typeof PendingInviteItem>;
 
-export const AcceptedInviteItem = Schema.Struct({
+const AcceptedInviteItem = Schema.Struct({
    ...baseInviteItem.fields,
    ...UserDocumentStruct.pick('firstName', 'lastName').fields,
    status: Schema.Literal('accepted'),
@@ -181,7 +181,7 @@ export const AcceptedInviteItem = Schema.Struct({
 export type IAcceptedInviteItem = Schema.Schema.Type<typeof AcceptedInviteItem>;
 
 /* Minimal issuedBy, usedAt + _id fields used by revokeInviteController */
-export const InviteRevocationSchema = InviteDocumentReadStruct.pick(
+const InviteRevocationSchema = InviteDocumentReadStruct.pick(
    '_id',
    'usedAt',
    'issuedBy'
@@ -191,13 +191,18 @@ export type IInviteRevocation = Schema.Schema.Type<
 >;
 
 /* Minimal shape for the pre-hash email pre-flight in acceptInviteController. */
-export const InviteEmailCheckSchema = InviteDocumentReadStruct.pick(
-   '_id',
-   'email'
-);
+const InviteEmailCheckSchema = InviteDocumentReadStruct.pick('_id', 'email');
 export type IInviteEmailCheck = Schema.Schema.Type<
    typeof InviteEmailCheckSchema
 >;
+
+/* Minimal shape for previews in previewInviteController. */
+const InvitePreviewSchema = InviteDocumentReadStruct.pick(
+   'role',
+   'expiresAt',
+   'usedAt'
+);
+export type IInvitePreview = Schema.Schema.Type<typeof InvitePreviewSchema>;
 
 // ===== Validators against which we validate the documents ========================
 export const InviteDocumentCreateValidator = Schema.typeSchema(
@@ -226,6 +231,8 @@ export const InviteRevocationArrayValidator = Schema.Array(
 export const InviteEmailCheckValidator = Schema.typeSchema(
    InviteEmailCheckSchema
 );
+
+export const InvitePreviewValidator = Schema.typeSchema(InvitePreviewSchema);
 
 // ===== MongoDB Collection Connection =============================================
 export function getInviteCollection(): Collection<IInviteDocumentRead> {
@@ -258,5 +265,5 @@ export type ICreateInviteResponse = {
 
 export type IPreviewInviteResponse = {
    success: true;
-   inv: ISafeInviteRead;
+   inv: Omit<IInvitePreview, 'usedAt'>;
 };
