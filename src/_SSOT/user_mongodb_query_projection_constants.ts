@@ -1,5 +1,6 @@
 import type {
    IInviteEmailCheck,
+   IInviteListRead,
    IInvitePreview,
    IInviteRevocation,
    ISafeInviteRead,
@@ -90,6 +91,11 @@ export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {
    expiresAt: 1,
    usedAt: 1,
    issuedBy: 1,
+};
+
+export const INVITE_LIST_PROJECTION: Record<keyof IInviteListRead, 1> = {
+   ...SAFE_INVITE_PROJECTION,
+   acceptedBy: 1,
 };
 
 export const INVITE_REVOCATION_PROJECTION: Record<keyof IInviteRevocation, 1> =

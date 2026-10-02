@@ -81,6 +81,7 @@ async function runRegistrationTransaction(
          const inviteCollection = getInviteCollection();
          const userCollection = getUserCollection();
          const now = new Date();
+         const userId = new ObjectId();
 
          // ── Atomic claim ────────────────────────────────────────────────────────
          /* The filter's three conditions must ALL be true simultaneously:
@@ -93,11 +94,12 @@ async function runRegistrationTransaction(
             {
                tokenHash,
                usedAt: null,
-               expiresAt: { $gt: new Date() },
+               expiresAt: { $gt: now },
             } satisfies StrictMongoFilter<IInviteDocumentRead>,
             {
                $set: {
-                  usedAt: new Date(),
+                  usedAt: now,
+                  acceptedBy: userId,
                },
             } satisfies StrictUpdate<IInviteDocumentRead>,
             {
@@ -133,7 +135,7 @@ async function runRegistrationTransaction(
          // ── Create the User document ────────────────────────────────────────────
          /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDocument`). */
          const payload: IUserDocument = {
-            _id: new ObjectId(),
+            _id: userId,
             firstName,
             lastName,
             email: validatedClaimedInvite.email,

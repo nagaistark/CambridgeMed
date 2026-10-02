@@ -167,6 +167,7 @@ export async function createInviteController(
 
       const fullInvitePayload: IInviteDocumentCreate = {
          ...safeInvitePayload,
+         acceptedBy: null,
          tokenHash,
          createdAt: now,
          updatedAt: now,

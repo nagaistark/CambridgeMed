@@ -34,16 +34,41 @@ const InviteDocumentBase = Schema.Struct({
 const InviteDocumentCreateStruct = Schema.Struct({
    ...InviteDocumentBase.fields,
    usedAt: Schema.Null,
+   acceptedBy: Schema.Null,
    expiresAt: fullDateInTheFuture,
 });
 
 const InviteDocumentReadStruct = Schema.Struct({
    ...InviteDocumentBase.fields,
    usedAt: Schema.NullOr(Schema.ValidDateFromSelf),
+   acceptedBy: Schema.NullOr(stringToObjectId),
    expiresAt: Schema.ValidDateFromSelf,
 });
 
 // ===== Standalone modular cross-field filters ====================================
+const validateAcceptanceLinkage = <
+   A extends Pick<IInviteDocumentRead, 'usedAt' | 'acceptedBy'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(doc => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if ((doc.usedAt === null) !== (doc.acceptedBy === null)) {
+            issues.push({
+               path: ['acceptedBy'],
+               message: `acceptedBy must be set if and only if the invite has been used.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
 const validateInvitePrivilege = <
    A extends Pick<
       Schema.Schema.Type<typeof InviteInputStruct>,
@@ -116,7 +141,8 @@ export type IInviteInput = Schema.Schema.Type<typeof InviteInputSchema>;
 // ===== Full Invite Document Schemas And Types ====================================
 export const InviteDocumentCreateSchema = InviteDocumentCreateStruct.pipe(
    validateChronology,
-   validateInvitePrivilege
+   validateInvitePrivilege,
+   validateAcceptanceLinkage
 );
 
 export type IInviteDocumentCreate = Schema.Schema.Type<
@@ -126,7 +152,8 @@ export type IInviteDocumentCreate = Schema.Schema.Type<
 export const InviteDocumentReadSchema = InviteDocumentReadStruct.pipe(
    validateChronology,
    validateInviteTimeline,
-   validateInvitePrivilege
+   validateInvitePrivilege,
+   validateAcceptanceLinkage
 );
 
 export type IInviteDocumentRead = Schema.Schema.Type<
@@ -157,7 +184,14 @@ const SafeInviteReadSchema = InviteDocumentReadStruct.pick(
 ).pipe(validateInvitePrivilege);
 export type ISafeInviteRead = Schema.Schema.Type<typeof SafeInviteReadSchema>;
 
-/* Helpers used in listInvitesController. */
+/* For listInvitesController only. Deliberately NOT part of SAFE_INVITE_KEYS, because the public preview endpoint returns that shape. */
+const InviteListReadSchema = InviteDocumentReadStruct.pick(
+   ...SAFE_INVITE_KEYS,
+   'acceptedBy'
+).pipe(validateInvitePrivilege, validateAcceptanceLinkage);
+export type IInviteListRead = Schema.Schema.Type<typeof InviteListReadSchema>;
+
+/* Other helpers used in listInvitesController. */
 const baseInviteItem = Schema.Struct({
    ...InviteDocumentReadStruct.pick('_id', 'email', 'role', 'canIssueInvites')
       .fields,
@@ -219,6 +253,10 @@ export const InviteDocumentReadArrayValidator = Schema.Array(
 export const SafeInviteReadValidator = Schema.typeSchema(SafeInviteReadSchema);
 export const SafeInviteReadArrayValidator = Schema.Array(
    SafeInviteReadValidator
+);
+
+export const InviteListReadArrayValidator = Schema.Array(
+   Schema.typeSchema(InviteListReadSchema)
 );
 
 export const InviteRevocationValidator = Schema.typeSchema(
