@@ -14,25 +14,33 @@ import {
    IPendingInviteItem,
    type IInviteDocumentRead,
 } from '@models/Invite_v3.model.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import {
+   AuthenticatedResponse,
+   ResponseWithValidatedQuery,
+} from '@utils/customTypedResponses.ts';
 import { ObjectId } from 'mongodb';
 import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import { IObjectIdCursorPagination } from '@utils/effectSchemaReusables.ts';
 import { Schema, Either } from 'effect';
 import {
    INVITE_LIST_PROJECTION,
    USER_ID_NAME_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { takePage } from '@utils/cursorPagination.ts';
 
 type IInviteListItem = IPendingInviteItem | IAcceptedInviteItem;
 
 export async function listInvitesController(
    _req: Request,
-   res: AuthenticatedResponse,
+   res: AuthenticatedResponse &
+      ResponseWithValidatedQuery<IObjectIdCursorPagination>,
    next: NextFunction
 ): Promise<void> {
    try {
       const { sub, role } = res.locals.authenticatedUser;
       const isSuperAdmin: boolean = role === 'superadmin';
+
+      const { cursor, limit } = res.locals.validatedQuery;
 
       const inviteCollection = getInviteCollection();
       const userCollection = getUserCollection();
@@ -58,24 +66,31 @@ export async function listInvitesController(
             {
                ...statusFilter,
                ...ownershipFilter,
+               ...(cursor === undefined ? {} : { _id: { $lt: cursor } }),
             } satisfies StrictMongoFilter<IInviteDocumentRead>, // StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type.
             {
                projection: INVITE_LIST_PROJECTION,
+               sort: { _id: -1 },
+               limit: limit + 1, // the +1 is the "is there a next page?" probe
+               maxTimeMS: 5_000, // a runaway query dies instead of hogging the pool
             } satisfies StrictFindOptions<IInviteListRead>
          )
          .toArray();
 
-      if (invitesRaw.length === 0) {
+      const { items: pageRows, hasNextPage } = takePage(invitesRaw, limit);
+
+      if (pageRows.length === 0) {
          return void res.status(200).json({
             success: true,
             invites: [],
+            pagination: { nextCursor: null, limit },
          });
       }
 
       // ── Validate the fetched array of invites ──────────────────────────────────
       const decodedInvites = Schema.decodeUnknownEither(
          InviteListReadArrayValidator
-      )(invitesRaw);
+      )(pageRows);
 
       if (Either.isLeft(decodedInvites)) {
          throw decodedInvites.left;
@@ -152,11 +167,7 @@ export async function listInvitesController(
          const validatedIssuers = decodedIssuers.right;
 
          for (const issuer of validatedIssuers) {
-            issuerMap.set(issuer._id.toString(), {
-               _id: issuer._id,
-               firstName: issuer.firstName,
-               lastName: issuer.lastName,
-            });
+            issuerMap.set(issuer._id.toHexString(), issuer);
          }
       }
 
@@ -214,7 +225,18 @@ export async function listInvitesController(
             });
          }
       }
-      return void res.status(200).json({ success: true, invites: result });
+
+      const lastInvite = validatedInvites.at(-1);
+      const nextCursor =
+         hasNextPage && lastInvite !== undefined
+            ? lastInvite._id.toHexString()
+            : null;
+
+      return void res.status(200).json({
+         success: true,
+         invites: result,
+         pagination: { nextCursor, limit },
+      });
    } catch (err) {
       next(err);
    }

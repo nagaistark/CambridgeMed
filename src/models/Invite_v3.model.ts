@@ -292,6 +292,8 @@ export const inviteIndexes = [
       expireAfterSeconds: 0,
       partialFilterExpression: { usedAt: null }, // ← only sweep NEVER-accepted invites
    },
+   /* Serves list (equality on issuedBy + _id-descending sort + _id range) and toggleIsActive's deleteMany (the issuedBy prefix alone). */
+   { key: { issuedBy: 1, _id: -1 } },
 ] satisfies readonly TypedIndexDescription<IInviteDocumentRead>[];
 
 // ── HTTP response types ──────────────────────────────────────────────────────────

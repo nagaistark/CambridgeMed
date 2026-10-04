@@ -35,3 +35,10 @@ export function decodeCursor(cursorString: string): PatientCursorData | null {
       return null; // If decoding fails, treat it as a bad request or start from the beginning
    }
 }
+
+export function takePage<T>(
+   rows: readonly T[],
+   limit: number
+): { items: T[]; hasNextPage: boolean } {
+   return { items: rows.slice(0, limit), hasNextPage: rows.length > limit };
+}

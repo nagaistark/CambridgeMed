@@ -10,12 +10,16 @@ import { previewInviteController } from '@invites/previewInvite.controller.ts';
 import { listInvitesController } from '@invites/listInvites.controller.ts';
 import { acceptInviteController } from '@invites/acceptInvite.controller.ts';
 import { validateParams } from '@middleware/validateParams.ts';
-import { MongoIdParamsSchema } from '@utils/effectSchemaReusables.ts';
+import {
+   MongoIdParamsSchema,
+   ObjectIdCursorPaginationSchema,
+} from '@utils/effectSchemaReusables.ts';
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import {
    inviteAcceptRateLimiter,
    invitePreviewRateLimiter,
 } from '@utils/rateLimiters.ts';
+import { validateQuery } from '@/middleware/validateQuery.ts';
 
 const inviteRouter = Router();
 
@@ -42,6 +46,7 @@ inviteRouter.get(
    '/',
    authenticate,
    requirePermissions('ISSUE_INVITES'),
+   validateQuery(ObjectIdCursorPaginationSchema),
    listInvitesController
 );
 

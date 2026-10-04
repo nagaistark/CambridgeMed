@@ -6,7 +6,11 @@ import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
 import { recoveryCodeRegex, totpSecretRegex } from '@ssot/totp_constants.ts';
-import { paginationLimit } from '@ssot/pagination_constants.ts';
+import {
+   MAX_CURSOR_LENGTH,
+   MAX_PAGE_SIZE,
+   paginationLimit,
+} from '@ssot/pagination_constants.ts';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -404,15 +408,35 @@ export const recoveryCodeCheck = baseString.pipe(
 );
 
 // ===== Pagination Schema (req.query) =============================================
-export const CursorPaginationSchema = Schema.Struct({
-   cursor: Schema.optional(baseString),
-
-   limit: Schema.optionalWith(
-      positiveIntegerStringToNumber.pipe(
-         Schema.lessThanOrEqualTo(paginationLimit)
-      ),
-      {
-         default: () => paginationLimit,
-      }
+const pageLimit = Schema.optionalWith(
+   positiveIntegerStringToNumber.pipe(
+      Schema.lessThanOrEqualTo(MAX_PAGE_SIZE, {
+         message: () => `Limit must not exceed ${MAX_PAGE_SIZE}.`,
+      })
    ),
+   { default: () => paginationLimit }
+);
+
+/* Composite (opaque) cursors such as the patients' base64url JSON. The charset check rejects junk before any decoding work happens. */
+const opaqueCursor = customTrim.pipe(
+   Schema.minLength(1),
+   Schema.maxLength(MAX_CURSOR_LENGTH),
+   Schema.pattern(/^[A-Za-z0-9_-]+$/, {
+      message: () => `Cursor must be a base64url string.`,
+   })
+);
+
+export const CursorPaginationSchema = Schema.Struct({
+   cursor: Schema.optional(opaqueCursor),
+   limit: pageLimit,
 });
+
+/* Single-key cursors: the bookmark is just an ObjectId, validated as one. */
+export const ObjectIdCursorPaginationSchema = Schema.Struct({
+   cursor: Schema.optional(stringToObjectId),
+   limit: pageLimit,
+});
+
+export type IObjectIdCursorPagination = Schema.Schema.Type<
+   typeof ObjectIdCursorPaginationSchema
+>;

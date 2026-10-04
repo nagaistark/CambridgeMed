@@ -1,4 +1,8 @@
-import rateLimit, { type RateLimitRequestHandler } from 'express-rate-limit';
+import rateLimit, {
+   ipKeyGenerator,
+   type Options,
+   type RateLimitRequestHandler,
+} from 'express-rate-limit';
 import type { Request, Response } from 'express';
 import { createErrorResponse } from '../errorHandlers.ts';
 import {
@@ -20,12 +24,15 @@ import {
    INVITE_PREVIEW_MAX_REQUESTS,
    USER_ADMIN_TOGGLE_WINDOW_MS,
    USER_ADMIN_TOGGLE_MAX_REQUESTS,
+   INVITE_CREATE_WINDOW_MS,
+   INVITE_CREATE_MAX_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 
 /* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-7'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
 function makeRateLimiter(
    windowMs: number,
-   max: number
+   max: number,
+   overrides: Partial<Options> = {}
 ): RateLimitRequestHandler {
    return rateLimit({
       windowMs,
@@ -43,6 +50,7 @@ function makeRateLimiter(
                )
             );
       },
+      ...overrides,
    });
 }
 
@@ -94,4 +102,21 @@ export const invitePreviewRateLimiter = makeRateLimiter(
 export const userAdminToggleRateLimiter = makeRateLimiter(
    USER_ADMIN_TOGGLE_WINDOW_MS,
    USER_ADMIN_TOGGLE_MAX_REQUESTS
+);
+
+/* Guards POST /api/invites. Must be mounted AFTER `authenticate` so `res.locals.authenticatedUser` exists.
+   - Keyed by user ID, not IP: an attacker with one stolen account can rotate IPs, but cannot rotate the account. The IP fallback is only a safety net if the middleware order is ever broken, and it goes through `ipKeyGenerator` so an IPv6 user can't dodge the limit by cycling addresses inside their /64.
+   - `skipFailedRequests`: only requests that succeeded (and therefore sent an email) consume budget. Validation errors, 403s and 409s are free.
+   - In-memory store: single-process only. If we ever scale horizontally, swap in a Redis store, or each instance will enforce its own separate quota. */
+export const inviteCreateRateLimiter = makeRateLimiter(
+   INVITE_CREATE_WINDOW_MS,
+   INVITE_CREATE_MAX_REQUESTS,
+   {
+      /* Only requests that actually sent an email consume budget. */
+      skipFailedRequests: true,
+      /* Count per person, not per IP. The IP fallback goes through ipKeyGenerator so an IPv6 user can't dodge the limit by rotating addresses within their /64. */
+      keyGenerator: (req, res) =>
+         res.locals.authenticatedUser?.sub ??
+         ipKeyGenerator(req.ip ?? 'unknown'),
+   }
 );

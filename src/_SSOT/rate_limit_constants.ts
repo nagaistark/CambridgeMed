@@ -29,6 +29,12 @@ export const FORGOT_PASSWORD_MAX_REQUESTS = 3;
 export const RESET_PASSWORD_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
 export const RESET_PASSWORD_MAX_REQUESTS = 10;
 
+// ── Invite creation (POST /api/invites) ──────────────────────────────────────────
+/* Authenticated, but every successful request sends one Resend email, so this is a cost-amplification and sender-reputation vector (same reasoning as EMAIL_CHANGE_INITIATE_*). Counted per user, not per IP (see inviteCreateRateLimiter).
+   The current limit: 10 invites an hour per user. */
+export const INVITE_CREATE_WINDOW_MS = 1 * 60 * 60 * 1_000; // 1 hour
+export const INVITE_CREATE_MAX_REQUESTS = 10;
+
 // ── Invite acceptance (POST /api/invites/:token/accept) ──────────────────────────
 /* Fully public, unauthenticated endpoint. The token is the credential, but acceptance also runs an Argon2id hash before the transaction — so this limiter exists specifically to bound how many times an attacker can force that hash per token, not just to prevent brute-force enumeration. */
 export const INVITE_ACCEPT_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
