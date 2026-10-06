@@ -1,12 +1,12 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   ISafeUser,
-   IUserDocument,
+   type ISafeUser,
+   type IUserDocument,
    SafeUserValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
    ResponseWithValidatedParams,
@@ -17,12 +17,13 @@ import {
    Permissions,
 } from '@ssot/permissions_constants.ts';
 import { ObjectId } from 'mongodb';
-import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
-import {
-   StrictFindOptions,
+import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import type {
+   StrictFindOneOptions,
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import type { NonNullableProps } from '@utils/helperTypes.ts';
 import { Either, Schema } from 'effect';
 import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
@@ -40,13 +41,24 @@ export async function toggleCanIssueInvitesController(
       const { canIssueInvites } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
+
+      /* The caller's visibility scope. Superadmin may manage anyone. Everyone else only the users they personally invited (a one-level, permanent accountability link). Every query below spreads this in, so "not yours" is structurally identical to "doesn't exist". */
+      type ScopeFilter =
+         | Record<string, never>
+         | NonNullableProps<Pick<IUserDocument, 'invitedBy'>>;
+
+      const scopeFilter: ScopeFilter =
+         role === 'superadmin' ? {} : { invitedBy: new ObjectId(sub) };
+
+      // ── Scoped fetch ───────────────────────────────────────────────────────────
       const targetUserRaw = await userCollection.findOne<ISafeUser>(
          {
-            _id: new ObjectId(id),
+            _id: id,
+            ...scopeFilter,
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: SAFE_USER_PROJECTION,
-         } satisfies StrictFindOptions<ISafeUser>
+         } satisfies StrictFindOneOptions<ISafeUser>
       );
 
       if (!targetUserRaw) {
@@ -57,6 +69,7 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
+      /* We consume `role` and `permissions` below, so the decode stays. */
       const decodedTargetUser =
          Schema.decodeUnknownEither(SafeUserValidator)(targetUserRaw);
 
@@ -66,32 +79,7 @@ export async function toggleCanIssueInvitesController(
 
       const validatedTargetUser = decodedTargetUser.right;
 
-      // ── Authorisation ──────────────────────────────────────────────────────────
-      /* Two principals may toggle this privilege:
-         1. The superadmin — unrestricted access to all users.
-         2. The user who issued the original invite to this person (invitedBy).
-      
-      Crucially, the inviter retains this authority even if their *own* canIssueInvites has since been revoked — the invitedBy relationship is permanent and represents a lasting accountability link, not a delegated permission that expires when the delegator's own is removed. The chain is exactly one level deep: User 1 can toggle User 2 (if User 1 invited User 2), but NOT User 3 even if User 2 invited User 3. */
-      const isSuperAdmin = role === 'superadmin';
-      const isDirectInviter =
-         validatedTargetUser.invitedBy !== null &&
-         validatedTargetUser.invitedBy.toString() === sub;
-
-      if (!isSuperAdmin && !isDirectInviter) {
-         return void res
-            .status(403)
-            .json(
-               createErrorResponse(
-                  'FORBIDDEN',
-                  `You do not have permission to modify this user's invite privileges.`,
-                  requestId
-               )
-            );
-      }
-
       // ── No-op guard ────────────────────────────────────────────────────────────
-      /* Reject if the submitted value matches what's already stored. This prevents burning a database write on a meaningless operation, and gives the caller clear feedback that the request had no effect. */
-
       const currentlyHas =
          (validatedTargetUser.permissions & Permissions.ISSUE_INVITES) !== 0;
 
@@ -107,6 +95,8 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
+      // ── Role ceiling ───────────────────────────────────────────────────────────
+      /* Safe to be candid here: the caller is already authorized to see this user. */
       const newPermissions = canIssueInvites
          ? validatedTargetUser.permissions | Permissions.ISSUE_INVITES
          : validatedTargetUser.permissions & ~Permissions.ISSUE_INVITES;
@@ -125,9 +115,13 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
+      // ── Compare-and-swap write ─────────────────────────────────────────────────
+      /* The filter says "only if the document still looks the way I decided on, and I'm still allowed to touch it". */
       const updateResult = await userCollection.updateOne(
          {
             _id: validatedTargetUser._id,
+            permissions: validatedTargetUser.permissions,
+            ...scopeFilter,
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: { permissions: newPermissions },
@@ -139,7 +133,7 @@ export async function toggleCanIssueInvitesController(
             'CONCURRENCY_ERROR',
             409,
             'CONFLICT',
-            `User ${id} not found...`
+            `This user's permissions were changed by another request. Please retry.`
          );
       }
 

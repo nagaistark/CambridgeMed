@@ -1,13 +1,16 @@
 import type { Request, NextFunction } from 'express';
 import { generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import { encryptTotpSecret } from '@utils/totpCrypto.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { TOTP_ISSUER, TOTP_SECRET_BYTES } from '@ssot/totp_constants.ts';
 import { ObjectId } from 'mongodb';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function enrollTotpController(
    _req: Request,

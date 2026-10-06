@@ -1,7 +1,7 @@
-import { Request, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import {
    getPatientCollection,
-   IPatientInput,
+   type IPatientInput,
    PatientDocumentValidator,
    type IPatientDocument,
    type IPatientInitial,

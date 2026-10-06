@@ -18,7 +18,7 @@ import {
 
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import {
    Permissions,
@@ -26,7 +26,7 @@ import {
 } from '@ssot/permissions_constants.ts';
 import { ClientSession, ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
-import {
+import type {
    StrictFindOneAndUpdateOptions,
    StrictFindOneOptions,
    StrictMongoFilter,

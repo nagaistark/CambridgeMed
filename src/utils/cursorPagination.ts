@@ -1,4 +1,4 @@
-import { PatientSummary } from '@models/Patient_v3.model.ts';
+import type { PatientSummary } from '@models/Patient_v3.model.ts';
 import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import { nameString, stringToObjectId } from './effectSchemaReusables.ts';

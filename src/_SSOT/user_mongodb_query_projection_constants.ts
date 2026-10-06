@@ -18,7 +18,7 @@ import type {
    IPatientDocument,
    IPatientInitial,
 } from '@models/Patient_v3.model.ts';
-import { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
+import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
 /* Field projections defined once at module level. Using MongoDB-level projection means `passwordHash` never travels over the wire from MongoDB to the Node process. */

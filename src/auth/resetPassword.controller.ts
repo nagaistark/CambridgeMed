@@ -1,12 +1,15 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import {
    getPasswordResetCollection,
-   IPasswordResetDocument,
+   type IPasswordResetDocument,
 } from '@models/PasswordReset_v3.model.ts';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
@@ -16,9 +19,9 @@ import {
    generateStandardHash,
    HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ResetPasswordBody } from '@auth/resetPassword.schema.ts';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 type ResetPasswordParams = { token: string };
 

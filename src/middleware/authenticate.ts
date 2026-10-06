@@ -7,8 +7,8 @@ import {
 } from '@utils/tokenUtils.ts';
 import { allRoles } from '@ssot/user_roles_constants.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import { CustomSessionPayload } from '@ssot/jwt_payload_constants.ts';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type { CustomSessionPayload } from '@ssot/jwt_payload_constants.ts';
 
 export async function authenticate(
    req: Request,

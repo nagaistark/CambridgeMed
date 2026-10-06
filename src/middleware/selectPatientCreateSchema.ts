@@ -1,5 +1,5 @@
-import { Request, NextFunction } from 'express';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type { Request, NextFunction } from 'express';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import {
    PatientInputSchema,

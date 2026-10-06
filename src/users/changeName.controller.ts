@@ -2,20 +2,20 @@ import type { Request, NextFunction } from 'express';
 import { Either, Schema } from 'effect';
 import {
    getUserCollection,
-   IUserDocument,
-   IUserNameEmail,
+   type IUserDocument,
+   type IUserNameEmail,
    UserNameEmailValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import {
-   AuthenticatedResponse,
-   ResponseWithValidatedBody,
+   type AuthenticatedResponse,
+   type ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { ChangeNameBody } from '@users/User_v3.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 import { USER_NAME_EMAIL_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { ObjectId } from 'mongodb';
-import {
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
    StrictUpdate,

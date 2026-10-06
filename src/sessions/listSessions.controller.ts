@@ -1,10 +1,16 @@
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type {
+   StrictFindOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 import type { Request, NextFunction } from 'express';
 import { ObjectId } from 'mongodb';
 

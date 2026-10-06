@@ -1,17 +1,17 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   IUserDocument,
-   IUserNameEmail,
+   type IUserDocument,
+   type IUserNameEmail,
    UserNameEmailValidator,
 } from '@models/User_v3.model.ts';
 import {
    getEmailChangeCollection,
-   IEmailChangeDocumentCreate,
-   IEmailChangeDocumentRead,
+   type IEmailChangeDocumentCreate,
+   type IEmailChangeDocumentRead,
 } from '@models/EmailChange_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
@@ -26,12 +26,12 @@ import {
    EMAIL_CHANGE_TOKEN_EXPIRY_MS,
 } from '@ssot/user_change_constants.ts';
 import { myEnv } from '../validateConfig.ts';
-import { CountDocumentsOptions, ObjectId } from 'mongodb';
+import { type CountDocumentsOptions, ObjectId } from 'mongodb';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import {
-   StrictFindOneOptions,
-   StrictMongoFilter,
+   type StrictFindOneOptions,
+   type StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import { USER_NAME_EMAIL_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';

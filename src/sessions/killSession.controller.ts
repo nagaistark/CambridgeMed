@@ -1,12 +1,12 @@
 import type { Request, NextFunction } from 'express';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { ObjectId } from 'mongodb';
-import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 type KillSessionParams = { id: string };
 

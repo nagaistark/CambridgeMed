@@ -1,7 +1,7 @@
 import type { Request, Response, NextFunction } from 'express';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import {
@@ -9,7 +9,7 @@ import {
    REFRESH_TOKEN_COOKIE_NAME,
 } from '@utils/tokenUtils.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
-import { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 
 export async function logoutController(
    req: Request,

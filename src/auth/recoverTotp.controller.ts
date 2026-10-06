@@ -1,17 +1,20 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import { hashRecoveryCode } from '@utils/totpCrypto.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import {
+import type {
    TotpChallengeResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { RecoveryCodeBody } from '@auth/totp.schemas.ts';
 import { issueSession } from '@utils/issueSession.ts';
 import { ObjectId } from 'mongodb';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function recoverTotpController(
    req: Request,

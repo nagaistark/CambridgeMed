@@ -1,19 +1,22 @@
 import type { Request, NextFunction } from 'express';
 import { verify } from 'otplib';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import {
    decryptTotpSecret,
    generateRecoveryCodes,
    hashRecoveryCode,
 } from '@utils/totpCrypto.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { TotpCodeBody } from '@auth/totp.schemas.ts';
 import { ObjectId } from 'mongodb';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function confirmTotpEnrollmentController(
    _req: Request,

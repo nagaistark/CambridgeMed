@@ -1,10 +1,15 @@
 import '@ssot/date_time_constants.ts';
-import express, { Express, Request, Response, NextFunction } from 'express';
+import express, {
+   type Express,
+   type Request,
+   type Response,
+   type NextFunction,
+} from 'express';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import morgan from 'morgan';
-import rateLimit, { Options } from 'express-rate-limit';
+import rateLimit, { type Options } from 'express-rate-limit';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 

@@ -1,9 +1,9 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   IPublicUser,
-   ISafeUser,
-   IUserDocument,
+   type IPublicUser,
+   type ISafeUser,
+   type IUserDocument,
    PublicUserValidator,
    SafeUserValidator,
 } from '@models/User_v3.model.ts';
@@ -12,12 +12,12 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
-import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
-import {
+import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';

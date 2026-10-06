@@ -1,10 +1,10 @@
 import {
    Collection,
-   Document,
-   IndexDescription,
-   IndexDirection,
+   type Document,
+   type IndexDescription,
+   type IndexDirection,
 } from 'mongodb';
-import { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
+import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 
 export type TypedIndexDescription<T> = Omit<IndexDescription, 'key'> & {
    key: StrictIndexConfig<T>;

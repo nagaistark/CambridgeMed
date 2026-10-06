@@ -1,20 +1,23 @@
 import type { Request, Response, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import {
    EmailChangeDocumentReadValidator,
    getEmailChangeCollection,
-   IEmailChangeDocumentRead,
+   type IEmailChangeDocumentRead,
 } from '@models/EmailChange_v3.model.ts';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from '../logger.ts';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 
 type ConfirmParams = { token: string };

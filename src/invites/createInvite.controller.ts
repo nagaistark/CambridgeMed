@@ -1,20 +1,20 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   IUserDocument,
-   IUserInviteIssuer,
+   type IUserDocument,
+   type IUserInviteIssuer,
    UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
-   IInviteDocumentRead,
-   IInviteDocumentCreate,
-   IInviteInput,
+   type IInviteDocumentRead,
+   type IInviteDocumentCreate,
+   type IInviteInput,
    InviteDocumentCreateValidator,
-   ISafeInviteCreate,
+   type ISafeInviteCreate,
 } from '@models/Invite_v3.model.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
@@ -27,12 +27,12 @@ import {
 import { USER_INVITE_ISSUER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
 import { myEnv } from '../validateConfig.ts';
-import { CountDocumentsOptions, ObjectId } from 'mongodb';
+import { type CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
 import { Either, Schema } from 'effect';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
-import {
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';

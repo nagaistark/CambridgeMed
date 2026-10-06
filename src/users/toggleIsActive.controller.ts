@@ -1,24 +1,24 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   ISafeUser,
-   IUserDocument,
+   type ISafeUser,
+   type IUserDocument,
    SafeUserValidator,
 } from '@models/User_v3.model.ts';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import type { SetIsActiveBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
-import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
-import {
+import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
    StrictUpdate,

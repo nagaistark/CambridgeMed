@@ -2,25 +2,25 @@ import type { Request, NextFunction } from 'express';
 
 import {
    getUserCollection,
-   IUserDocument,
-   IUserIdPasswordHash,
+   type IUserDocument,
+   type IUserIdPasswordHash,
    UserIdPasswordHashValidator,
 } from '@models/User_v3.model.ts';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { ChangePasswordBody } from '@users/User_v3.schemas.ts';
 import { ObjectId } from 'mongodb';
-import {
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
    StrictUpdate,

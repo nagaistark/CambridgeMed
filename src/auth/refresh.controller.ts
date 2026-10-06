@@ -1,10 +1,13 @@
 import type { Request, Response, NextFunction } from 'express';
 import {
    getSessionCollection,
-   ISessionDocument,
+   type ISessionDocument,
 } from '@models/Session_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import {
    signAccessToken,
    generateRefreshToken,
@@ -16,7 +19,7 @@ import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { SESSION_REUSE_GRACE_WINDOW_MS } from '@ssot/access_refresh_tokens_constants.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function refreshController(
    req: Request,

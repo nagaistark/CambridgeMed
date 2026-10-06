@@ -5,7 +5,7 @@ import {
    longString,
    objectIdInstance,
 } from '@utils/effectSchemaReusables.ts';
-import { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
+import type { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
 import { DatabaseManager } from '../mongoDBConnect.ts';

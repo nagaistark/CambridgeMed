@@ -1,15 +1,15 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   IUserDocument,
-   ISafeUser,
+   type IUserDocument,
+   type ISafeUser,
 } from '@models/User_v3.model.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { ObjectId } from 'mongodb';
-import {
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';

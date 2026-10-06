@@ -1,8 +1,11 @@
 import type { Request, NextFunction } from 'express';
-import { getUserCollection, IUserDocument } from '@models/User_v3.model.ts';
+import {
+   getUserCollection,
+   type IUserDocument,
+} from '@models/User_v3.model.ts';
 import {
    getPasswordResetCollection,
-   IPasswordResetDocument,
+   type IPasswordResetDocument,
 } from '@models/PasswordReset_v3.model.ts';
 import {
    generateRandomToken,
@@ -10,10 +13,10 @@ import {
 } from '@ssot/node_crypto_constants.ts';
 import { PASSWORD_RESET_TOKEN_EXPIRY_MS } from '@ssot/password_reset_constants.ts';
 import { sendPasswordResetEmail } from '@auth/passwordReset.email.ts';
-import { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ForgotPasswordBody } from '@auth/forgotPassword.schema.ts';
 import { myEnv } from '../validateConfig.ts';
-import { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 
 export async function forgotPasswordController(
    _req: Request,

@@ -1,23 +1,16 @@
 import type { Request, NextFunction } from 'express';
 import {
    getInviteCollection,
-   IInviteDocumentRead,
-   IInviteRevocation,
-   InviteRevocationValidator,
+   type IInviteDocumentRead,
 } from '@models/Invite_v3.model.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import {
+import type {
    AuthenticatedResponse,
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
-import { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
-import {
-   StrictFindOneOptions,
-   StrictMongoFilter,
-} from '@utils/pathFinder_v3.ts';
+import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
+import type { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 import { ObjectId } from 'mongodb';
-import { Schema, Either } from 'effect';
-import { INVITE_REVOCATION_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function revokeInviteController(
    _req: Request,
@@ -31,37 +24,38 @@ export async function revokeInviteController(
 
       const inviteCollection = getInviteCollection();
 
-      // ── Fetch the invite ───────────────────────────────────────────────────────
-      const inviteRaw = await inviteCollection.findOne<IInviteRevocation>(
-         {
-            _id: id,
-         } satisfies StrictMongoFilter<IInviteDocumentRead>,
-         {
-            projection: INVITE_REVOCATION_PROJECTION,
-         } satisfies StrictFindOneOptions<IInviteRevocation>
-      );
-      if (!inviteRaw) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse('NOT_FOUND', `Invite not found.`, requestId)
-            );
+      /* The caller's visibility scope. Superadmin sees every invite; everyone else only their own. Every query below spreads this in, so "not yours" is structurally identical to "doesn't exist". */
+      const ownershipFilter:
+         Record<string, never> | Pick<IInviteDocumentRead, 'issuedBy'> =
+         role === 'superadmin' ? {} : { issuedBy: new ObjectId(sub) };
+
+      // ── One atomic decision: exists AND visible AND pending → delete ───────────
+      const deleteResult = await inviteCollection.deleteOne({
+         _id: id,
+         usedAt: null,
+         ...ownershipFilter,
+      } satisfies StrictMongoFilter<IInviteDocumentRead>);
+
+      if (deleteResult.deletedCount === 1) {
+         return void res.status(200).json({
+            success: true,
+            message: `Invite revoked successfully`,
+         });
       }
 
-      // ── Validate the fetched document against the schema ───────────────────────
-      const decodedInvite = Schema.decodeUnknownEither(
-         InviteRevocationValidator
-      )(inviteRaw);
+      // ── Failure path: disambiguate, but ONLY within the caller's scope ─────────
+      /* A non-owner's lookup matches nothing and falls through to the same 404 a missing id gets. */
+      const isRevocationBlockedByAcceptance =
+         (await inviteCollection.countDocuments(
+            {
+               _id: id,
+               usedAt: { $ne: null },
+               ...ownershipFilter,
+            } satisfies StrictMongoFilter<IInviteDocumentRead>,
+            { limit: 1 }
+         )) > 0;
 
-      if (Either.isLeft(decodedInvite)) {
-         throw decodedInvite.left;
-      }
-
-      // ── Use the validated invite document from now on ──────────────────────────
-      const validatedInvite = decodedInvite.right;
-
-      // ── Accepted invites are immutable — refuse revocation ─────────────────────
-      if (validatedInvite.usedAt !== null) {
+      if (isRevocationBlockedByAcceptance) {
          return void res
             .status(409)
             .json(
@@ -73,51 +67,11 @@ export async function revokeInviteController(
             );
       }
 
-      // ── Ownership check ────────────────────────────────────────────────────────
-      /* The superadmin can revoke any invite regardless of who issued it. Any other canIssueInvites user may only revoke their own. */
-      const isSuperAdmin: boolean = role === 'superadmin';
-      const isIssuer: boolean = validatedInvite.issuedBy.toString() === sub;
-
-      if (!isSuperAdmin && !isIssuer) {
-         return void res
-            .status(403)
-            .json(
-               createErrorResponse(
-                  'FORBIDDEN',
-                  `You can only revoke invites that you issued.`,
-                  requestId
-               )
-            );
-      }
-
-      // ── Hard delete ────────────────────────────────────────────────────────────
-      const ownershipFilter: Pick<
-         StrictMongoFilter<IInviteDocumentRead>,
-         'issuedBy'
-      > = !isSuperAdmin ? { issuedBy: new ObjectId(sub) } : {};
-
-      const deleteResult = await inviteCollection.deleteOne({
-         _id: validatedInvite._id,
-         usedAt: null, // atomically fails if it was accepted between your findOne and this call
-         ...ownershipFilter,
-      } satisfies StrictMongoFilter<IInviteDocumentRead>);
-
-      if (deleteResult.deletedCount === 0) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  `This invite was just accepted and can no longer be revoked.`,
-                  requestId
-               )
-            );
-      }
-
-      return void res.status(200).json({
-         success: true,
-         message: `Invite revoked successfully`,
-      });
+      return void res
+         .status(404)
+         .json(
+            createErrorResponse('NOT_FOUND', `Invite not found.`, requestId)
+         );
    } catch (err) {
       next(err);
    }

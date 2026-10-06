@@ -9,7 +9,7 @@ import { createErrorResponse } from '../errorHandlers.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { buildPreviewInviteResponse } from '@utils/buildResponses.ts';
 import { INVITE_PREVIEW_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import {
+import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';

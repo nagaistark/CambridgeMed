@@ -1,9 +1,9 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   IPublicUser,
-   ISafeUser,
-   IUserDocument,
+   type IPublicUser,
+   type ISafeUser,
+   type IUserDocument,
    PublicUserArrayValidator,
    SafeUserArrayValidator,
 } from '@models/User_v3.model.ts';
@@ -11,8 +11,11 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
-import { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import { StrictFindOptions, StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type {
+   StrictFindOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import { buildListUsersResponse } from '@utils/buildResponses.ts';
 

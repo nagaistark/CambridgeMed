@@ -11,7 +11,7 @@ import {
    TOTP_CHALLENGE_COOKIE_NAME,
    TOTP_CHALLENGE_EXPIRY_SECONDS,
 } from '@ssot/totp_constants.ts';
-import { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
+import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 /* Single source of truth for cookie names. Imported by the authenticate middleware and the refresh controller. */
