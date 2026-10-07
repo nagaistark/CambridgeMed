@@ -18,7 +18,19 @@ type Prev = [never, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9];
 
 /* 2. BSON & Scalar Leaf Guard */
 type MongoLeaf =
-   string | number | boolean | Date | ObjectId | Decimal128 | Binary | Timestamp | Long | Buffer | RegExp | bigint | symbol;
+   | string
+   | number
+   | boolean
+   | Date
+   | ObjectId
+   | Decimal128
+   | Binary
+   | Timestamp
+   | Long
+   | Buffer
+   | RegExp
+   | bigint
+   | symbol;
 
 /* 3. Document Paths for Queries, Indexes, and Projections */
 export type MongoDocumentPaths<T, D extends number = 5> =
@@ -37,7 +49,12 @@ export type MongoDocumentPaths<T, D extends number = 5> =
 type DistributeObjectPaths<T, D extends number> = T extends unknown
    ? {
         [K in keyof T & string]:
-           K | (MongoDocumentPaths<T[K], Prev[D]> extends infer P ? (P extends never ? never : `${K}.${P & string}`) : never);
+           | K
+           | (MongoDocumentPaths<T[K], Prev[D]> extends infer P
+                ? P extends never
+                   ? never
+                   : `${K}.${P & string}`
+                : never);
      }[keyof T & string]
    : never;
 
@@ -111,40 +128,51 @@ type StrictFilterOperators<T> = {
    $gte?: T;
    $lt?: T;
    $lte?: T;
-   $in?: ReadonlyArray<NonNullable<T> extends ReadonlyArray<infer U> ? U : NonNullable<T>>;
-   $nin?: ReadonlyArray<NonNullable<T> extends ReadonlyArray<infer U> ? U : NonNullable<T>>;
+   $in?: ReadonlyArray<
+      NonNullable<T> extends ReadonlyArray<infer U> ? U : NonNullable<T>
+   >;
+   $nin?: ReadonlyArray<
+      NonNullable<T> extends ReadonlyArray<infer U> ? U : NonNullable<T>
+   >;
    $exists?: boolean;
    $type?: BSONType | BSONTypeAlias;
    $mod?: NonNullable<T> extends number ? [number, number] : never;
    $regex?: NonNullable<T> extends string ? string | RegExp : never;
    $options?: NonNullable<T> extends string | RegExp ? string : never;
-   $size?: NonNullable<T> extends ReadonlyArray<any> ? number : never;
-   $all?: NonNullable<T> extends ReadonlyArray<infer U> ? ReadonlyArray<U> : never;
+   $size?: NonNullable<T> extends ReadonlyArray<unknown> ? number : never;
+   $all?: NonNullable<T> extends ReadonlyArray<infer U>
+      ? ReadonlyArray<U>
+      : never;
    $elemMatch?: NonNullable<T> extends ReadonlyArray<infer U>
       ? NonNullable<U> extends MongoLeaf
          ? StrictFilterOperators<U> | U
          : StrictMongoFilter<U>
       : never;
-   $not?: StrictFilterOperators<T> | (NonNullable<T> extends string ? RegExp : never);
+   $not?:
+      | StrictFilterOperators<T>
+      | (NonNullable<T> extends string ? RegExp : never);
 };
 
-type StrictCondition<T> =
-   T extends ReadonlyArray<infer U>
-      ? T | U | StrictFilterOperators<T> | StrictFilterOperators<U>
-      : T | StrictFilterOperators<T>;
+/* Tuple-wrapping both sides of `extends` switches distribution off, so the union is checked as one unit. `NonNullable` handles optional array fields (`readonly X[] | undefined`). */
+type StrictCondition<T> = [NonNullable<T>] extends [ReadonlyArray<infer U>]
+   ? T | U | StrictFilterOperators<T> | StrictFilterOperators<U>
+   : T | StrictFilterOperators<T>;
 
 type StrictMongoFilterFields<TSchema> = {
-   [P in MongoDocumentPaths<TSchema>]?: StrictCondition<MongoQueryPathValue<TSchema, P>>;
+   [P in MongoDocumentPaths<TSchema>]?: StrictCondition<
+      MongoQueryPathValue<TSchema, P>
+   >;
 };
 
 type StrictRootFilterOperators<TSchema> = {
    $and?: ReadonlyArray<StrictMongoFilter<TSchema>>;
    $or?: ReadonlyArray<StrictMongoFilter<TSchema>>;
    $nor?: ReadonlyArray<StrictMongoFilter<TSchema>>;
-   $expr?: Record<string, any>;
+   $expr?: Record<string, unknown>;
 };
 
-export type StrictMongoFilter<TSchema> = StrictMongoFilterFields<TSchema> & StrictRootFilterOperators<TSchema>;
+export type StrictMongoFilter<TSchema> = StrictMongoFilterFields<TSchema> &
+   StrictRootFilterOperators<TSchema>;
 
 // ── STRICT UPDATE OBJECT ─────────────────────────────────────────────────────────
 type StrictSet<TSchema> = {
@@ -156,7 +184,12 @@ type StrictUnset<TSchema> = {
 };
 
 type NumericPaths<TSchema> = {
-   [P in MongoUpdatePaths<TSchema>]: MongoUpdatePathValue<TSchema, P> extends number ? P : never;
+   [P in MongoUpdatePaths<TSchema>]: MongoUpdatePathValue<
+      TSchema,
+      P
+   > extends number
+      ? P
+      : never;
 }[MongoUpdatePaths<TSchema>];
 
 type StrictInc<TSchema> = {
@@ -164,11 +197,17 @@ type StrictInc<TSchema> = {
 };
 
 type MongoArrayFields<TSchema> = {
-   [P in MongoUpdatePaths<TSchema>]: NonNullable<MongoUpdatePathValue<TSchema, P>> extends ReadonlyArray<any> ? P : never;
+   [P in MongoUpdatePaths<TSchema>]: NonNullable<
+      MongoUpdatePathValue<TSchema, P>
+   > extends ReadonlyArray<any>
+      ? P
+      : never;
 }[MongoUpdatePaths<TSchema>];
 
 type ArrayElement<TSchema, P extends MongoArrayFields<TSchema>> =
-   NonNullable<MongoUpdatePathValue<TSchema, P>> extends ReadonlyArray<infer U> ? U : never;
+   NonNullable<MongoUpdatePathValue<TSchema, P>> extends ReadonlyArray<infer U>
+      ? U
+      : never;
 
 type PushEachModifier<U> = {
    $each: ReadonlyArray<U>;
@@ -178,7 +217,8 @@ type PushEachModifier<U> = {
 };
 
 type StrictPush<TSchema> = {
-   [P in MongoArrayFields<TSchema>]?: ArrayElement<TSchema, P> | PushEachModifier<ArrayElement<TSchema, P>>;
+   [P in MongoArrayFields<TSchema>]?:
+      ArrayElement<TSchema, P> | PushEachModifier<ArrayElement<TSchema, P>>;
 };
 
 /* $addToSet only supports the bare $each modifier -- $position/$slice/$sort are $push-only and are invalid MongoDB syntax for $addToSet. */
@@ -187,11 +227,14 @@ type AddToSetEachModifier<U> = {
 };
 
 type StrictAddToSet<TSchema> = {
-   [P in MongoArrayFields<TSchema>]?: ArrayElement<TSchema, P> | AddToSetEachModifier<ArrayElement<TSchema, P>>;
+   [P in MongoArrayFields<TSchema>]?:
+      ArrayElement<TSchema, P> | AddToSetEachModifier<ArrayElement<TSchema, P>>;
 };
 
 type StrictPull<TSchema> = {
-   [P in MongoArrayFields<TSchema>]?: NonNullable<ArrayElement<TSchema, P>> extends MongoLeaf
+   [P in MongoArrayFields<TSchema>]?: NonNullable<
+      ArrayElement<TSchema, P>
+   > extends MongoLeaf
       ? StrictCondition<ArrayElement<TSchema, P>>
       : StrictMongoFilter<ArrayElement<TSchema, P>>;
 };
@@ -220,29 +263,42 @@ type ProjectionValue<T> =
    | { $meta: string }
    | (NonNullable<T> extends ReadonlyArray<infer U>
         ? {
-             $elemMatch: NonNullable<U> extends MongoLeaf ? StrictFilterOperators<U> : StrictMongoFilter<U>;
+             $elemMatch: NonNullable<U> extends MongoLeaf
+                ? StrictFilterOperators<U>
+                : StrictMongoFilter<U>;
           }
         : never);
 
 type StrictProjection<TSchema> = {
-   [P in MongoDocumentPaths<TSchema>]?: ProjectionValue<MongoQueryPathValue<TSchema, P>>;
+   [P in MongoDocumentPaths<TSchema>]?: ProjectionValue<
+      MongoQueryPathValue<TSchema, P>
+   >;
 };
 
 type StrictSort<TSchema> = {
    [P in MongoDocumentPaths<TSchema>]?: SortDirection;
 };
 
-export type StrictFindOptions<TSchema> = Omit<FindOptions, 'projection' | 'sort'> & {
+export type StrictFindOptions<TSchema> = Omit<
+   FindOptions,
+   'projection' | 'sort'
+> & {
    projection?: StrictProjection<TSchema>;
    sort?: StrictSort<TSchema>;
 };
 
-export type StrictFindOneOptions<TSchema> = Omit<FindOneOptions, 'projection' | 'sort'> & {
+export type StrictFindOneOptions<TSchema> = Omit<
+   FindOneOptions,
+   'projection' | 'sort'
+> & {
    projection?: StrictProjection<TSchema>;
    sort?: StrictSort<TSchema>;
 };
 
-export type StrictFindOneAndUpdateOptions<TSchema> = Omit<FindOneAndUpdateOptions, 'projection' | 'sort'> & {
+export type StrictFindOneAndUpdateOptions<TSchema> = Omit<
+   FindOneAndUpdateOptions,
+   'projection' | 'sort'
+> & {
    projection?: StrictProjection<TSchema>;
    sort?: StrictSort<TSchema>;
 };
