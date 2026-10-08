@@ -11,6 +11,7 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { LIST_QUERY_MAX_TIME_MS } from '@ssot/pagination_constants.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedQuery,
@@ -24,7 +25,6 @@ import { buildListUsersResponse } from '@utils/buildResponses.ts';
 import type { IObjectIdCursorPagination } from '@utils/effectSchemaReusables.ts';
 import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
 import { takePage } from '@utils/cursorPagination.ts';
-import type { EmptyOr } from '@utils/helperTypes.ts';
 
 export async function listUsersController(
    _req: Request,
@@ -36,30 +36,23 @@ export async function listUsersController(
       const { role } = res.locals.authenticatedUser;
       const { cursor, limit } = res.locals.validatedQuery;
 
+      /* Every clause must hold; none can overwrite another. `{}` is the neutral "no constraint" element. */
+      const filter = {
+         $and: [
+            buildUserVisibilityFilter(role),
+            cursor === undefined ? {} : { _id: { $lt: cursor } },
+         ],
+      } satisfies StrictMongoFilter<IUserDocument>;
+
       const userCollection = getUserCollection();
-
-      /* The only place `_id` and `$lt` are written for this fragment. The parameter type is derived from the pagination schema, not restated. */
-      const buildCursorFilter = (
-         cursor: NonNullable<IObjectIdCursorPagination['cursor']>
-      ) =>
-         ({ _id: { $lt: cursor } }) satisfies StrictMongoFilter<IUserDocument>;
-
-      const cursorFilter: EmptyOr<ReturnType<typeof buildCursorFilter>> =
-         cursor === undefined ? {} : buildCursorFilter(cursor);
-
-      const filter = { ...buildUserVisibilityFilter(role), ...cursorFilter };
-
-      const pageOptions = {
-         sort: { _id: -1 },
-         limit: limit + 1, // the +1 is the "is there a next page?" probe
-         maxTimeMS: 5_000,
-      } satisfies StrictFindOptions<IUserDocument>;
 
       if (role === 'superadmin') {
          const safeUsersRaw = await userCollection
             .find<ISafeUser>(filter, {
-               ...pageOptions,
                projection: SAFE_USER_PROJECTION,
+               sort: { _id: -1 },
+               limit: limit + 1, // the +1 is the "is there a next page?" probe
+               maxTimeMS: LIST_QUERY_MAX_TIME_MS,
             } satisfies StrictFindOptions<IUserDocument>)
             .toArray();
 
@@ -78,8 +71,10 @@ export async function listUsersController(
 
       const publicUsersRaw = await userCollection
          .find<IPublicUser>(filter, {
-            ...pageOptions,
             projection: PUBLIC_USER_PROJECTION,
+            sort: { _id: -1 },
+            limit: limit + 1,
+            maxTimeMS: LIST_QUERY_MAX_TIME_MS,
          } satisfies StrictFindOptions<IUserDocument>)
          .toArray();
 

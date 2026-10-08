@@ -23,6 +23,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import { buildGetUserResponse } from '@utils/buildResponses.ts';
+import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
 
 export async function getUserController(
    _req: Request,
@@ -34,16 +35,18 @@ export async function getUserController(
       const { role } = res.locals.authenticatedUser;
       const { id } = res.locals.validatedParams;
 
-      const isSuperAdmin = role === 'superadmin';
+      /* The same visibility policy as the list endpoint. A user the caller may not see is indistinguishable from one that doesn't exist. */
+      const filter = {
+         $and: [buildUserVisibilityFilter(role), { _id: id }],
+      } satisfies StrictMongoFilter<IUserDocument>;
+
       const userCollection = getUserCollection();
 
-      if (isSuperAdmin) {
-         const safeUserRaw = await userCollection.findOne<ISafeUser>(
-            { _id: id } satisfies StrictMongoFilter<IUserDocument>,
-            {
-               projection: SAFE_USER_PROJECTION,
-            } satisfies StrictFindOneOptions<IUserDocument>
-         );
+      if (role === 'superadmin') {
+         const safeUserRaw = await userCollection.findOne<ISafeUser>(filter, {
+            projection: SAFE_USER_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserDocument>);
+
          if (!safeUserRaw) {
             return void res
                .status(404)
@@ -63,12 +66,10 @@ export async function getUserController(
             .json(buildGetUserResponse(decodedSafeUser.right));
       }
 
-      const publicUserRaw = await userCollection.findOne<IPublicUser>(
-         { _id: id } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            projection: PUBLIC_USER_PROJECTION,
-         } satisfies StrictFindOneOptions<IUserDocument>
-      );
+      const publicUserRaw = await userCollection.findOne<IPublicUser>(filter, {
+         projection: PUBLIC_USER_PROJECTION,
+      } satisfies StrictFindOneOptions<IUserDocument>);
+
       if (!publicUserRaw) {
          return void res
             .status(404)

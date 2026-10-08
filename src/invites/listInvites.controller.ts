@@ -29,6 +29,7 @@ import {
    INVITE_LIST_PROJECTION,
    USER_ID_NAME_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { LIST_QUERY_MAX_TIME_MS } from '@ssot/pagination_constants.ts';
 import { takePage } from '@utils/cursorPagination.ts';
 
 type IInviteListItem = IPendingInviteItem | IAcceptedInviteItem;
@@ -49,35 +50,32 @@ export async function listInvitesController(
       const userCollection = getUserCollection();
 
       // ── Build the query filter ─────────────────────────────────────────────────
-      /* What we want are accepted invites (regardless of expiry) OR pending invites that haven't expired yet. The TTL janitor's ~60s lag means an expired document might still physically exist, so we filter explicitly. */
-      const statusFilter = {
-         $or: [
-            { usedAt: { $ne: null } },
-            { usedAt: null, expiresAt: { $gt: new Date() } },
+      /* Every clause must hold; none can overwrite another. `{}` is the neutral "no constraint" element.
+         1. Status: accepted invites (regardless of expiry) OR pending invites that haven't expired yet. The TTL janitor's ~60s lag means an expired document might still physically exist, so we filter explicitly.
+         2. Ownership: non-superadmin users only see invites they personally issued. The superadmin sees everything.
+         3. Cursor: the next page starts strictly after the last _id of the previous one.
+         StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type. */
+      const now = new Date();
+      const filter = {
+         $and: [
+            {
+               $or: [
+                  { usedAt: { $ne: null } },
+                  { usedAt: null, expiresAt: { $gt: now } },
+               ],
+            },
+            isSuperAdmin ? {} : { issuedBy: new ObjectId(sub) },
+            cursor === undefined ? {} : { _id: { $lt: cursor } },
          ],
       } satisfies StrictMongoFilter<IInviteDocumentRead>;
 
-      /* Non-superadmin users only see invites they personally issued. The superadmin sees everything, so no issuedBy constraint is added. */
-      const ownershipFilter = isSuperAdmin
-         ? {}
-         : ({
-              issuedBy: new ObjectId(sub),
-           } satisfies StrictMongoFilter<IInviteDocumentRead>);
-
       const invitesRaw = await inviteCollection
-         .find<IInviteListRead>(
-            {
-               ...statusFilter,
-               ...ownershipFilter,
-               ...(cursor === undefined ? {} : { _id: { $lt: cursor } }),
-            } satisfies StrictMongoFilter<IInviteDocumentRead>, // StrictMongoFilter<T> should always be built from the full collection document type, not the narrow projection type.
-            {
-               projection: INVITE_LIST_PROJECTION,
-               sort: { _id: -1 },
-               limit: limit + 1, // the +1 is the "is there a next page?" probe
-               maxTimeMS: 5_000, // a runaway query dies instead of hogging the pool
-            } satisfies StrictFindOptions<IInviteListRead>
-         )
+         .find<IInviteListRead>(filter, {
+            projection: INVITE_LIST_PROJECTION,
+            sort: { _id: -1 },
+            limit: limit + 1, // the +1 is the "is there a next page?" probe
+            maxTimeMS: LIST_QUERY_MAX_TIME_MS,
+         } satisfies StrictFindOptions<IInviteListRead>)
          .toArray();
 
       const { items: pageRows, hasNextPage } = takePage(invitesRaw, limit);
