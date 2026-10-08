@@ -105,21 +105,20 @@ export function buildGetUserResponse(user: ISafeUser | IPublicUser): {
    return { success: true, user };
 }
 
-export function buildListUsersResponse(users: readonly ISafeUser[]): {
-   success: true;
-   users: readonly ISafeUser[];
-};
-export function buildListUsersResponse(users: readonly IPublicUser[]): {
-   success: true;
-   users: readonly IPublicUser[];
-};
-export function buildListUsersResponse(
-   users: readonly ISafeUser[] | readonly IPublicUser[]
+export function buildListUsersResponse<T extends Pick<IPublicUser, '_id'>>(
+   users: readonly T[],
+   hasNextPage: boolean,
+   limit: number
 ): {
    success: true;
-   users: readonly ISafeUser[] | readonly IPublicUser[];
+   users: readonly T[];
+   pagination: { nextCursor: string | null; limit: number };
 } {
-   return { success: true, users };
+   const last = users.at(-1);
+   const nextCursor =
+      hasNextPage && last !== undefined ? last._id.toHexString() : null;
+
+   return { success: true, users, pagination: { nextCursor, limit } };
 }
 
 // ── Patient responses ────────────────────────────────────────────────────────────

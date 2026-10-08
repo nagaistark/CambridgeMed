@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '@middleware/authenticate.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import { validateParams } from '@middleware/validateParams.ts';
+import { validateQuery } from '@middleware/validateQuery.ts';
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import {
    emailChangeInitiateRateLimiter,
@@ -10,7 +11,10 @@ import {
    passwordChangeRateLimiter,
    userAdminToggleRateLimiter,
 } from '@utils/rateLimiters.ts';
-import { MongoIdParamsSchema } from '@utils/effectSchemaReusables.ts';
+import {
+   MongoIdParamsSchema,
+   ObjectIdCursorPaginationSchema,
+} from '@utils/effectSchemaReusables.ts';
 import {
    ChangeNameSchema,
    ChangePasswordSchema,
@@ -76,7 +80,11 @@ emailRouter.get(
 const userAdminRouter = Router();
 userAdminRouter.use(authenticate);
 
-userAdminRouter.get('/', listUsersController);
+userAdminRouter.get(
+   '/',
+   validateQuery(ObjectIdCursorPaginationSchema),
+   listUsersController
+);
 
 userAdminRouter.get(
    '/:id',

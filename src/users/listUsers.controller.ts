@@ -11,65 +11,89 @@ import {
    SAFE_USER_PROJECTION,
    PUBLIC_USER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
-import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
+import type {
+   AuthenticatedResponse,
+   ResponseWithValidatedQuery,
+} from '@utils/customTypedResponses.ts';
 import type {
    StrictFindOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import { buildListUsersResponse } from '@utils/buildResponses.ts';
+import type { IObjectIdCursorPagination } from '@utils/effectSchemaReusables.ts';
+import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
+import { takePage } from '@utils/cursorPagination.ts';
+import type { EmptyOr } from '@utils/helperTypes.ts';
 
 export async function listUsersController(
    _req: Request,
-   res: AuthenticatedResponse,
+   res: AuthenticatedResponse &
+      ResponseWithValidatedQuery<IObjectIdCursorPagination>,
    next: NextFunction
 ): Promise<void> {
    try {
       const { role } = res.locals.authenticatedUser;
-      const isSuperAdmin = role === 'superadmin';
+      const { cursor, limit } = res.locals.validatedQuery;
+
       const userCollection = getUserCollection();
 
-      if (isSuperAdmin) {
+      /* The only place `_id` and `$lt` are written for this fragment. The parameter type is derived from the pagination schema, not restated. */
+      const buildCursorFilter = (
+         cursor: NonNullable<IObjectIdCursorPagination['cursor']>
+      ) =>
+         ({ _id: { $lt: cursor } }) satisfies StrictMongoFilter<IUserDocument>;
+
+      const cursorFilter: EmptyOr<ReturnType<typeof buildCursorFilter>> =
+         cursor === undefined ? {} : buildCursorFilter(cursor);
+
+      const filter = { ...buildUserVisibilityFilter(role), ...cursorFilter };
+
+      const pageOptions = {
+         sort: { _id: -1 },
+         limit: limit + 1, // the +1 is the "is there a next page?" probe
+         maxTimeMS: 5_000,
+      } satisfies StrictFindOptions<IUserDocument>;
+
+      if (role === 'superadmin') {
          const safeUsersRaw = await userCollection
-            .find<ISafeUser>({}, {
+            .find<ISafeUser>(filter, {
+               ...pageOptions,
                projection: SAFE_USER_PROJECTION,
             } satisfies StrictFindOptions<IUserDocument>)
             .toArray();
 
-         const decodedUsers = Schema.decodeUnknownEither(
-            SafeUserArrayValidator
-         )(safeUsersRaw);
-         if (Either.isLeft(decodedUsers)) {
-            throw decodedUsers.left;
+         const { items, hasNextPage } = takePage(safeUsersRaw, limit);
+         const decoded = Schema.decodeUnknownEither(SafeUserArrayValidator)(
+            items
+         );
+         if (Either.isLeft(decoded)) {
+            throw decoded.left;
          }
 
          return void res
             .status(200)
-            .json(buildListUsersResponse(decodedUsers.right));
+            .json(buildListUsersResponse(decoded.right, hasNextPage, limit));
       }
 
-      /* Non-superadmin users see the minimal public shape: name, email, role, and permissions. */
       const publicUsersRaw = await userCollection
-         .find<IPublicUser>(
-            {
-               invitedBy: { $exists: true },
-            } satisfies StrictMongoFilter<IUserDocument>,
-            {
-               projection: PUBLIC_USER_PROJECTION,
-            } satisfies StrictFindOptions<IPublicUser>
-         )
+         .find<IPublicUser>(filter, {
+            ...pageOptions,
+            projection: PUBLIC_USER_PROJECTION,
+         } satisfies StrictFindOptions<IUserDocument>)
          .toArray();
 
-      const decodedPublicUsers = Schema.decodeUnknownEither(
-         PublicUserArrayValidator
-      )(publicUsersRaw);
-      if (Either.isLeft(decodedPublicUsers)) {
-         throw decodedPublicUsers.left;
+      const { items, hasNextPage } = takePage(publicUsersRaw, limit);
+      const decoded = Schema.decodeUnknownEither(PublicUserArrayValidator)(
+         items
+      );
+      if (Either.isLeft(decoded)) {
+         throw decoded.left;
       }
 
       return void res
          .status(200)
-         .json(buildListUsersResponse(decodedPublicUsers.right));
+         .json(buildListUsersResponse(decoded.right, hasNextPage, limit));
    } catch (err) {
       next(err);
    }
