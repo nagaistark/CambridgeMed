@@ -3,7 +3,9 @@ import {
    getUserCollection,
    type ISafeUser,
    type IUserDocument,
+   type IUserInviteIssuer,
    SafeUserValidator,
+   UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import type {
@@ -25,7 +27,10 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import type { NonNullableProps } from '@utils/helperTypes.ts';
 import { Either, Schema } from 'effect';
-import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import {
+   SAFE_USER_PROJECTION,
+   USER_INVITE_ISSUER_PROJECTION,
+} from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function toggleCanIssueInvitesController(
    _req: Request,
@@ -113,6 +118,47 @@ export async function toggleCanIssueInvitesController(
                   requestId
                )
             );
+      }
+
+      // ── Grant guard ────────────────────────────────────────────────────────────────
+      /* You cannot hand out a privilege you do not currently hold. Revocations are exempt. */
+      if (canIssueInvites) {
+         const callerRaw = await userCollection.findOne<IUserInviteIssuer>(
+            {
+               _id: new ObjectId(sub),
+            } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               projection: USER_INVITE_ISSUER_PROJECTION,
+            } satisfies StrictFindOneOptions<IUserInviteIssuer>
+         );
+         if (!callerRaw) {
+            throw new Error(
+               `Authenticated user not found in database during invite-privilege grant. userId=${sub}`
+            );
+         }
+
+         const decodedCaller = Schema.decodeUnknownEither(
+            UserInviteIssuerValidator
+         )(callerRaw);
+         if (Either.isLeft(decodedCaller)) {
+            throw decodedCaller.left;
+         }
+
+         const caller = decodedCaller.right;
+         if (
+            !caller.isActive ||
+            (caller.permissions & Permissions.ISSUE_INVITES) === 0
+         ) {
+            return void res
+               .status(403)
+               .json(
+                  createErrorResponse(
+                     'FORBIDDEN',
+                     `You cannot grant a privilege you do not hold.`,
+                     requestId
+                  )
+               );
+         }
       }
 
       // ── Compare-and-swap write ─────────────────────────────────────────────────

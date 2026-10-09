@@ -4,6 +4,7 @@ import { validateBody } from '@middleware/validateBody.ts';
 import { validateParams } from '@middleware/validateParams.ts';
 import { validateQuery } from '@middleware/validateQuery.ts';
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
+import { requirePermissions } from '@middleware/requirePermission.ts';
 import {
    emailChangeInitiateRateLimiter,
    emailTokenRateLimiter,
@@ -94,6 +95,7 @@ userAdminRouter.get(
 
 userAdminRouter.patch(
    '/:id/can-issue-invites',
+   requirePermissions('ISSUE_INVITES'),
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),
    validateBody(SetCanIssueInvitesSchema),
