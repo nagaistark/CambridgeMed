@@ -1,4 +1,11 @@
-import { type UserRole } from '@ssot/user_roles_constants.ts';
+import {
+   ROLE_SUPERADMIN,
+   type AllowedUserRole,
+   type UserRole,
+} from '@ssot/user_roles_constants.ts';
+import type { AuthenticatedUser } from './authenticated_user_constants.ts';
+import type { IUserDocument } from '@models/User_v3.model.ts';
+import type { ExpandType } from '@utils/helperTypes.ts';
 
 export const Permissions = {
    MANAGE_USERS: 1 << 0, // 1
@@ -51,4 +58,21 @@ export function arePermissionsValidForRole(
    const floor = ROLE_PERMISSIONS[role];
    const ceiling = floor | ROLE_DELEGABLE_PERMISSIONS[role];
    return (permissions & floor) === floor && (permissions & ~ceiling) === 0;
+}
+
+type InviteIssuerState = ExpandType<
+   Pick<AuthenticatedUser, 'role' | 'permissions'> &
+      Pick<IUserDocument, 'isActive'>
+>;
+
+/* The single definition of "may this person mint an invite for this role RIGHT NOW?". Used at creation AND at acceptance. */
+export function canIssueInviteForRole(
+   issuer: InviteIssuerState,
+   inviteeRole: AllowedUserRole
+): boolean {
+   if (!issuer.isActive) return false;
+   if ((issuer.permissions & Permissions.ISSUE_INVITES) === 0) return false;
+   if (issuer.role === ROLE_SUPERADMIN) return true;
+   // No privilege escalation: the invitee's base powers must be a subset of the issuer's.
+   return (ROLE_PERMISSIONS[inviteeRole] & ~issuer.permissions) === 0;
 }

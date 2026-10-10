@@ -5,7 +5,9 @@ import {
    getUserCollection,
    type IUserDocument,
    type IUserInput,
+   type IUserInviteIssuer,
    UserDocumentValidator,
+   UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import {
    getInviteCollection,
@@ -21,6 +23,7 @@ import { createErrorResponse } from '../errorHandlers.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import {
+   canIssueInviteForRole,
    Permissions,
    resolvePermissions,
 } from '@ssot/permissions_constants.ts';
@@ -35,7 +38,10 @@ import type {
 import {
    INVITE_EMAIL_CHECK_PROJECTION,
    SAFE_INVITE_PROJECTION,
+   USER_INVITE_ISSUER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import logger from '../logger.ts';
+import type { ExpandType } from '@utils/helperTypes.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -63,11 +69,10 @@ class TransactionAbortError extends Error {
 
 The 'invalid_token' default inside this function is genuinely justified: it is the function's honest fallback for the case where withTransaction() aborts without the callback having had the chance to set a more specific outcome — for example, if findOneAndUpdate returns null. */
 
-type RegistrationParams = Pick<
-   IUserDocument,
-   'firstName' | 'lastName' | 'passwordHash'
-> &
-   Pick<IInviteDocumentRead, 'email' | 'tokenHash'>;
+type RegistrationParams = ExpandType<
+   Pick<IUserDocument, 'firstName' | 'lastName' | 'passwordHash'> &
+      Pick<IInviteDocumentRead, 'email' | 'tokenHash'>
+>;
 
 async function runRegistrationTransaction(
    session: ClientSession,
@@ -130,6 +135,44 @@ async function runRegistrationTransaction(
          If mismatch, set the outcome BEFORE returning. withTransaction() aborts, rolling back the findOneAndUpdate above and leaving usedAt as null. The invite is fully unclaimed and reusable. */
          if (validatedClaimedInvite.email !== email) {
             throw new TransactionAbortError({ status: 'email_mismatch' });
+         }
+
+         const issuerRaw = await userCollection.findOne<IUserInviteIssuer>(
+            {
+               _id: validatedClaimedInvite.issuedBy,
+            } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               projection: USER_INVITE_ISSUER_PROJECTION,
+               session,
+            } satisfies StrictFindOneOptions<IUserInviteIssuer>
+         );
+         if (!issuerRaw) {
+            throw new TransactionAbortError({ status: 'invalid_token' });
+         }
+
+         const decodedIssuer = Schema.decodeUnknownEither(
+            UserInviteIssuerValidator
+         )(issuerRaw);
+         if (Either.isLeft(decodedIssuer)) {
+            throw new Error(
+               `Issuer ${validatedClaimedInvite.issuedBy.toHexString()} failed schema validation during invite acceptance.`
+            );
+         }
+
+         if (
+            !canIssueInviteForRole(
+               decodedIssuer.right,
+               validatedClaimedInvite.role
+            )
+         ) {
+            logger.warn(
+               `Invite accepted after issuer lost authority; refusing.`,
+               {
+                  inviteId: validatedClaimedInvite._id,
+                  issuerId: validatedClaimedInvite.issuedBy,
+               }
+            );
+            throw new TransactionAbortError({ status: 'invalid_token' });
          }
 
          // ── Create the User document ────────────────────────────────────────────

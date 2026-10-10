@@ -214,16 +214,6 @@ const AcceptedInviteItem = Schema.Struct({
 });
 export type IAcceptedInviteItem = Schema.Schema.Type<typeof AcceptedInviteItem>;
 
-/* Minimal issuedBy, usedAt + _id fields used by revokeInviteController */
-const InviteRevocationSchema = InviteDocumentReadStruct.pick(
-   '_id',
-   'usedAt',
-   'issuedBy'
-);
-export type IInviteRevocation = Schema.Schema.Type<
-   typeof InviteRevocationSchema
->;
-
 /* Minimal shape for the pre-hash email pre-flight in acceptInviteController. */
 const InviteEmailCheckSchema = InviteDocumentReadStruct.pick('_id', 'email');
 export type IInviteEmailCheck = Schema.Schema.Type<
@@ -250,6 +240,10 @@ export const InviteDocumentReadArrayValidator = Schema.Array(
    InviteDocumentReadValidator
 );
 
+export const SafeInviteCreateValidator = Schema.typeSchema(
+   SafeInviteCreateSchema
+);
+
 export const SafeInviteReadValidator = Schema.typeSchema(SafeInviteReadSchema);
 export const SafeInviteReadArrayValidator = Schema.Array(
    SafeInviteReadValidator
@@ -257,13 +251,6 @@ export const SafeInviteReadArrayValidator = Schema.Array(
 
 export const InviteListReadArrayValidator = Schema.Array(
    Schema.typeSchema(InviteListReadSchema)
-);
-
-export const InviteRevocationValidator = Schema.typeSchema(
-   InviteRevocationSchema
-);
-export const InviteRevocationArrayValidator = Schema.Array(
-   InviteRevocationValidator
 );
 
 export const InviteEmailCheckValidator = Schema.typeSchema(

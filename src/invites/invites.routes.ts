@@ -10,6 +10,7 @@ import { previewInviteController } from '@invites/previewInvite.controller.ts';
 import { listInvitesController } from '@invites/listInvites.controller.ts';
 import { acceptInviteController } from '@invites/acceptInvite.controller.ts';
 import { validateParams } from '@middleware/validateParams.ts';
+import { validateQuery } from '@middleware/validateQuery.ts';
 import {
    MongoIdParamsSchema,
    ObjectIdCursorPaginationSchema,
@@ -20,7 +21,6 @@ import {
    inviteCreateRateLimiter,
    invitePreviewRateLimiter,
 } from '@utils/rateLimiters.ts';
-import { validateQuery } from '@/middleware/validateQuery.ts';
 
 const inviteRouter = Router();
 
@@ -34,7 +34,7 @@ inviteRouter.post(
    createInviteController
 );
 
-// Protected: same gate, with an additional ownership check inside the controller.
+// Protected: ownership check inside the controller.
 inviteRouter.delete(
    '/:id',
    authenticate,
@@ -43,11 +43,10 @@ inviteRouter.delete(
    revokeInviteController
 );
 
-// Protected: list of the invites issued by a particular User OR list of all the invites issued by every User (only visible to superadmin)
+// Protected: list of the invites issued by a particular User OR list of all the invites issued by every User (only visible to superadmin). Visibility is enforced by the ownership predicate inside the controller, not by the `requirePermissions('ISSUE_INVITES')` permission gate. Demoted doctors retain the ability to list the invites they issued before the demotion. The superadmin sees every invite.
 inviteRouter.get(
    '/',
    authenticate,
-   requirePermissions('ISSUE_INVITES'),
    validateQuery(ObjectIdCursorPaginationSchema),
    listInvitesController
 );
@@ -60,7 +59,7 @@ inviteRouter.get(
    previewInviteController
 );
 
-// Public: the registering user has no session. validateBody runs the full UserRegistrationSchema (firstName, lastName, email, password). The raw token arrives as a path parameter, not in the body.
+// Public: the registering user has no session. validateBody runs the full UserInputSchema (firstName, lastName, email, password). The raw token arrives as a path parameter, not in the body.
 inviteRouter.post(
    '/:token/accept',
    inviteAcceptRateLimiter,

@@ -8,6 +8,7 @@ import {
    UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
+import { DatabaseManager } from '../mongoDBConnect.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -25,12 +26,15 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import type { NonNullableProps } from '@utils/helperTypes.ts';
 import { Either, Schema } from 'effect';
 import {
    SAFE_USER_PROJECTION,
    USER_INVITE_ISSUER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
+import {
+   getInviteCollection,
+   type IInviteDocumentRead,
+} from '@models/Invite_v3.model.ts';
 
 export async function toggleCanIssueInvitesController(
    _req: Request,
@@ -47,19 +51,15 @@ export async function toggleCanIssueInvitesController(
 
       const userCollection = getUserCollection();
 
-      /* The caller's visibility scope. Superadmin may manage anyone. Everyone else only the users they personally invited (a one-level, permanent accountability link). Every query below spreads this in, so "not yours" is structurally identical to "doesn't exist". */
-      type ScopeFilter =
-         | Record<string, never>
-         | NonNullableProps<Pick<IUserDocument, 'invitedBy'>>;
+      /* The caller's visibility scope. Superadmin may manage anyone. Everyone else only the users they personally invited. */
 
-      const scopeFilter: ScopeFilter =
+      const scopeClause =
          role === 'superadmin' ? {} : { invitedBy: new ObjectId(sub) };
 
       // ── Scoped fetch ───────────────────────────────────────────────────────────
       const targetUserRaw = await userCollection.findOne<ISafeUser>(
          {
-            _id: id,
-            ...scopeFilter,
+            $and: [{ _id: id }, scopeClause],
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: SAFE_USER_PROJECTION,
@@ -162,25 +162,55 @@ export async function toggleCanIssueInvitesController(
       }
 
       // ── Compare-and-swap write ─────────────────────────────────────────────────
-      /* The filter says "only if the document still looks the way I decided on, and I'm still allowed to touch it". */
-      const updateResult = await userCollection.updateOne(
-         {
-            _id: validatedTargetUser._id,
-            permissions: validatedTargetUser.permissions,
-            ...scopeFilter,
-         } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            $set: { permissions: newPermissions },
-         } satisfies StrictUpdate<IUserDocument>
-      );
-
-      if (updateResult.matchedCount === 0) {
-         throw makeAppError(
-            'CONCURRENCY_ERROR',
-            409,
-            'CONFLICT',
-            `This user's permissions were changed by another request. Please retry.`
+      const authConnection = DatabaseManager.getInstance().auth.client;
+      if (!authConnection) {
+         throw new Error(
+            `Auth database connection unavailable during invite-privilege change.`
          );
+      }
+
+      const session = authConnection.startSession();
+      try {
+         await session.withTransaction(async () => {
+            /* The filter says "only if the document still looks the way I decided on, and I'm still allowed to touch it". */
+            const updateResult = await userCollection.updateOne(
+               {
+                  $and: [
+                     {
+                        _id: validatedTargetUser._id,
+                        permissions: validatedTargetUser.permissions,
+                     },
+                     scopeClause,
+                  ],
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  $set: { permissions: newPermissions },
+               } satisfies StrictUpdate<IUserDocument>,
+               { session }
+            );
+
+            if (updateResult.matchedCount === 0) {
+               throw makeAppError(
+                  'CONCURRENCY_ERROR',
+                  409,
+                  'CONFLICT',
+                  `This user's permissions were changed by another request. Please retry.`
+               );
+            }
+
+            /* Revocation voids every pending invite the user issued. Accepted invites are deliberately left alone: those people are real users now. */
+            if (!canIssueInvites) {
+               await getInviteCollection().deleteMany(
+                  {
+                     issuedBy: validatedTargetUser._id,
+                     usedAt: null,
+                  } satisfies StrictMongoFilter<IInviteDocumentRead>,
+                  { session }
+               );
+            }
+         });
+      } finally {
+         await session.endSession();
       }
 
       return void res.status(200).json({

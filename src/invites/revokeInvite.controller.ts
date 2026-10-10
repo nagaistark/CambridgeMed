@@ -24,17 +24,17 @@ export async function revokeInviteController(
 
       const inviteCollection = getInviteCollection();
 
-      /* The caller's visibility scope. Superadmin sees every invite; everyone else only their own. Every query below spreads this in, so "not yours" is structurally identical to "doesn't exist". */
-      const ownershipFilter:
-         Record<string, never> | Pick<IInviteDocumentRead, 'issuedBy'> =
+      /* The caller's visibility scope. Superadmin sees every invite; everyone else only their own. */
+
+      const ownershipClause =
          role === 'superadmin' ? {} : { issuedBy: new ObjectId(sub) };
 
+      const deleteFilter = {
+         $and: [{ _id: id, usedAt: null }, ownershipClause],
+      } satisfies StrictMongoFilter<IInviteDocumentRead>;
+
       // ── One atomic decision: exists AND visible AND pending → delete ───────────
-      const deleteResult = await inviteCollection.deleteOne({
-         _id: id,
-         usedAt: null,
-         ...ownershipFilter,
-      } satisfies StrictMongoFilter<IInviteDocumentRead>);
+      const deleteResult = await inviteCollection.deleteOne(deleteFilter);
 
       if (deleteResult.deletedCount === 1) {
          return void res.status(200).json({
@@ -45,15 +45,13 @@ export async function revokeInviteController(
 
       // ── Failure path: disambiguate, but ONLY within the caller's scope ─────────
       /* A non-owner's lookup matches nothing and falls through to the same 404 a missing id gets. */
+      const acceptedFilter = {
+         $and: [{ _id: id, usedAt: { $ne: null } }, ownershipClause],
+      } satisfies StrictMongoFilter<IInviteDocumentRead>;
+
       const isRevocationBlockedByAcceptance =
-         (await inviteCollection.countDocuments(
-            {
-               _id: id,
-               usedAt: { $ne: null },
-               ...ownershipFilter,
-            } satisfies StrictMongoFilter<IInviteDocumentRead>,
-            { limit: 1 }
-         )) > 0;
+         (await inviteCollection.countDocuments(acceptedFilter, { limit: 1 })) >
+         0;
 
       if (isRevocationBlockedByAcceptance) {
          return void res

@@ -141,7 +141,13 @@ app.use(
    })
 );
 
-// E. Rate limiting
+// E. Never cache API responses (tokens, PHI-adjacent data).
+app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
+   res.setHeader('Cache-Control', 'no-store');
+   next();
+});
+
+// F. Rate limiting
 const limiter = rateLimit({
    windowMs: 15 * 60 * 1000,
    limit: 100,
@@ -195,12 +201,12 @@ app.use('/api', limiter);
 // Stricter limit on login to prevent brute-force attacks
 app.use('/api/auth/login', authLimiter);
 
-// F. Body Parsers & Static Files
+// G. Body Parsers & Static Files
 app.use(express.json({ limit: '100kb' }));
 app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// G. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated (logout reads the refresh token cookie).
+// H. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated (logout reads the refresh token cookie).
 app.use(cookieParser());
 
 // ===== ROUTES ====================================================================

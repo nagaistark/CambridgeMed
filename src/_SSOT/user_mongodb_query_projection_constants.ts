@@ -2,7 +2,6 @@ import type {
    IInviteEmailCheck,
    IInviteListRead,
    IInvitePreview,
-   IInviteRevocation,
    ISafeInviteRead,
 } from '@models/Invite_v3.model.ts';
 import type {
@@ -97,13 +96,6 @@ export const INVITE_LIST_PROJECTION: Record<keyof IInviteListRead, 1> = {
    ...SAFE_INVITE_PROJECTION,
    acceptedBy: 1,
 };
-
-export const INVITE_REVOCATION_PROJECTION: Record<keyof IInviteRevocation, 1> =
-   {
-      _id: 1,
-      usedAt: 1,
-      issuedBy: 1,
-   };
 
 export const INVITE_EMAIL_CHECK_PROJECTION: Record<keyof IInviteEmailCheck, 1> =
    {

@@ -1,6 +1,6 @@
 import type {
    ICreateInviteResponse,
-   IInvitePreview,
+   IInviteDocumentRead,
    IPreviewInviteResponse,
    ISafeInviteCreate,
 } from '@models/Invite_v3.model.ts';
@@ -74,7 +74,7 @@ export function buildMeResponse(message: string, user: ISafeUser): MeResponse {
 
 // ── Invite responses ─────────────────────────────────────────────────────────────
 export function buildPreviewInviteResponse(
-   inv: IInvitePreview
+   inv: IPreviewInviteResponse['inv']
 ): IPreviewInviteResponse {
    return { success: true, inv };
 }
@@ -87,6 +87,25 @@ export function buildCreateInviteResponse(
       message: 'Invite sent successfully.',
       inv,
    };
+}
+
+export function buildListInvitesResponse<
+   T extends Pick<IInviteDocumentRead, '_id'>,
+>(
+   invites: readonly T[],
+   hasNextPage: boolean,
+   limit: number
+): {
+   success: true;
+   invites: readonly T[];
+   pagination: { nextCursor: string | null; limit: number };
+} {
+   const lastInvite = invites.at(-1);
+   const nextCursor =
+      hasNextPage && lastInvite !== undefined
+         ? lastInvite._id.toHexString()
+         : null;
+   return { success: true, invites, pagination: { nextCursor, limit } };
 }
 
 // ── User responses ───────────────────────────────────────────────────────────────

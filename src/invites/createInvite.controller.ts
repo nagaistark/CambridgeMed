@@ -12,20 +12,21 @@ import {
    type IInviteInput,
    InviteDocumentCreateValidator,
    type ISafeInviteCreate,
+   SafeInviteCreateValidator,
 } from '@models/Invite_v3.model.ts';
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { sendInviteEmail } from '@invites/invite.email.ts';
 import {
    generateRandomToken,
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
 import { USER_INVITE_ISSUER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import { Permissions, ROLE_PERMISSIONS } from '@ssot/permissions_constants.ts';
+import { canIssueInviteForRole } from '@ssot/permissions_constants.ts';
 import { myEnv } from '../validateConfig.ts';
 import { type CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
@@ -78,13 +79,7 @@ export async function createInviteController(
       const validatedIssuer = decodedIssuer.right;
 
       /* DB values, not the JWT: the token can be up to 60s stale. */
-      const isForbidden =
-         !validatedIssuer.isActive ||
-         (validatedIssuer.permissions & Permissions.ISSUE_INVITES) === 0 ||
-         (validatedIssuer.role !== 'superadmin' &&
-            (ROLE_PERMISSIONS[role] & ~validatedIssuer.permissions) !== 0);
-
-      if (isForbidden) {
+      if (!canIssueInviteForRole(validatedIssuer, role)) {
          logger.warn(
             `Blocked invite creation: insufficient privileges or inactive issuer.`,
             { requestId, issuerId: sub, requestedRole: role }
@@ -165,6 +160,13 @@ export async function createInviteController(
          issuedBy: new ObjectId(sub),
       };
 
+      const decodedSafeInvitePayload = Schema.decodeUnknownEither(
+         SafeInviteCreateValidator
+      )(safeInvitePayload);
+      if (Either.isLeft(decodedSafeInvitePayload)) {
+         throw decodedSafeInvitePayload.left;
+      }
+
       const fullInvitePayload: IInviteDocumentCreate = {
          ...safeInvitePayload,
          acceptedBy: null,
@@ -173,11 +175,11 @@ export async function createInviteController(
          updatedAt: now,
       };
 
-      const decodedInvitePayload = Schema.decodeUnknownEither(
+      const decodedFullInvitePayload = Schema.decodeUnknownEither(
          InviteDocumentCreateValidator
       )(fullInvitePayload);
-      if (Either.isLeft(decodedInvitePayload)) {
-         throw decodedInvitePayload.left;
+      if (Either.isLeft(decodedFullInvitePayload)) {
+         throw decodedFullInvitePayload.left;
       }
 
       /* Guard #2 is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
@@ -191,7 +193,7 @@ export async function createInviteController(
       let insertedId: ObjectId;
       try {
          const insertResult = await inviteCollection.insertOne(
-            decodedInvitePayload.right
+            decodedFullInvitePayload.right
          );
          insertedId = insertResult.insertedId;
       } catch (insertErr) {
@@ -211,7 +213,7 @@ export async function createInviteController(
 
       // ── Send the invite email — with rollback on failure ───────────────────────
       /* An invite whose email was never delivered is worse than no invite: it silently occupies the pending-invite slot for this address until it expires, blocking any re-invite attempt. Rolling back removes that risk. */
-      const registrationUrl = `${myEnv.appBaseUrl}/register?token=${raw}`;
+      const registrationUrl = `${myEnv.appBaseUrl}/register#token=${raw}`; // Using # so that query parameters remain strictly on the client-side.
       try {
          await sendInviteEmail({
             to: email,
@@ -225,21 +227,30 @@ export async function createInviteController(
       } catch (emailErr) {
          /* Best-effort rollback. If this deleteOne also fails, the catch-all handler will log it. The re-thrown emailErr is the primary failure. */
          try {
-            await inviteCollection.deleteOne({
-               _id: insertedId,
-            });
+            await inviteCollection.deleteOne({ _id: insertedId });
          } catch (rollbackErr) {
             logger.error(
                `Failed to roll back orphaned invite ${insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
             );
          }
-         throw emailErr;
+         logger.error(
+            `Invite email failed: ${sanitizeError(emailErr).message}`,
+            {
+               requestId,
+            }
+         );
+         throw makeAppError(
+            'EMAIL_DELIVERY_FAILED',
+            503,
+            'SERVICE_UNAVAILABLE',
+            `We could not send the invitation email. Please try again shortly.`
+         );
       }
 
       // ── Respond ────────────────────────────────────────────────────────────────
       return void res
          .status(201)
-         .json(buildCreateInviteResponse(safeInvitePayload));
+         .json(buildCreateInviteResponse(decodedSafeInvitePayload.right));
    } catch (err) {
       next(err);
    }

@@ -35,11 +35,9 @@ export async function sendInviteEmail(
    const issuerFullNameText = `${issuerFirstName} ${issuerLastName}`;
    const roleLabel = role.charAt(0).toUpperCase() + role.slice(1);
 
-   const expiryFormatted = expiresAt.toLocaleDateString(LOCALE, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
+   const expiryFormatted = expiresAt.toLocaleString(LOCALE, {
+      dateStyle: 'full',
+      timeStyle: 'short',
       timeZone: TIME_ZONE,
    });
 
@@ -99,12 +97,14 @@ export async function sendInviteEmail(
       return { text, html };
    }
 
+   const { text, html } = renderMessage();
+
    const { error } = await resend.emails.send({
       from: myEnv.resend.from, // <onboarding@resend.dev> — default sender address until I verify my own domain (which I don't have yet).
       to,
       subject: `You've been invited to join CambridgeMed`,
-      text: renderMessage().text,
-      html: renderMessage().html,
+      text,
+      html,
    });
 
    // Normalise Resend's error-as-value into a thrown Error.

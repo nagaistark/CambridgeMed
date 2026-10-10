@@ -31,6 +31,7 @@ import {
 } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { LIST_QUERY_MAX_TIME_MS } from '@ssot/pagination_constants.ts';
 import { takePage } from '@utils/cursorPagination.ts';
+import { buildListInvitesResponse } from '@utils/buildResponses.ts';
 
 type IInviteListItem = IPendingInviteItem | IAcceptedInviteItem;
 
@@ -81,11 +82,9 @@ export async function listInvitesController(
       const { items: pageRows, hasNextPage } = takePage(invitesRaw, limit);
 
       if (pageRows.length === 0) {
-         return void res.status(200).json({
-            success: true,
-            invites: [],
-            pagination: { nextCursor: null, limit },
-         });
+         return void res
+            .status(200)
+            .json(buildListInvitesResponse(pageRows, hasNextPage, limit));
       }
 
       // ── Validate the fetched array of invites ──────────────────────────────────
@@ -179,7 +178,7 @@ export async function listInvitesController(
       for (const validatedInvite of validatedInvites) {
          const _id = validatedInvite._id;
          const issuerRecord = isSuperAdmin
-            ? issuerMap.get(validatedInvite.issuedBy.toString())
+            ? issuerMap.get(validatedInvite.issuedBy.toHexString())
             : undefined;
 
          const base: BaseInviteItem = {
@@ -227,17 +226,9 @@ export async function listInvitesController(
          }
       }
 
-      const lastInvite = validatedInvites.at(-1);
-      const nextCursor =
-         hasNextPage && lastInvite !== undefined
-            ? lastInvite._id.toHexString()
-            : null;
-
-      return void res.status(200).json({
-         success: true,
-         invites: result,
-         pagination: { nextCursor, limit },
-      });
+      return void res
+         .status(200)
+         .json(buildListInvitesResponse(result, hasNextPage, limit));
    } catch (err) {
       next(err);
    }

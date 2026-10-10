@@ -8,3 +8,8 @@ export type NonNullableProps<T> = {
 
 /* A fragment is either "no constraint" or exactly the shape T. The `Record<string, never>` arm rejects any key written into the empty branch, so a typo like `{ nonExistingField: true }` becomes a compile error. */
 export type EmptyOr<T> = Record<string, never> | T;
+
+/** Expands derived object types for more readable IntelliSense and type inspection. */
+export type ExpandType<T> = {
+   [K in keyof T]: T[K];
+} & {};

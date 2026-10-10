@@ -89,9 +89,12 @@ export async function previewInviteController(
       }
 
       // ── Return the safe preview ────────────────────────────────────────────────
-      return void res
-         .status(200)
-         .json(buildPreviewInviteResponse(validatedInvitePreview));
+      return void res.status(200).json(
+         buildPreviewInviteResponse({
+            role: validatedInvitePreview.role,
+            expiresAt: validatedInvitePreview.expiresAt,
+         })
+      );
    } catch (err) {
       next(err);
    }
