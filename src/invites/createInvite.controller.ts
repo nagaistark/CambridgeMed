@@ -182,7 +182,7 @@ export async function createInviteController(
          throw decodedFullInvitePayload.left;
       }
 
-      /* Guard #3 is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
+      /* Guard #2 is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
       await inviteCollection.deleteMany({
          email,
          usedAt: null,

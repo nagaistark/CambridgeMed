@@ -28,7 +28,7 @@ const inviteRouter = Router();
 inviteRouter.post(
    '/',
    authenticate,
-   requirePermissions('ISSUE_INVITES'), // First line of defense. Reads from the JWT (up to 60s stale)
+   requirePermissions('ISSUE_INVITES'),
    inviteCreateRateLimiter,
    validateBody(InviteInputSchema),
    createInviteController
