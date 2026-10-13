@@ -72,6 +72,42 @@ export const UserDocumentStruct = Schema.Struct({
 /* Standalone cross-field validation */
 export type IUserDocument = Schema.Schema.Type<typeof UserDocumentStruct>;
 
+const validateChangeHistoryCounts = <
+   A extends Pick<
+      IUserDocument,
+      | 'previousEmails'
+      | 'emailChangesUsed'
+      | 'previousNames'
+      | 'nameChangesUsed'
+   >,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(profile => {
+         const issues: Array<Schema.FilterIssue> = [];
+
+         if (profile.previousNames.length !== profile.nameChangesUsed) {
+            issues.push({
+               path: ['nameChangesUsed'],
+               message: `nameChangesUsed must equal the number of entries in previousNames.`,
+            });
+         }
+
+         if (profile.previousEmails.length !== profile.emailChangesUsed) {
+            issues.push({
+               path: ['emailChangesUsed'],
+               message: `emailChangesUsed must equal the number of entries in previousEmails.`,
+            });
+         }
+
+         return issues;
+      })
+   );
+};
+
 const validatePermissionsForRole = <
    A extends Pick<IUserDocument, 'role' | 'permissions'>,
    I,
@@ -189,6 +225,7 @@ const UserDocumentSchema = UserDocumentStruct.pipe(
    validateChronology,
    validateInviteRole,
    validatePermissionsForRole,
+   validateChangeHistoryCounts,
    validateTotp
 );
 
@@ -199,7 +236,12 @@ const SafeUserSchema = UserDocumentStruct.omit(
    'totpSecret',
    'totpRecoveryCodes',
    'totpLastUsedStep'
-).pipe(validateChronology, validateInviteRole, validatePermissionsForRole);
+).pipe(
+   validateChronology,
+   validateInviteRole,
+   validatePermissionsForRole,
+   validateChangeHistoryCounts
+);
 export type ISafeUser = Schema.Schema.Type<typeof SafeUserSchema>;
 
 /* The minimal PUBLIC-facing shape returned to non-superadmin authenticated users looking up their colleagues (getUserController, listUsersController). */

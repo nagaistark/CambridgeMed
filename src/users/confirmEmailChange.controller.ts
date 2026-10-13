@@ -19,8 +19,78 @@ import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import logger from '../logger.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
+import type { ClientSession, ObjectId } from 'mongodb';
+import { EMAIL_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 
 type ConfirmParams = { token: string };
+type ConfirmOutcome =
+   { status: 'invalid' } | { status: 'confirmed'; userId: ObjectId };
+
+async function runConfirmTransaction(
+   session: ClientSession,
+   tokenHash: string
+): Promise<ConfirmOutcome> {
+   return session.withTransaction(async (): Promise<ConfirmOutcome> => {
+      const now = new Date();
+
+      const claimedRaw = await getEmailChangeCollection().findOneAndUpdate(
+         {
+            confirmTokenHash: tokenHash,
+            expiresAt: { $gt: now },
+            confirmedAt: null,
+         } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
+         {
+            $set: { confirmedAt: now, updatedAt: now },
+         } satisfies StrictUpdate<IEmailChangeDocumentRead>,
+         { returnDocument: 'after', session }
+      );
+
+      if (claimedRaw === null) return { status: 'invalid' };
+
+      const decoded = Schema.decodeUnknownEither(
+         EmailChangeDocumentReadValidator
+      )(claimedRaw);
+
+      if (Either.isLeft(decoded)) throw decoded.left;
+
+      const change = decoded.right;
+
+      const applied = await getUserCollection().updateOne(
+         {
+            _id: change.userId,
+            email: change.oldEmail,
+            emailChangesUsed: { $lt: EMAIL_CHANGE_CAP },
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            $set: { email: change.newEmail, updatedAt: now },
+            $push: {
+               previousEmails: { email: change.oldEmail, archivedAt: now },
+            },
+            $inc: { emailChangesUsed: 1 },
+         } satisfies StrictUpdate<IUserDocument>,
+         { session }
+      );
+
+      if (applied.matchedCount === 0) {
+         throw makeAppError(
+            'CONCURRENCY_ERROR',
+            409,
+            'CONFLICT',
+            `This email change can no longer be applied. Please start over.`
+         );
+      }
+
+      /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
+      await getSessionCollection().deleteMany(
+         {
+            userId: change.userId,
+         } satisfies StrictMongoFilter<ISessionDocument>,
+         { session }
+      );
+
+      return { status: 'confirmed', userId: change.userId };
+   });
+}
 
 export async function confirmEmailChangeController(
    req: Request<ConfirmParams>,
@@ -30,53 +100,8 @@ export async function confirmEmailChangeController(
    try {
       const requestId = res.locals.requestId;
       const { token } = req.params;
-
       const tokenHash = generateStandardHash(token);
-      const emailChangeCollection = getEmailChangeCollection();
-      const userCollection = getUserCollection();
 
-      // ── Look up the EmailChange record ─────────────────────────────────────────
-      const emailChangeRaw = await emailChangeCollection.findOne({
-         confirmTokenHash: tokenHash,
-         expiresAt: { $gt: new Date() },
-      } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
-
-      if (!emailChangeRaw) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This link has expired or the email change has been cancelled.`,
-                  requestId
-               )
-            );
-      }
-
-      const decodedEmailChange = Schema.decodeUnknownEither(
-         EmailChangeDocumentReadValidator
-      )(emailChangeRaw);
-
-      if (Either.isLeft(decodedEmailChange)) {
-         throw decodedEmailChange.left;
-      }
-
-      const validatedEmailChange = decodedEmailChange.right;
-
-      // ── State guard ────────────────────────────────────────────────────────────
-      if (validatedEmailChange.confirmedAt !== null) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  `This email address has already been confirmed.`,
-                  requestId
-               )
-            );
-      }
-
-      // ── Transaction: mark confirmed + update User ──────────────────────────────
       const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(
@@ -85,82 +110,36 @@ export async function confirmEmailChangeController(
       }
 
       const session = authConnection.startSession();
+
       try {
-         await session.withTransaction(async () => {
-            const emailChangeUpdateResult =
-               await emailChangeCollection.updateOne(
-                  {
-                     _id: validatedEmailChange._id,
-                     confirmedAt: null,
-                  } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
-                  {
-                     $set: { confirmedAt: new Date() },
-                  } satisfies StrictUpdate<IEmailChangeDocumentRead>,
-                  { session }
+         const result = await runConfirmTransaction(session, tokenHash);
+
+         if (result.status === 'invalid') {
+            return void res
+               .status(404)
+               .json(
+                  createErrorResponse(
+                     'NOT_FOUND',
+                     `This link is invalid, has expired, or was already used.`,
+                     requestId
+                  )
                );
+         }
 
-            if (emailChangeUpdateResult.modifiedCount === 0) {
-               throw makeAppError(
-                  'CONCURRENCY_ERROR',
-                  409,
-                  'CONFLICT',
-                  `Email Change already confirmed.`
-               );
-            }
+         clearAuthCookies(res);
 
-            /* The old email is pushed to the archive BEFORE being overwritten. archivedAt records the moment it stopped being the live address. */
-            const userUpdateResult = await userCollection.updateOne(
-               {
-                  _id: validatedEmailChange.userId,
-               } satisfies StrictMongoFilter<IUserDocument>,
-               {
-                  $set: { email: validatedEmailChange.newEmail },
-                  $push: {
-                     previousEmails: {
-                        email: validatedEmailChange.oldEmail,
-                        archivedAt: new Date(),
-                     },
-                  },
-                  $inc: { emailChangesUsed: 1 },
-               } satisfies StrictUpdate<IUserDocument>,
-               { session }
-            );
+         logger.info(`Email change confirmed.`, {
+            userId: result.userId,
+            requestId,
+         });
 
-            if (userUpdateResult.matchedCount === 0) {
-               throw makeAppError(
-                  'CONCURRENCY_ERROR',
-                  409,
-                  'CONFLICT',
-                  `User ${validatedEmailChange.userId} not found...`
-               );
-            }
-
-            /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
-            await getSessionCollection().deleteMany(
-               {
-                  userId: validatedEmailChange.userId,
-               } satisfies StrictMongoFilter<ISessionDocument>,
-               { session }
-            );
-
-            logger.info(
-               `New email ${validatedEmailChange.newEmail} has been confirmed.`,
-               {
-                  userId: validatedEmailChange.userId,
-                  requestId,
-               }
-            );
+         return void res.status(200).json({
+            success: true,
+            message: `Email address updated successfully. Please log in again.`,
          });
       } finally {
          await session.endSession();
       }
-
-      clearAuthCookies(res);
-
-      return void res.status(200).json({
-         success: true,
-         message: `Email address updated successfully. Please log in again.`,
-      });
    } catch (err) {
       next(err);
    }

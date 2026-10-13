@@ -92,20 +92,25 @@ export async function changeNameController(
       }
 
       // ── Atomic archive-and-update ──────────────────────────────────────────────
-      /* We always archive the *full name pair* (firstName + lastName together), even when only one field changes. $push, $set, and $inc execute in a single findAndModify round-trip. There is no window where the document is partially updated. */
-      const updateFields: Partial<{ firstName: string; lastName: string }> = {};
-      if (firstName !== undefined) updateFields.firstName = firstName;
-      if (lastName !== undefined) updateFields.lastName = lastName;
+      /* We always archive the *full name pair* (firstName + lastName together), even when only one field changes. $push, $set, and $inc execute in a single round-trip. There is no window where the document is partially updated. */
+      const now = new Date();
 
       const updateResult = await userCollection.updateOne(
-         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
          {
-            $set: updateFields,
+            _id: validatedUser._id,
+            nameChangesUsed: validatedUser.nameChangesUsed,
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            $set: {
+               firstName: newFirstName,
+               lastName: newLastName,
+               updatedAt: now,
+            },
             $push: {
                previousNames: {
                   firstName: validatedUser.firstName,
                   lastName: validatedUser.lastName,
-                  archivedAt: new Date(),
+                  archivedAt: now,
                },
             },
             $inc: { nameChangesUsed: 1 },
@@ -117,7 +122,7 @@ export async function changeNameController(
             'CONCURRENCY_ERROR',
             409,
             'CONFLICT',
-            `User ${sub} not found...`
+            `Your profile was modified by another request. Please retry.`
          );
       }
 
