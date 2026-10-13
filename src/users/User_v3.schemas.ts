@@ -46,9 +46,10 @@ export const ChangeNameSchema = Schema.Struct({
 export type ChangeNameBody = Schema.Schema.Type<typeof ChangeNameSchema>;
 
 // ── Initiate email change ─────────────────────────────────────────────────────
-/* Identical pipeline to the registration email field: format validation, length cap, and a lowercase transform. The equality check against the user's current email (new !== old) is enforced in the controller, not here, because the schema has no access to the authenticated user's record. */
+/* Email change should require the current password. Identical pipeline to the registration email field: format validation, length cap, and a lowercase transform. The equality check against the user's current email (new !== old) is enforced in the controller, not here, because the schema has no access to the authenticated user's record. */
 export const InitiateEmailChangeSchema = Schema.Struct({
    newEmail: clinicStaffEmail,
+   currentPassword: passwordString,
 });
 
 export type InitiateEmailChangeBody = Schema.Schema.Type<

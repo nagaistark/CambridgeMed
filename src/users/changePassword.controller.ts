@@ -108,7 +108,10 @@ export async function changePasswordController(
                   _id: new ObjectId(sub),
                } satisfies StrictMongoFilter<IUserDocument>,
                {
-                  $set: { passwordHash: newPasswordHash },
+                  $set: {
+                     passwordHash: newPasswordHash,
+                     updatedAt: new Date(),
+                  },
                } satisfies StrictUpdate<IUserDocument>,
                { session }
             );

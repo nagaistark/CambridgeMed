@@ -255,6 +255,18 @@ const PublicUserSchema = UserDocumentStruct.pick(
 ).pipe(validatePermissionsForRole);
 export type IPublicUser = Schema.Schema.Type<typeof PublicUserSchema>;
 
+/* The minimal set of fields needed for initiating email change */
+const UserEmailChangeInitiatorSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'email',
+   'emailChangesUsed',
+   'passwordHash'
+);
+export type IUserEmailChangeInitiator = Schema.Schema.Type<
+   typeof UserEmailChangeInitiatorSchema
+>;
+
 /* _id + passwordHash. Used in changePasswordController. */
 const UserIdPasswordHashSchema = UserDocumentStruct.pick('_id', 'passwordHash');
 export type IUserIdPasswordHash = Schema.Schema.Type<
@@ -302,6 +314,10 @@ export const SafeUserArrayValidator = Schema.Array(SafeUserValidator);
 
 export const PublicUserValidator = Schema.typeSchema(PublicUserSchema);
 export const PublicUserArrayValidator = Schema.Array(PublicUserValidator);
+
+export const UserEmailChangeInitiatorValidator = Schema.typeSchema(
+   UserEmailChangeInitiatorSchema
+);
 
 export const UserIdPasswordHashValidator = Schema.typeSchema(
    UserIdPasswordHashSchema

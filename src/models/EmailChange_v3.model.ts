@@ -20,7 +20,7 @@ export const EmailChangeDocumentBase = Schema.Struct({
    cancelTokenHash: sha256HexString,
    userId: objectIdInstance,
    oldEmail: clinicStaffEmail,
-   ...InitiateEmailChangeSchema.fields,
+   ...InitiateEmailChangeSchema.pick('newEmail').fields,
    ...ServerGeneratedFields.fields,
 });
 
@@ -74,6 +74,11 @@ export const emailChangeIndexes = [
 
    /* Needed to enforce the "one pending change per user" rule at the application and database layers. */
    { key: { userId: 1 }, unique: true },
+   {
+      key: { newEmail: 1 },
+      unique: true,
+      partialFilterExpression: { confirmedAt: null },
+   },
 
    /* TTL janitor. */
    { key: { expiresAt: 1 }, expireAfterSeconds: 0 },

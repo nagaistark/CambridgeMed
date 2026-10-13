@@ -126,7 +126,9 @@ export async function toggleIsActiveController(
                {
                   _id: validatedTargetUser._id,
                } satisfies StrictMongoFilter<IUserDocument>,
-               { $set: { isActive } } satisfies StrictUpdate<IUserDocument>,
+               {
+                  $set: { isActive, updatedAt: new Date() },
+               } satisfies StrictUpdate<IUserDocument>,
                { session }
             );
 

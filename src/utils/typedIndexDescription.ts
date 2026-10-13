@@ -4,10 +4,17 @@ import {
    type IndexDescription,
    type IndexDirection,
 } from 'mongodb';
-import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
+import type {
+   StrictIndexConfig,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
 
-export type TypedIndexDescription<T> = Omit<IndexDescription, 'key'> & {
+export type TypedIndexDescription<T> = Omit<
+   IndexDescription,
+   'key' | 'partialFilterExpression'
+> & {
    key: StrictIndexConfig<T>;
+   partialFilterExpression?: StrictMongoFilter<T>;
 };
 
 export async function createTypedIndexes<T extends Document>(

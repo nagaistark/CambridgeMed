@@ -68,7 +68,8 @@ export const nameChangeRateLimiter = makeRateLimiter(
 
 export const emailChangeInitiateRateLimiter = makeRateLimiter(
    EMAIL_CHANGE_INITIATE_WINDOW_MS,
-   EMAIL_CHANGE_INITIATE_MAX_REQUESTS
+   EMAIL_CHANGE_INITIATE_MAX_REQUESTS,
+   { skipFailedRequests: true }
 );
 
 /* Shared by both the confirm and cancel token routes (they face the same brute-force enumeration threat and warrant the same ceiling). */

@@ -55,7 +55,8 @@ meRouter.patch(
 
 meRouter.post(
    '/email',
-   emailChangeInitiateRateLimiter,
+   passwordChangeRateLimiter,
+   emailChangeInitiateRateLimiter, // <-- With { skipFailedRequests: true }, failed requests do not consume the quota.
    validateBody(InitiateEmailChangeSchema),
    initiateEmailChangeController
 );

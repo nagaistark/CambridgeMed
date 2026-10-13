@@ -184,7 +184,7 @@ export async function toggleCanIssueInvitesController(
                   ],
                } satisfies StrictMongoFilter<IUserDocument>,
                {
-                  $set: { permissions: newPermissions },
+                  $set: { permissions: newPermissions, updatedAt: new Date() },
                } satisfies StrictUpdate<IUserDocument>,
                { session }
             );

@@ -2,8 +2,8 @@ import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
    type IUserDocument,
-   type IUserNameEmail,
-   UserNameEmailValidator,
+   type IUserEmailChangeInitiator,
+   UserEmailChangeInitiatorValidator,
 } from '@models/User_v3.model.ts';
 import {
    getEmailChangeCollection,
@@ -33,8 +33,10 @@ import {
    type StrictFindOneOptions,
    type StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
+import { verifyPassword } from '@utils/hashAndVerify.ts';
+import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import { Either, Schema } from 'effect';
-import { USER_NAME_EMAIL_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { USER_EMAIL_CHANGE_INITIATOR_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -45,18 +47,18 @@ export async function initiateEmailChangeController(
    try {
       const requestId = res.locals.requestId;
       const { sub } = res.locals.authenticatedUser;
-      const { newEmail } = res.locals.validatedBody;
+      const { newEmail, currentPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const emailChangeCollection = getEmailChangeCollection();
 
-      const userRaw = await userCollection.findOne<IUserNameEmail>(
+      const userRaw = await userCollection.findOne<IUserEmailChangeInitiator>(
          {
             _id: new ObjectId(sub),
          } satisfies StrictMongoFilter<IUserDocument>,
          {
-            projection: USER_NAME_EMAIL_PROJECTION,
-         } satisfies StrictFindOneOptions<IUserNameEmail>
+            projection: USER_EMAIL_CHANGE_INITIATOR_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserEmailChangeInitiator>
       );
 
       if (!userRaw) {
@@ -67,15 +69,33 @@ export async function initiateEmailChangeController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(UserNameEmailValidator)(
-         userRaw
-      );
+      const decodedUser = Schema.decodeUnknownEither(
+         UserEmailChangeInitiatorValidator
+      )(userRaw);
 
       if (Either.isLeft(decodedUser)) {
          throw decodedUser.left;
       }
 
       const validatedUser = decodedUser.right;
+
+      /* Verify the password immediately after the decode, before every guard. Otherwise Guards 2–5 ("cap reached", "email already exists", "claimed by pending change") become a probing oracle for someone with a stolen session but no password. */
+      const isPasswordValid = await verifyPassword(
+         validatedUser.passwordHash,
+         currentPassword
+      );
+
+      if (!isPasswordValid) {
+         return void res
+            .status(401)
+            .json(
+               createErrorResponse(
+                  'UNAUTHORIZED',
+                  `Current password is incorrect.`,
+                  requestId
+               )
+            );
+      }
 
       // ── Guard 1: new email must differ from current ────────────────────────────
       if (newEmail === validatedUser.email) {
@@ -125,7 +145,7 @@ export async function initiateEmailChangeController(
       const now = new Date();
 
       // ── Guard 4: new email must not be claimed by another pending change ───────
-      /* Between the moment a change is initiated and the moment the confirmation link is clicked, the newEmail is not yet stored on any User document (so the User.exists check above would miss it). We close that gap here. Only unconfirmed, non-cancelled, non-expired changes are "active". */
+      /* Between the moment a change is initiated and the moment the confirmation link is clicked, the newEmail is not yet stored on any User document. We close that gap here. Only unconfirmed, non-cancelled, non-expired changes are "active". */
       const emailClaimedByPendingChange =
          (await emailChangeCollection.countDocuments(
             {
@@ -148,10 +168,16 @@ export async function initiateEmailChangeController(
       }
 
       // ── Guard 5: no concurrent active change for this user ─────────────────────
-      /* Reap anything for this user that has already logically expired but hasn't yet been swept by MongoDB's TTL monitor (which runs on its own ~60s cycle). Without this, a user whose previous request expired seconds ago could still collide with the unique index on `userId` and receive a spurious 409. */
+      /* Reap anything for this user that has already logically expired but hasn't yet been swept by MongoDB's TTL monitor (which runs on its own ~60s cycle). Both unique indexes are clock-blind: a logically dead document keeps blocking inserts until the TTL monitor (~60s cycle) removes it. One sweep per index, each mirroring that index's coverage. */
 
       await emailChangeCollection.deleteMany({
          userId: new ObjectId(sub),
+         expiresAt: { $lte: now },
+      } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
+
+      await emailChangeCollection.deleteMany({
+         newEmail,
+         confirmedAt: null,
          expiresAt: { $lte: now },
       } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
 
@@ -199,8 +225,37 @@ export async function initiateEmailChangeController(
          updatedAt: now,
       };
 
-      const emailChange =
-         await emailChangeCollection.insertOne(emailChangePayload);
+      // ── Map duplicate-key errors at insert ─────────────────────────────────────
+      let emailChangeId: ObjectId;
+      try {
+         const insertResult =
+            await emailChangeCollection.insertOne(emailChangePayload);
+         emailChangeId = insertResult.insertedId;
+      } catch (insertErr) {
+         if (isDuplicateKeyOnField(insertErr, 'newEmail')) {
+            return void res
+               .status(409)
+               .json(
+                  createErrorResponse(
+                     'CONFLICT',
+                     `This email address is already claimed by a pending change request.`,
+                     requestId
+                  )
+               );
+         }
+         if (isDuplicateKeyOnField(insertErr, 'userId')) {
+            return void res
+               .status(409)
+               .json(
+                  createErrorResponse(
+                     'CONFLICT',
+                     `You already have an active email change request. Please complete or cancel it first.`,
+                     requestId
+                  )
+               );
+         }
+         throw insertErr;
+      }
 
       // ── Send bilateral emails — with rollback on failure ───────────────────────
       /* An EmailChange record whose emails were never delivered is worse than no record: it silently blocks re-initiation and leaves the user with no actionable links. Rolling back removes that risk. Note that if the first email succeeds and the second fails, the first cannot be "unsent" — but deleting the record makes both raw tokens permanently inert, which is the critical safety property. */
@@ -219,11 +274,11 @@ export async function initiateEmailChangeController(
       } catch (emailErr) {
          try {
             await emailChangeCollection.deleteOne({
-               _id: emailChange.insertedId,
+               _id: emailChangeId,
             });
          } catch (rollbackErr) {
             logger.error(
-               `Failed to roll back orphaned email change ${emailChange.insertedId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
+               `Failed to roll back orphaned email change ${emailChangeId.toHexString()} after email delivery failure: ${sanitizeError(rollbackErr).message}`
             );
          }
          throw emailErr;

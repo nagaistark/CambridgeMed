@@ -11,6 +11,7 @@ import type {
    IUserIdName,
    IUserIdPasswordHash,
    IUserInviteIssuer,
+   IUserEmailChangeInitiator,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -48,6 +49,17 @@ export const PUBLIC_USER_PROJECTION: Record<keyof IPublicUser, 1> = {
    role: 1,
    permissions: 1,
 } as const;
+
+export const USER_EMAIL_CHANGE_INITIATOR_PROJECTION: Record<
+   keyof IUserEmailChangeInitiator,
+   1
+> = {
+   _id: 1,
+   firstName: 1,
+   email: 1,
+   emailChangesUsed: 1,
+   passwordHash: 1,
+};
 
 export const USER_ID_PASSWORDHASH_PROJECTION: Record<
    keyof IUserIdPasswordHash,
