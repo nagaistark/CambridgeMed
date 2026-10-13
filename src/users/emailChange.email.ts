@@ -75,7 +75,7 @@ export async function sendEmailChangeEmails(
       to: newEmail,
       subject: `Confirm your new email address for CambridgeMed`,
       text: [
-         `${confirmTemplate.greeting} ${escapeHtml(firstName)},`,
+         `${confirmTemplate.greeting} ${firstName},`,
          ``,
          `${confirmTemplate.intro} ${newEmail}.`,
          ``,
@@ -90,7 +90,7 @@ export async function sendEmailChangeEmails(
          <html lang="en">
             <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
                <h2 style="margin:0 0 16px;">Confirm your new email address</h2>
-               <p style="margin:0 0 12px;">${confirmTemplate.greeting} <strong>${firstName}</strong>,</p>
+               <p style="margin:0 0 12px;">${confirmTemplate.greeting} <strong>${escapeHtml(firstName)}</strong>,</p>
                <p style="margin:0 0 12px;">
                   ${confirmTemplate.intro} <strong>${newEmail}</strong>.
                </p>
