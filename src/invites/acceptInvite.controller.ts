@@ -105,6 +105,7 @@ async function runRegistrationTransaction(
                $set: {
                   usedAt: now,
                   acceptedBy: userId,
+                  updatedAt: now,
                },
             } satisfies StrictUpdate<IInviteDocumentRead>,
             {
