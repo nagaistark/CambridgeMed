@@ -51,6 +51,9 @@ export function generateRefreshToken(): { raw: string; hash: string } {
    return { raw, hash };
 }
 
+// ── Cookie management ────────────────────────────────────────────────────────────
+const isProduction = myEnv.environment === 'production';
+
 // ── Private cookie primitives ────────────────────────────────────────────────────
 /* These are not exported. They encode the security baseline that every cookie in this application must meet. All public cookie functions delegate to these so the security flags are defined in exactly one place. */
 function writeCookie(
@@ -60,28 +63,23 @@ function writeCookie(
    maxAge: number,
    path: string
 ): void {
-   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
    res.cookie(name, value, {
       httpOnly: true,
       secure: isProduction,
-      sameSite,
+      sameSite: 'strict',
       maxAge,
       path,
    });
 }
 
 function eraseCookie(res: Response, name: string, path: string): void {
-   const sameSite: 'none' | 'lax' = isProduction ? 'none' : 'lax';
    res.clearCookie(name, {
       httpOnly: true,
       secure: isProduction,
-      sameSite,
+      sameSite: 'strict',
       path,
    });
 }
-
-// ── Cookie management ────────────────────────────────────────────────────────────
-const isProduction = myEnv.environment === 'production';
 
 // ── Public cookie functions ──────────────────────────────────────────────────────
 export function setAuthCookies(

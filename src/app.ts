@@ -43,6 +43,7 @@ import {
    SENSITIVE_URL_PARAM_NAMES,
 } from '@ssot/logging_constants.ts';
 import { escapeRegex } from './utils/escapeRegex.ts';
+import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.ts';
 
 // ===== APP INITIALIZATION & CONFIG ===============================================
 const app: Express = express();
@@ -94,29 +95,12 @@ app.use(
 
 // C. CORS (Placeholder for now. We'll work on it later...)
 const corsOptions: cors.CorsOptions = {
-   /* `origin` is the heart of the config. We pass our array of allowed origins directly from the validated environment. The cors package will do a strict string equality check against the incoming Origin header. */
-   origin: [...myEnv.cors.origins],
-
-   /* Explicitly whitelist the HTTP methods your API actually uses. OPTIONS must be included here to allow preflight requests through. "Deny by default, allow by exception" — don't leave this as the open default. */
-   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-
-   /* Headers our frontend is allowed to send:
-   • Content-Type covers JSON bodies.
-   • Authorization covers Bearer tokens (for when we add auth later).
-   • X-Request-Id is our custom correlation header — allowing it means our frontend could theoretically send its own request ID, which we may want for end-to-end tracing. */
-   allowedHeaders: ['Content-Type', 'Authorization', 'X-Request-Id'],
-
-   /* Headers the browser is allowed to *read* from the response. By default, browsers can only access a small set of "safe" headers. Exposing X-Request-Id means our frontend JS can read the correlation ID from responses — very useful for displaying to users when reporting errors. */
+   origin: [...myEnv.cors.origins], // spread: `cors` wants a mutable array
+   methods: ['GET', 'POST', 'PATCH', 'DELETE'],
+   allowedHeaders: ['Content-Type'],
    exposedHeaders: ['X-Request-Id'],
-
-   /* This is the big one for auth. Setting credentials: true tells the browser it's allowed to send cookies and Authorization headers cross-origin. CRITICAL: when this is true, we CANNOT use a wildcard (*) for origin */
    credentials: true,
-
-   /* How long (in seconds) the browser can cache a preflight response. 600 = 10 minutes. This reduces the number of OPTIONS round-trips our frontend makes, which speeds up perceived API performance. */
    maxAge: 600,
-
-   /* Ensures the CORS headers are set on error responses too, not just 200s. Without this, if our server returns a 401 or 500, the browser might suppress the response entirely due to missing CORS headers, making debugging very confusing. */
-   preflightContinue: false,
    optionsSuccessStatus: 204,
 };
 app.use(cors(corsOptions));
@@ -124,7 +108,7 @@ app.use(cors(corsOptions));
 // D. Security headers
 app.use(
    helmet({
-      frameguard: false, // Intentionally disabled. CSP frameAncestors: 'none' covers this for modern browsers
+      frameguard: { action: 'deny' },
       contentSecurityPolicy: {
          directives: {
             defaultSrc: ["'self'"], // Everything defaults to same-origin only
@@ -144,10 +128,17 @@ app.use(
 // E. Never cache API responses (tokens, PHI-adjacent data).
 app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
    res.setHeader('Cache-Control', 'no-store');
+   res.setHeader(
+      'Permissions-Policy',
+      'camera=(), microphone=(), geolocation=()'
+   );
    next();
 });
 
-// F. Rate limiting
+// F. CSRF defence-in-depth: rejects state-changing requests from untrusted origins before any parsing or rate-limiting.
+app.use('/api', requireTrustedOrigin);
+
+// G. Rate limiting
 const limiter = rateLimit({
    windowMs: 15 * 60 * 1000,
    limit: 100,
@@ -201,12 +192,11 @@ app.use('/api', limiter);
 // Stricter limit on login to prevent brute-force attacks
 app.use('/api/auth/login', authLimiter);
 
-// G. Body Parsers & Static Files
+// H. Body Parsers & Static Files
 app.use(express.json({ limit: '100kb' }));
-app.use(express.urlencoded({ extended: true, limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// H. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated (logout reads the refresh token cookie).
+// I. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated (logout reads the refresh token cookie).
 app.use(cookieParser());
 
 // ===== ROUTES ====================================================================
@@ -252,8 +242,8 @@ app.use('/api/*splat', (req: Request, res: Response) => {
    );
 });
 
-/* Tier 2. Everything else → serve React's index.html */
-app.use('/{*splat}', (_req: Request, res: Response) => {
+/* Tier 2. Everything else (GET only) → serve React's index.html */
+app.get('/{*splat}', (_req: Request, res: Response) => {
    res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
 
