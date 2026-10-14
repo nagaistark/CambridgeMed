@@ -38,6 +38,9 @@ import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import { Either, Schema } from 'effect';
 import { USER_EMAIL_CHANGE_INITIATOR_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 
+const EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE = `This email address is already claimed by a pending change request.`;
+const EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE = `You already have an active email change request. Please complete or cancel it first.`;
+
 export async function initiateEmailChangeController(
    _req: Request,
    res: ResponseWithValidatedBody<InitiateEmailChangeBody> &
@@ -161,7 +164,7 @@ export async function initiateEmailChangeController(
             .json(
                createErrorResponse(
                   'CONFLICT',
-                  `This email address is already claimed by a pending change request.`,
+                  EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE,
                   requestId
                )
             );
@@ -196,7 +199,7 @@ export async function initiateEmailChangeController(
             .json(
                createErrorResponse(
                   'CONFLICT',
-                  `You already have an active email change request. Please complete or cancel it first.`,
+                  EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE,
                   requestId
                )
             );
@@ -238,7 +241,7 @@ export async function initiateEmailChangeController(
                .json(
                   createErrorResponse(
                      'CONFLICT',
-                     `This email address is already claimed by a pending change request.`,
+                     EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE,
                      requestId
                   )
                );
@@ -249,7 +252,7 @@ export async function initiateEmailChangeController(
                .json(
                   createErrorResponse(
                      'CONFLICT',
-                     `You already have an active email change request. Please complete or cancel it first.`,
+                     EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE,
                      requestId
                   )
                );
