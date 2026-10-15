@@ -36,7 +36,7 @@ async function runConfirmTransaction(
       const claimedRaw = await getEmailChangeCollection().findOneAndUpdate(
          {
             confirmTokenHash: tokenHash,
-            expiresAt: { $gt: now },
+            confirmExpiresAt: { $gt: now },
             confirmedAt: null,
          } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
          {

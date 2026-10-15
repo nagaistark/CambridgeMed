@@ -37,7 +37,7 @@ async function runCancelTransaction(
       const deletedRaw = await getEmailChangeCollection().findOneAndDelete(
          {
             cancelTokenHash: tokenHash,
-            expiresAt: { $gt: now },
+            cancelExpiresAt: { $gt: now },
          } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
          { session }
       );

@@ -6,6 +6,7 @@ import {
    UserEmailChangeInitiatorValidator,
 } from '@models/User_v3.model.ts';
 import {
+   EmailChangeDocumentCreateValidator,
    getEmailChangeCollection,
    type IEmailChangeDocumentCreate,
    type IEmailChangeDocumentRead,
@@ -22,8 +23,9 @@ import {
    generateStandardHash,
 } from '@ssot/node_crypto_constants.ts';
 import {
+   EMAIL_CHANGE_CANCEL_EXPIRY_MS,
    EMAIL_CHANGE_CAP,
-   EMAIL_CHANGE_TOKEN_EXPIRY_MS,
+   EMAIL_CHANGE_CONFIRM_EXPIRY_MS,
 } from '@ssot/user_change_constants.ts';
 import { myEnv } from '../validateConfig.ts';
 import { type CountDocumentsOptions, ObjectId } from 'mongodb';
@@ -40,6 +42,7 @@ import { USER_EMAIL_CHANGE_INITIATOR_PROJECTION } from '@ssot/user_mongodb_query
 
 const EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE = `This email address is already claimed by a pending change request.`;
 const EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE = `You already have an active email change request. Please complete or cancel it first.`;
+const EMAIL_CHANGE_COOLDOWN_MESSAGE = `Your email address was changed recently. For your security, further changes are paused for a few days. You can revert the change using the cancellation link sent to your previous address.`;
 
 export async function initiateEmailChangeController(
    _req: Request,
@@ -133,6 +136,7 @@ export async function initiateEmailChangeController(
             { email: newEmail } satisfies StrictMongoFilter<IUserDocument>,
             { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
+
       if (emailTaken) {
          return void res
             .status(409)
@@ -154,7 +158,7 @@ export async function initiateEmailChangeController(
             {
                newEmail,
                confirmedAt: null,
-               expiresAt: { $gt: now },
+               confirmExpiresAt: { $gt: now },
             } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
             { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
@@ -171,27 +175,50 @@ export async function initiateEmailChangeController(
       }
 
       // ── Guard 5: no concurrent active change for this user ─────────────────────
-      /* Reap anything for this user that has already logically expired but hasn't yet been swept by MongoDB's TTL monitor (which runs on its own ~60s cycle). Both unique indexes are clock-blind: a logically dead document keeps blocking inserts until the TTL monitor (~60s cycle) removes it. One sweep per index, each mirroring that index's coverage. */
-
       await emailChangeCollection.deleteMany({
          userId: new ObjectId(sub),
-         expiresAt: { $lte: now },
+         $or: [
+            { cancelExpiresAt: { $lte: now } },
+            { confirmedAt: null, confirmExpiresAt: { $lte: now } },
+         ],
       } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
 
       await emailChangeCollection.deleteMany({
          newEmail,
          confirmedAt: null,
-         expiresAt: { $lte: now },
+         confirmExpiresAt: { $lte: now },
       } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
+
+      const confirmedChangeInCooldown =
+         (await emailChangeCollection.countDocuments(
+            {
+               userId: new ObjectId(sub),
+               confirmedAt: { $ne: null },
+               cancelExpiresAt: { $gt: now },
+            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
+            { limit: 1 } satisfies CountDocumentsOptions
+         )) > 0;
 
       const userHasActiveChange =
          (await emailChangeCollection.countDocuments(
             {
                userId: new ObjectId(sub),
-               expiresAt: { $gt: now },
+               cancelExpiresAt: { $gt: now },
             } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
             { limit: 1 } satisfies CountDocumentsOptions
          )) > 0;
+
+      if (confirmedChangeInCooldown) {
+         return void res
+            .status(409)
+            .json(
+               createErrorResponse(
+                  'CONFLICT',
+                  EMAIL_CHANGE_COOLDOWN_MESSAGE,
+                  requestId
+               )
+            );
+      }
 
       if (userHasActiveChange) {
          return void res
@@ -212,7 +239,12 @@ export async function initiateEmailChangeController(
       const confirmTokenHash = generateStandardHash(rawConfirmToken);
       const cancelTokenHash = generateStandardHash(rawCancelToken);
 
-      const expiresAt = new Date(Date.now() + EMAIL_CHANGE_TOKEN_EXPIRY_MS);
+      const confirmExpiresAt = new Date(
+         now.getTime() + EMAIL_CHANGE_CONFIRM_EXPIRY_MS
+      );
+      const cancelExpiresAt = new Date(
+         now.getTime() + EMAIL_CHANGE_CANCEL_EXPIRY_MS
+      );
 
       // ── Persist the EmailChange record ─────────────────────────────────────────
       const emailChangePayload: IEmailChangeDocumentCreate = {
@@ -222,17 +254,29 @@ export async function initiateEmailChangeController(
          userId: new ObjectId(sub),
          oldEmail: validatedUser.email,
          newEmail,
-         expiresAt,
+         confirmExpiresAt,
+         cancelExpiresAt,
          confirmedAt: null,
          createdAt: now,
          updatedAt: now,
       };
 
+      const decodedEmailChangePayload = Schema.decodeUnknownEither(
+         EmailChangeDocumentCreateValidator
+      )(emailChangePayload);
+
+      if (Either.isLeft(decodedEmailChangePayload)) {
+         throw decodedEmailChangePayload.left;
+      }
+
+      const validatedEmailChangePayload = decodedEmailChangePayload.right;
+
       // ── Map duplicate-key errors at insert ─────────────────────────────────────
       let emailChangeId: ObjectId;
       try {
-         const insertResult =
-            await emailChangeCollection.insertOne(emailChangePayload);
+         const insertResult = await emailChangeCollection.insertOne(
+            validatedEmailChangePayload
+         );
          emailChangeId = insertResult.insertedId;
       } catch (insertErr) {
          if (isDuplicateKeyOnField(insertErr, 'newEmail')) {
@@ -272,7 +316,8 @@ export async function initiateEmailChangeController(
             newEmail,
             confirmUrl,
             cancelUrl,
-            expiresAt,
+            confirmExpiresAt,
+            cancelExpiresAt,
          });
       } catch (emailErr) {
          try {

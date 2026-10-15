@@ -5,15 +5,26 @@ import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import type { IEmailChangeDocumentCreate } from '@models/EmailChange_v3.model.ts';
 import type { IUserDocument } from '@models/User_v3.model.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
+import type { ExpandType } from '@utils/helperTypes.ts';
 
-export type IEmailChangeEmailParams = Pick<
-   IEmailChangeDocumentCreate,
-   'oldEmail' | 'newEmail' | 'expiresAt'
-> &
-   Pick<IUserDocument, 'firstName'> & {
-      confirmUrl: string;
-      cancelUrl: string;
-   };
+export type IEmailChangeEmailParams = ExpandType<
+   Pick<
+      IEmailChangeDocumentCreate,
+      'oldEmail' | 'newEmail' | 'confirmExpiresAt' | 'cancelExpiresAt'
+   > &
+      Pick<IUserDocument, 'firstName'> & {
+         readonly confirmUrl: string;
+         readonly cancelUrl: string;
+      }
+>;
+
+function formatExpiry(date: Date): string {
+   return date.toLocaleString(LOCALE, {
+      dateStyle: 'full',
+      timeStyle: 'short',
+      timeZone: TIME_ZONE,
+   });
+}
 
 const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
 
@@ -21,52 +32,22 @@ const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
 export async function sendEmailChangeEmails(
    params: IEmailChangeEmailParams
 ): Promise<void> {
-   const { firstName, oldEmail, newEmail, confirmUrl, cancelUrl, expiresAt } =
-      params;
+   const {
+      firstName,
+      oldEmail,
+      newEmail,
+      confirmUrl,
+      cancelUrl,
+      confirmExpiresAt,
+      cancelExpiresAt,
+   } = params;
 
-   const expiryFormatted = expiresAt.toLocaleDateString(LOCALE, {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      timeZone: TIME_ZONE,
-   });
+   const confirmExpiryFormatted = formatExpiry(confirmExpiresAt);
+   const cancelExpiryFormatted = formatExpiry(cancelExpiresAt);
 
-   type confirmTemplate = {
-      greeting: string;
-      intro: string;
-      link: string;
-      exp: string;
-      otherwise: string;
-   };
+   const confirmTemplate = `Hi ${firstName}.\n\nYou requested to change your CambridgeMed email address to ${newEmail}. Click the link below to confirm this change:\n\n${confirmUrl}\n\nThis link expires on ${confirmExpiryFormatted}. If you did not request this change, you can safely ignore this email. A separate cancellation link has been sent to your current address.`;
 
-   const confirmTemplate: confirmTemplate = {
-      greeting: 'Hi',
-      intro: 'You requested to change your CambridgeMed email address to',
-      link: 'Click the link below to confirm this change:',
-      exp: 'This link expires on',
-      otherwise:
-         'If you did not request this change, you can safely ignore this email. A separate cancellation link has been sent to your current address',
-   };
-
-   type CancelTemplate = {
-      greeting: string;
-      message: string;
-      instruction: string;
-      clarification: string;
-      exp: string;
-   };
-
-   const cancelTemplate: CancelTemplate = {
-      greeting: 'Hi',
-      message:
-         'A request has been made to change the email address on your CambridgeMed account to',
-      instruction:
-         'If this was you, no action is needed here — confirm the change from the email sent to your new address. If this was NOT you, or if you changed your mind, click the link below to cancel the request',
-      clarification:
-         'This cancellation link works even after the change has been confirmed, giving you a window to revert it if needed',
-      exp: 'The cancellation link expires on',
-   };
+   const cancelTemplate = `Hi ${firstName}.\n\nA request has been made to change the email address on your CambridgeMed account to ${newEmail}. If this was you, no action is needed here — confirm the change from the email sent to your new address. If this was NOT you, or if you changed your mind, click the link below to cancel the request:\n\n${cancelUrl}\n\nThis cancellation link works even after the change has been confirmed, giving you a window to revert it if needed. The cancellation link expires on ${cancelExpiryFormatted}`;
 
    // ── Email 1: confirmation → new address ────────────────────────────────────
    /* This link finalises the change. It is sent to the *new* address to prove the user controls it before the switch takes effect. */
@@ -74,28 +55,17 @@ export async function sendEmailChangeEmails(
       from: myEnv.resend.from,
       to: newEmail,
       subject: `Confirm your new email address for CambridgeMed`,
-      text: [
-         `${confirmTemplate.greeting} ${firstName},`,
-         ``,
-         `${confirmTemplate.intro} ${newEmail}.`,
-         ``,
-         `${confirmTemplate.link}`,
-         confirmUrl,
-         ``,
-         `${confirmTemplate.exp} ${expiryFormatted}.`,
-         ``,
-         `${confirmTemplate.otherwise}`,
-      ].join('\n'),
+      text: confirmTemplate,
       html: `<!DOCTYPE html>
          <html lang="en">
             <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
                <h2 style="margin:0 0 16px;">Confirm your new email address</h2>
-               <p style="margin:0 0 12px;">${confirmTemplate.greeting} <strong>${escapeHtml(firstName)}</strong>,</p>
+               <p style="margin:0 0 12px;">Hi <strong>${escapeHtml(firstName)}</strong>,</p>
                <p style="margin:0 0 12px;">
-                  ${confirmTemplate.intro} <strong>${newEmail}</strong>.
+                  You requested to change your CambridgeMed email address to <strong>${escapeHtml(newEmail)}</strong>.
                </p>
                <p style="margin:0 0 12px;">
-                  ${confirmTemplate.link}
+                  Click the link below to confirm this change:
                </p>
                <p style="margin:24px 0;">
                   <a href="${confirmUrl}"
@@ -104,10 +74,10 @@ export async function sendEmailChangeEmails(
                   </a>
                </p>
                <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
-                  ${confirmTemplate.exp} <strong>${expiryFormatted}</strong>.
+                  This link expires on <strong>${confirmExpiryFormatted}</strong>.
                </p>
                <p style="color:#6b7280;font-size:13px;margin:0;">
-                  ${confirmTemplate.otherwise}
+                  If you did not request this change, you can safely ignore this email. A separate cancellation link has been sent to your current address.
                </p>
             </body>
          </html>`,
@@ -125,28 +95,17 @@ export async function sendEmailChangeEmails(
       from: myEnv.resend.from,
       to: oldEmail,
       subject: `Email change requested for your CambridgeMed account`,
-      text: [
-         `${cancelTemplate.greeting} ${firstName},`,
-         ``,
-         `${cancelTemplate.message} ${newEmail}.`,
-         ``,
-         `${cancelTemplate.instruction}:`,
-         cancelUrl,
-         ``,
-         `${cancelTemplate.clarification}.`,
-         ``,
-         `${cancelTemplate.exp} ${expiryFormatted}.`,
-      ].join('\n'),
+      text: cancelTemplate,
       html: `<!DOCTYPE html>
          <html lang="en">
             <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
                <h2 style="margin:0 0 16px;">Email change requested on your account</h2>
-               <p style="margin:0 0 12px;">${cancelTemplate.greeting} <strong>${firstName}</strong>,</p>
+               <p style="margin:0 0 12px;">Hi <strong>${escapeHtml(firstName)}</strong>,</p>
                <p style="margin:0 0 12px;">
-                  ${cancelTemplate.message} <strong>${newEmail}</strong>.
+                  A request has been made to change the email address on your CambridgeMed account to <strong>${escapeHtml(newEmail)}</strong>.
                </p>
                <p style="margin:0 0 12px;">
-                  ${cancelTemplate.instruction}:
+                  If this was you, no action is needed here — confirm the change from the email sent to your new address. If this was NOT you, or if you changed your mind, click the link below to cancel the request:
                </p>
                <p style="margin:24px 0;">
                   <a href="${cancelUrl}"
@@ -155,10 +114,10 @@ export async function sendEmailChangeEmails(
                   </a>
                </p>
                <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
-                  ${cancelTemplate.clarification}.
+                  This cancellation link works even after the change has been confirmed, giving you a window to revert it if needed.
                </p>
                <p style="color:#6b7280;font-size:13px;margin:0;">
-                  ${cancelTemplate.exp} <strong>${expiryFormatted}</strong>.
+                  The cancellation link expires on <strong>${cancelExpiryFormatted}</strong>.
                </p>
             </body>
          </html>`,

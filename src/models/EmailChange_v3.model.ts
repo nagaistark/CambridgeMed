@@ -26,13 +26,15 @@ export const EmailChangeDocumentBase = Schema.Struct({
 
 export const EmailChangeDocumentCreateStruct = Schema.Struct({
    ...EmailChangeDocumentBase.fields,
-   expiresAt: fullDateInTheFuture,
+   confirmExpiresAt: fullDateInTheFuture,
+   cancelExpiresAt: fullDateInTheFuture,
    confirmedAt: Schema.Null,
 });
 
 export const EmailChangeDocumentReadStruct = Schema.Struct({
    ...EmailChangeDocumentBase.fields,
-   expiresAt: Schema.ValidDateFromSelf,
+   confirmExpiresAt: Schema.ValidDateFromSelf,
+   cancelExpiresAt: Schema.ValidDateFromSelf,
    confirmedAt: Schema.NullOr(fullDateInThePast),
 });
 
@@ -44,12 +46,67 @@ export type IEmailChangeDocumentRead = Schema.Schema.Type<
    typeof EmailChangeDocumentReadStruct
 >;
 
+// ===== Standalone modular cross-field invariant ==================================
+const validateExpiryOrder = <
+   A extends Pick<
+      IEmailChangeDocumentRead,
+      'confirmExpiresAt' | 'cancelExpiresAt'
+   >,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(doc => {
+         const issues: Array<Schema.FilterIssue> = [];
+         if (doc.cancelExpiresAt.getTime() < doc.confirmExpiresAt.getTime()) {
+            issues.push({
+               path: ['cancelExpiresAt'],
+               message: `cancelExpiresAt cannot be before confirmExpiresAt.`,
+            });
+         }
+         return issues;
+      })
+   );
+};
+
+const validateConfirmationTimeliness = <
+   A extends Pick<IEmailChangeDocumentRead, 'confirmExpiresAt' | 'confirmedAt'>,
+   I,
+   R,
+>(
+   schema: Schema.Schema<A, I, R>
+) => {
+   return schema.pipe(
+      Schema.filter(doc => {
+         const issues: Array<Schema.FilterIssue> = [];
+         if (
+            doc.confirmedAt !== null &&
+            doc.confirmedAt.getTime() > doc.confirmExpiresAt.getTime()
+         ) {
+            issues.push({
+               path: ['confirmedAt'],
+               message: `confirmedAt cannot be chronologically after confirmExpiresAt.`,
+            });
+         }
+         return issues;
+      })
+   );
+};
+
 // ===== Full EmailChange Document Schemas =========================================
 export const EmailChangeDocumentCreateSchema =
-   EmailChangeDocumentCreateStruct.pipe(validateChronology);
+   EmailChangeDocumentCreateStruct.pipe(
+      validateChronology,
+      validateExpiryOrder
+   );
 
-export const EmailChangeDocumentReadSchema =
-   EmailChangeDocumentReadStruct.pipe(validateChronology);
+export const EmailChangeDocumentReadSchema = EmailChangeDocumentReadStruct.pipe(
+   validateChronology,
+   validateExpiryOrder,
+   validateConfirmationTimeliness
+);
 
 // ===== Validators against which we validate the documents ========================
 export const EmailChangeDocumentCreateValidator = Schema.typeSchema(
@@ -81,5 +138,5 @@ export const emailChangeIndexes = [
    },
 
    /* TTL janitor. */
-   { key: { expiresAt: 1 }, expireAfterSeconds: 0 },
+   { key: { cancelExpiresAt: 1 }, expireAfterSeconds: 0 },
 ] satisfies readonly TypedIndexDescription<IEmailChangeDocumentRead>[];
