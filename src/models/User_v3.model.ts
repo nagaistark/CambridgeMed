@@ -1,5 +1,8 @@
 import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
-import { ServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import {
+   ServerGeneratedFields,
+   validateChronology,
+} from '@ssot/serverGeneratedFields.ts';
 import { arePermissionsValidForRole } from '@ssot/permissions_constants.ts';
 import { TOTP_RECOVERY_CODE_COUNT } from '@ssot/totp_constants.ts';
 import {
@@ -64,6 +67,9 @@ export const UserDocumentStruct = Schema.Struct({
    invitedBy: Schema.NullOr(stringToObjectId),
    isActive: Schema.Boolean,
 
+   /* Set when a confirmed email change was reverted: the password may be known to whoever started the change. Login and session issuance are refused until the owner completes a password reset. Cleared ONLY by resetPasswordController (proof of control of the restored mailbox), never by changePasswordController: an attacker holding a still-valid access token and the old password could otherwise launder the flag away. */
+   passwordResetRequired: Schema.Boolean,
+
    ...UserInputSchema.omit('password').fields,
    ...AUTHENTICATED_USER.pick('role', 'permissions').fields,
    ...ServerGeneratedFields.fields,
@@ -123,29 +129,6 @@ const validatePermissionsForRole = <
             issues.push({
                path: ['permissions'],
                message: `Permissions are inconsistent with the ${profile.role} role.`,
-            });
-         }
-
-         return issues;
-      })
-   );
-};
-
-const validateChronology = <
-   A extends Pick<IUserDocument, 'createdAt' | 'updatedAt'>,
-   I,
-   R,
->(
-   schema: Schema.Schema<A, I, R>
-) => {
-   return schema.pipe(
-      Schema.filter(profile => {
-         const issues: Array<Schema.FilterIssue> = [];
-
-         if (profile.createdAt > profile.updatedAt) {
-            issues.push({
-               path: ['updatedAt'],
-               message: `updatedAt cannot be chronologically before createdAt.`,
             });
          }
 
@@ -305,6 +288,16 @@ const UserNameEmailSchema = UserDocumentStruct.pick(
 );
 export type IUserNameEmail = Schema.Schema.Type<typeof UserNameEmailSchema>;
 
+/* Minimal shape for forgotPasswordController. */
+const UserPasswordResetTargetSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'email'
+);
+export type IUserPasswordResetTarget = Schema.Schema.Type<
+   typeof UserPasswordResetTargetSchema
+>;
+
 // ===== Validators against which we validate the documents ========================
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
@@ -335,6 +328,10 @@ export const UserInviteIssuerValidator = Schema.typeSchema(
 
 export const UserNameEmailValidator = Schema.typeSchema(UserNameEmailSchema);
 export const UserNameEmailArrayValidator = Schema.Array(UserNameEmailValidator);
+
+export const UserPasswordResetTargetValidator = Schema.typeSchema(
+   UserPasswordResetTargetSchema
+);
 
 /* MongoDB Collection Connection */
 export function getUserCollection(): Collection<IUserDocument> {

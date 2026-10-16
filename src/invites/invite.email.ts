@@ -1,12 +1,7 @@
-import { Resend } from 'resend';
-import { myEnv } from '../validateConfig.ts';
-import { Redacted } from 'effect';
 import type { AllowedUserRole } from '@ssot/user_roles_constants.ts';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
-
-/* Instantiated once at module load. Resend is stateless between calls, so a single shared instance is correct and efficient. */
-const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
+import { sendEmail } from '@services/email.service.ts';
 
 export type IInviteEmailParams = {
    to: string;
@@ -80,11 +75,11 @@ export async function sendInviteEmail(
          <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
             <h2 style="margin:0 0 16px;">You have been invited to CambridgeMed</h2>
             <p style="margin:0 0 12px;">
-               <strong>${issuerFullNameHtml}</strong> ${template.intro} <strong>${roleLabel}</strong>.
+               <strong>${escapeHtml(issuerFullNameHtml)}</strong> ${template.intro} <strong>${roleLabel}</strong>.
             </p>
             ${canIssueInvites ? `<p style="margin:0 0 12px;">${template.privilege}.</p>` : ''}
             <p style="margin:24px 0;">
-               <a href="${registrationUrl}" style="background:#2563eb; color:#ffffff; padding:12px 24px;border-radius:6px; text-decoration:none; font-weight:600;display:inline-block;">Complete Registration</a>
+               <a href="${escapeHtml(registrationUrl)}" style="background:#2563eb; color:#ffffff; padding:12px 24px;border-radius:6px; text-decoration:none; font-weight:600;display:inline-block;">Complete Registration</a>
             </p>
             <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
                ${template.exp} <strong>${expiryFormatted}</strong>.
@@ -99,16 +94,11 @@ export async function sendInviteEmail(
 
    const { text, html } = renderMessage();
 
-   const { error } = await resend.emails.send({
-      from: myEnv.resend.from, // <onboarding@resend.dev> — default sender address until I verify my own domain (which I don't have yet).
+   await sendEmail({
       to,
       subject: `You've been invited to join CambridgeMed`,
       text,
       html,
+      label: 'invite',
    });
-
-   // Normalise Resend's error-as-value into a thrown Error.
-   if (error) {
-      throw new Error(`Invite email delivery failed: ${error.message}`);
-   }
 }

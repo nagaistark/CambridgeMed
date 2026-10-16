@@ -17,6 +17,8 @@ import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ForgotPasswordBody } from '@auth/forgotPassword.schema.ts';
 import { myEnv } from '../validateConfig.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import logger from '../logger.ts';
+import { sanitizeError } from '../mongoDBConnect.ts';
 
 export async function forgotPasswordController(
    _req: Request,
@@ -100,9 +102,13 @@ export async function forgotPasswordController(
             expiresAt,
          });
       } catch (emailErr) {
-         await getPasswordResetCollection()
-            .deleteOne({ userId: user._id })
-            .catch(() => undefined);
+         try {
+            await getPasswordResetCollection().deleteOne({ userId: user._id });
+         } catch (rollbackErr) {
+            logger.error(
+               `Failed to roll back orphaned password reset for ${user._id.toHexString()}: ${sanitizeError(rollbackErr).message}`
+            );
+         }
          throw emailErr;
       }
 

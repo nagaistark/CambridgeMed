@@ -1,11 +1,9 @@
-import { myEnv } from '../validateConfig.ts';
-import { Resend } from 'resend';
-import { Redacted } from 'effect';
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
 import type { IEmailChangeDocumentCreate } from '@models/EmailChange_v3.model.ts';
 import type { IUserDocument } from '@models/User_v3.model.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
+import { sendEmail } from '@services/email.service.ts';
 
 export type IEmailChangeEmailParams = ExpandType<
    Pick<
@@ -25,8 +23,6 @@ function formatExpiry(date: Date): string {
       timeZone: TIME_ZONE,
    });
 }
-
-const resend = new Resend(Redacted.value(myEnv.resend.apiKey));
 
 /* Sends two emails as a single logical operation. Both must succeed. If either fails, the error propagates to the caller, which is responsible for rolling back the EmailChange document. */
 export async function sendEmailChangeEmails(
@@ -51,8 +47,7 @@ export async function sendEmailChangeEmails(
 
    // ── Email 1: confirmation → new address ────────────────────────────────────
    /* This link finalises the change. It is sent to the *new* address to prove the user controls it before the switch takes effect. */
-   const { error: confirmError } = await resend.emails.send({
-      from: myEnv.resend.from,
+   await sendEmail({
       to: newEmail,
       subject: `Confirm your new email address for CambridgeMed`,
       text: confirmTemplate,
@@ -68,7 +63,7 @@ export async function sendEmailChangeEmails(
                   Click the link below to confirm this change:
                </p>
                <p style="margin:24px 0;">
-                  <a href="${confirmUrl}"
+                  <a href="${escapeHtml(confirmUrl)}"
                      style="background:#2563eb;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">
                      Confirm Email Change
                   </a>
@@ -81,18 +76,12 @@ export async function sendEmailChangeEmails(
                </p>
             </body>
          </html>`,
+      label: 'email-change-confirm',
    });
-
-   if (confirmError) {
-      throw new Error(
-         `Email change confirmation email failed to send: ${confirmError.message}`
-      );
-   }
 
    // ── Email 2: cancellation → old address ────────────────────────────────────
    /* This link gives the account owner the ability to abort the change — both before it is confirmed (user made a typo) and after (account hijack scenario). It is the stronger of the two: a cancellation after confirmation reverts the email back to this address and kills all active sessions. */
-   const { error: cancelError } = await resend.emails.send({
-      from: myEnv.resend.from,
+   await sendEmail({
       to: oldEmail,
       subject: `Email change requested for your CambridgeMed account`,
       text: cancelTemplate,
@@ -108,7 +97,7 @@ export async function sendEmailChangeEmails(
                   If this was you, no action is needed here — confirm the change from the email sent to your new address. If this was NOT you, or if you changed your mind, click the link below to cancel the request:
                </p>
                <p style="margin:24px 0;">
-                  <a href="${cancelUrl}"
+                  <a href="${escapeHtml(cancelUrl)}"
                      style="background:#dc2626;color:#ffffff;padding:12px 24px;border-radius:6px;text-decoration:none;font-weight:600;display:inline-block;">
                      Cancel Email Change
                   </a>
@@ -121,11 +110,6 @@ export async function sendEmailChangeEmails(
                </p>
             </body>
          </html>`,
+      label: 'email-change-cancel',
    });
-
-   if (cancelError) {
-      throw new Error(
-         `Email change cancellation email failed to send: ${cancelError.message}`
-      );
-   }
 }

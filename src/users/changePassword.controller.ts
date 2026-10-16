@@ -66,7 +66,6 @@ export async function changePasswordController(
          throw decodedUser.left;
       }
 
-      // ── Use the validated invite document from now on ──────────────────────────
       const validatedUser = decodedUser.right;
 
       // ── Step 2: verify the current password ────────────────────────────────────

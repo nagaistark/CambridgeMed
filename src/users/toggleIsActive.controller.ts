@@ -137,7 +137,7 @@ export async function toggleIsActiveController(
                   'CONCURRENCY_ERROR',
                   409,
                   'CONFLICT',
-                  `User ${id} not found...`
+                  `User not found...`
                );
             }
 
