@@ -13,7 +13,7 @@ import {
 } from '@models/Session_v3.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    generateStandardHash,
@@ -96,15 +96,28 @@ export async function resetPasswordController(
                );
             }
 
-            await getUserCollection().updateOne(
+            const updated = await getUserCollection().updateOne(
                {
                   _id: passwordReset.userId,
+                  isActive: true,
                } satisfies StrictMongoFilter<IUserDocument>,
                {
-                  $set: { passwordHash: newPasswordHash },
+                  $set: {
+                     passwordHash: newPasswordHash,
+                     updatedAt: new Date(),
+                  },
                } satisfies StrictUpdate<IUserDocument>,
                { session }
             );
+
+            if (updated.matchedCount === 0) {
+               throw makeAppError(
+                  'INVALID_RESET_TOKEN',
+                  404,
+                  'NOT_FOUND',
+                  `This link is invalid or has expired.`
+               );
+            }
 
             /* Kill all active sessions. The user just proved control of their email address, which is the recovery credential — all other devices should be forced to -authenticate against the new password. */
             await getSessionCollection().deleteMany(

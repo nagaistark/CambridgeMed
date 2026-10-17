@@ -65,7 +65,9 @@ export const UserDocumentStruct = Schema.Struct({
    totpLastUsedStep: nonNegativeIntegerStringToNumber,
 
    invitedBy: Schema.NullOr(stringToObjectId),
-   isActive: Schema.Boolean,
+   isActive: Schema.Boolean.annotations({
+      message: () => `Must be a boolean.`,
+   }),
 
    /* Set when a confirmed email change was reverted: the password may be known to whoever started the change. Login and session issuance are refused until the owner completes a password reset. Cleared ONLY by resetPasswordController (proof of control of the restored mailbox), never by changePasswordController: an attacker holding a still-valid access token and the old password could otherwise launder the flag away. */
    passwordResetRequired: Schema.Boolean,
@@ -244,7 +246,8 @@ const UserEmailChangeInitiatorSchema = UserDocumentStruct.pick(
    'firstName',
    'email',
    'emailChangesUsed',
-   'passwordHash'
+   'passwordHash',
+   'isActive'
 );
 export type IUserEmailChangeInitiator = Schema.Schema.Type<
    typeof UserEmailChangeInitiatorSchema
@@ -298,6 +301,16 @@ export type IUserPasswordResetTarget = Schema.Schema.Type<
    typeof UserPasswordResetTargetSchema
 >;
 
+/* Minimal shape for diagnosing a missed isActive toggle. Used in toggleIsActiveController. */
+const UserIdRoleActiveSchema = UserDocumentStruct.pick(
+   '_id',
+   'role',
+   'isActive'
+);
+export type IUserIdRoleActive = Schema.Schema.Type<
+   typeof UserIdRoleActiveSchema
+>;
+
 // ===== Validators against which we validate the documents ========================
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
@@ -331,6 +344,10 @@ export const UserNameEmailArrayValidator = Schema.Array(UserNameEmailValidator);
 
 export const UserPasswordResetTargetValidator = Schema.typeSchema(
    UserPasswordResetTargetSchema
+);
+
+export const UserIdRoleActiveValidator = Schema.typeSchema(
+   UserIdRoleActiveSchema
 );
 
 /* MongoDB Collection Connection */

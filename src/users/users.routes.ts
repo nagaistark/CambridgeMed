@@ -104,6 +104,7 @@ userAdminRouter.patch(
 );
 userAdminRouter.patch(
    '/:id/is-active',
+   requirePermissions('MANAGE_USERS'),
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),
    validateBody(SetIsActiveSchema),

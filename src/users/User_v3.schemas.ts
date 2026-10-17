@@ -1,3 +1,4 @@
+import { UserDocumentStruct } from '@models/User_v3.model.ts';
 import {
    baseString,
    clinicStaffEmail,
@@ -70,10 +71,6 @@ export type SetCanIssueInvitesBody = Schema.Schema.Type<
 
 // ── isActive (PATCH /api/users/:id/is-active) ────────────────────────────────────
 /* Same explicit-value pattern for the same reason. */
-export const SetIsActiveSchema = Schema.Struct({
-   isActive: Schema.Boolean.annotations({
-      message: () => `Must be a boolean.`,
-   }),
-});
+export const SetIsActiveSchema = UserDocumentStruct.pick('isActive');
 
 export type SetIsActiveBody = Schema.Schema.Type<typeof SetIsActiveSchema>;

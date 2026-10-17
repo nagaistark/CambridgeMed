@@ -59,6 +59,7 @@ async function runConfirmTransaction(
          {
             _id: change.userId,
             email: change.oldEmail,
+            isActive: true,
             emailChangesUsed: { $lt: EMAIL_CHANGE_CAP },
          } satisfies StrictMongoFilter<IUserDocument>,
          {

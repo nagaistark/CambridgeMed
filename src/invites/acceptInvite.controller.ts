@@ -201,6 +201,7 @@ async function runRegistrationTransaction(
             totpLastUsedStep: 0,
             invitedBy: validatedClaimedInvite.issuedBy,
             isActive: true,
+            passwordResetRequired: false,
             createdAt: now,
             updatedAt: now,
          };

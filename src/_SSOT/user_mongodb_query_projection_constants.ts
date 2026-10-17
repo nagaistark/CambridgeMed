@@ -12,6 +12,7 @@ import type {
    IUserIdPasswordHash,
    IUserInviteIssuer,
    IUserEmailChangeInitiator,
+   IUserIdRoleActive,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -36,6 +37,7 @@ export const SAFE_USER_PROJECTION: Record<keyof ISafeUser, 1> = {
    isTotpEnabled: 1,
    invitedBy: 1,
    isActive: 1,
+   passwordResetRequired: 1,
    _id: 1,
    createdAt: 1,
    updatedAt: 1,
@@ -59,6 +61,7 @@ export const USER_EMAIL_CHANGE_INITIATOR_PROJECTION: Record<
    email: 1,
    emailChangesUsed: 1,
    passwordHash: 1,
+   isActive: 1,
 };
 
 export const USER_ID_PASSWORDHASH_PROJECTION: Record<
@@ -92,6 +95,15 @@ export const USER_NAME_EMAIL_PROJECTION: Record<keyof IUserNameEmail, 1> = {
    nameChangesUsed: 1,
    email: 1,
    emailChangesUsed: 1,
+};
+
+export const USER_ID_ROLE_ACTIVE_PROJECTION: Record<
+   keyof IUserIdRoleActive,
+   1
+> = {
+   _id: 1,
+   role: 1,
+   isActive: 1,
 };
 
 export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {
