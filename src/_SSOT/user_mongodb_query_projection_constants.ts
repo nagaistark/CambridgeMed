@@ -7,13 +7,14 @@ import type {
 import type {
    ISafeUser,
    IPublicUser,
-   IUserNameEmail,
+   IUserNames,
    IUserIdName,
    IUserIdPasswordHash,
    IUserInviteIssuer,
    IUserEmailChangeInitiator,
    IUserIdRoleActive,
    IUserPasswordResetTarget,
+   IUserIdRolePermissions,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -98,13 +99,11 @@ export const USER_INVITE_ISSUER_PROJECTION: Record<keyof IUserInviteIssuer, 1> =
       isActive: 1,
    };
 
-export const USER_NAME_EMAIL_PROJECTION: Record<keyof IUserNameEmail, 1> = {
+export const USER_NAME_EMAIL_PROJECTION: Record<keyof IUserNames, 1> = {
    _id: 1,
    firstName: 1,
    lastName: 1,
    nameChangesUsed: 1,
-   email: 1,
-   emailChangesUsed: 1,
 };
 
 export const USER_ID_ROLE_ACTIVE_PROJECTION: Record<
@@ -114,6 +113,15 @@ export const USER_ID_ROLE_ACTIVE_PROJECTION: Record<
    _id: 1,
    role: 1,
    isActive: 1,
+};
+
+export const USER_ID_ROLE_PERMISSIONS_PROJECTION: Record<
+   keyof IUserIdRolePermissions,
+   1
+> = {
+   _id: 1,
+   role: 1,
+   permissions: 1,
 };
 
 export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {

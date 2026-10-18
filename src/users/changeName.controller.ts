@@ -3,8 +3,8 @@ import { Either, Schema } from 'effect';
 import {
    getUserCollection,
    type IUserDocument,
-   type IUserNameEmail,
-   UserNameEmailValidator,
+   type IUserNames,
+   UserNamesValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import {
@@ -32,13 +32,13 @@ export async function changeNameController(
       const { firstName, lastName } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const userRaw = await userCollection.findOne<IUserNameEmail>(
+      const userRaw = await userCollection.findOne<IUserNames>(
          {
             _id: new ObjectId(sub),
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_NAME_EMAIL_PROJECTION,
-         } satisfies StrictFindOneOptions<IUserNameEmail>
+         } satisfies StrictFindOneOptions<IUserNames>
       );
 
       if (!userRaw) {
@@ -49,9 +49,8 @@ export async function changeNameController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(UserNameEmailValidator)(
-         userRaw
-      );
+      const decodedUser =
+         Schema.decodeUnknownEither(UserNamesValidator)(userRaw);
       if (Either.isLeft(decodedUser)) {
          throw decodedUser.left;
       }

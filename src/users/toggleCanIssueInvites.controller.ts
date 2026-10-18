@@ -1,10 +1,10 @@
 import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
-   type ISafeUser,
    type IUserDocument,
+   type IUserIdRolePermissions,
    type IUserInviteIssuer,
-   SafeUserValidator,
+   UserIdRolePermissionsValidator,
    UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
@@ -57,14 +57,15 @@ export async function toggleCanIssueInvitesController(
          role === 'superadmin' ? {} : { invitedBy: new ObjectId(sub) };
 
       // ── Scoped fetch ───────────────────────────────────────────────────────────
-      const targetUserRaw = await userCollection.findOne<ISafeUser>(
-         {
-            $and: [{ _id: id }, scopeClause],
-         } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            projection: SAFE_USER_PROJECTION,
-         } satisfies StrictFindOneOptions<ISafeUser>
-      );
+      const targetUserRaw =
+         await userCollection.findOne<IUserIdRolePermissions>(
+            {
+               $and: [{ _id: id }, scopeClause],
+            } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               projection: SAFE_USER_PROJECTION,
+            } satisfies StrictFindOneOptions<IUserIdRolePermissions>
+         );
 
       if (!targetUserRaw) {
          return void res
@@ -75,8 +76,9 @@ export async function toggleCanIssueInvitesController(
       }
 
       /* We consume `role` and `permissions` below, so the decode stays. */
-      const decodedTargetUser =
-         Schema.decodeUnknownEither(SafeUserValidator)(targetUserRaw);
+      const decodedTargetUser = Schema.decodeUnknownEither(
+         UserIdRolePermissionsValidator
+      )(targetUserRaw);
 
       if (Either.isLeft(decodedTargetUser)) {
          throw decodedTargetUser.left;

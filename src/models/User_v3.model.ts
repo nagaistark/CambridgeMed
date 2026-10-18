@@ -281,15 +281,13 @@ export type IUserInviteIssuer = Schema.Schema.Type<
 >;
 
 /* User name + email info. Used in changeNameController */
-const UserNameEmailSchema = UserDocumentStruct.pick(
+const UserNamesSchema = UserDocumentStruct.pick(
    '_id',
    'firstName',
    'lastName',
-   'nameChangesUsed',
-   'email',
-   'emailChangesUsed'
+   'nameChangesUsed'
 );
-export type IUserNameEmail = Schema.Schema.Type<typeof UserNameEmailSchema>;
+export type IUserNames = Schema.Schema.Type<typeof UserNamesSchema>;
 
 /* Minimal shape for forgotPasswordController. */
 const UserPasswordResetTargetSchema = UserDocumentStruct.pick(
@@ -309,6 +307,16 @@ const UserIdRoleActiveSchema = UserDocumentStruct.pick(
 );
 export type IUserIdRoleActive = Schema.Schema.Type<
    typeof UserIdRoleActiveSchema
+>;
+
+/* Minimal shape for toggleCanIssueInvitesController */
+const UserIdRolePermissionsSchema = UserDocumentStruct.pick(
+   '_id',
+   'role',
+   'permissions'
+);
+export type IUserIdRolePermissions = Schema.Schema.Type<
+   typeof UserIdRolePermissionsSchema
 >;
 
 // ===== Validators against which we validate the documents ========================
@@ -339,8 +347,8 @@ export const UserInviteIssuerValidator = Schema.typeSchema(
    UserInviteIssuerSchema
 );
 
-export const UserNameEmailValidator = Schema.typeSchema(UserNameEmailSchema);
-export const UserNameEmailArrayValidator = Schema.Array(UserNameEmailValidator);
+export const UserNamesValidator = Schema.typeSchema(UserNamesSchema);
+export const UserNamesArrayValidator = Schema.Array(UserNamesValidator);
 
 export const UserPasswordResetTargetValidator = Schema.typeSchema(
    UserPasswordResetTargetSchema
@@ -348,6 +356,10 @@ export const UserPasswordResetTargetValidator = Schema.typeSchema(
 
 export const UserIdRoleActiveValidator = Schema.typeSchema(
    UserIdRoleActiveSchema
+);
+
+export const UserIdRolePermissionsValidator = Schema.typeSchema(
+   UserIdRolePermissionsSchema
 );
 
 /* MongoDB Collection Connection */
