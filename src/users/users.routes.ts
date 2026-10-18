@@ -32,6 +32,7 @@ import { listUsersController } from './listUsers.controller.ts';
 import { getUserController } from './getUser.controller.ts';
 import { toggleCanIssueInvitesController } from './toggleCanIssueInvites.controller.ts';
 import { toggleIsActiveController } from './toggleIsActive.controller.ts';
+import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 
 const usersRouter = Router();
 
@@ -41,6 +42,7 @@ meRouter.use(authenticate);
 
 meRouter.patch(
    '/password',
+   requireLiveSession,
    passwordChangeRateLimiter,
    validateBody(ChangePasswordSchema),
    changePasswordController
@@ -55,6 +57,7 @@ meRouter.patch(
 
 meRouter.post(
    '/email',
+   requireLiveSession,
    passwordChangeRateLimiter,
    emailChangeInitiateRateLimiter, // <-- With { skipFailedRequests: true }, failed requests do not consume the quota.
    validateBody(InitiateEmailChangeSchema),

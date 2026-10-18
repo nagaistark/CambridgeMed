@@ -10,6 +10,14 @@ import {
    getSessionCollection,
    type ISessionDocument,
 } from '@models/Session_v3.model.ts';
+import {
+   getPasswordResetCollection,
+   type IPasswordResetDocumentRead,
+} from '@models/PasswordReset_v3.model.ts';
+import {
+   getEmailChangeCollection,
+   type IEmailChangeDocumentRead,
+} from '@models/EmailChange_v3.model.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
@@ -128,6 +136,22 @@ export async function changePasswordController(
                {
                   userId: new ObjectId(sub),
                } satisfies StrictMongoFilter<ISessionDocument>,
+               { session }
+            );
+
+            await getPasswordResetCollection().deleteMany(
+               {
+                  userId: new ObjectId(sub),
+               } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
+               { session }
+            );
+
+            /* Unconfirmed only: a confirmed change's cancel link is the owner's recovery handle. */
+            await getEmailChangeCollection().deleteMany(
+               {
+                  userId: new ObjectId(sub),
+                  confirmedAt: null,
+               } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
                { session }
             );
 

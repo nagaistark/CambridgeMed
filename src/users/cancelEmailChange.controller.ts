@@ -12,6 +12,10 @@ import {
    getSessionCollection,
    type ISessionDocument,
 } from '@models/Session_v3.model.ts';
+import {
+   getPasswordResetCollection,
+   type IPasswordResetDocumentRead,
+} from '@models/PasswordReset_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
@@ -65,7 +69,11 @@ async function runCancelTransaction(
             previousEmails: { $elemMatch: archived },
          } satisfies StrictMongoFilter<IUserDocument>,
          {
-            $set: { email: change.oldEmail, updatedAt: now },
+            $set: {
+               email: change.oldEmail,
+               passwordResetRequired: true,
+               updatedAt: now,
+            },
             $pull: { previousEmails: archived },
             $inc: { emailChangesUsed: -1 },
          } satisfies StrictUpdate<IUserDocument>,
@@ -85,6 +93,14 @@ async function runCancelTransaction(
          {
             userId: change.userId,
          } satisfies StrictMongoFilter<ISessionDocument>,
+         { session }
+      );
+
+      /* The email binding already kills any reset link mailed to the attacker's address. Deleting the documents too also resets the forgot-password cooldown clock, so the owner's first request after a revert can never be swallowed by a request the attacker made seconds earlier. */
+      await getPasswordResetCollection().deleteMany(
+         {
+            userId: change.userId,
+         } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
          { session }
       );
 

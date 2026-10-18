@@ -45,6 +45,19 @@ export async function verifyTotpController(
             );
       }
 
+      if (user.passwordResetRequired) {
+         clearTotpChallengeCookie(res);
+         return void res
+            .status(403)
+            .json(
+               createErrorResponse(
+                  'FORBIDDEN',
+                  `A password reset is required before you can log in.`,
+                  requestId
+               )
+            );
+      }
+
       if (!user.isTotpEnabled || !user.totpSecret) {
          clearTotpChallengeCookie(res);
          return void res

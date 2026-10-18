@@ -63,7 +63,7 @@ export async function refreshController(
          } satisfies StrictMongoFilter<IUserDocument>);
 
          /* b) We check isActive here. If an admin deactivated this account since the session was created, we must not mint new tokens. */
-         if (!user || !user.isActive) {
+         if (!user || !user.isActive || user.passwordResetRequired) {
             /* The account is gone or deactivated. Kill the session and clear cookies so the client is not left holding dead credentials. */
             await sessionCollection.deleteOne({
                _id: session._id,

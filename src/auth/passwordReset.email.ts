@@ -1,5 +1,5 @@
 import { TIME_ZONE, LOCALE } from '@ssot/date_time_constants.ts';
-import type { IPasswordResetDocument } from '@models/PasswordReset_v3.model.ts';
+import type { IPasswordResetDocumentRead } from '@models/PasswordReset_v3.model.ts';
 import type { IUserDocument } from '@models/User_v3.model.ts';
 import { escapeHtml } from '@utils/escapeHTML.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
@@ -7,8 +7,8 @@ import { sendEmail } from '@services/email.service.ts';
 
 export type IPasswordResetEmailParams = ExpandType<
    Pick<IUserDocument, 'firstName' | 'email'> &
-      Pick<IPasswordResetDocument, 'expiresAt'> & {
-         resetUrl: string;
+      Pick<IPasswordResetDocumentRead, 'expiresAt'> & {
+         readonly resetUrl: string;
       }
 >;
 

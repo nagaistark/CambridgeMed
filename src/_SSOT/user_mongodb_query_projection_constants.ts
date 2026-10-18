@@ -13,6 +13,7 @@ import type {
    IUserInviteIssuer,
    IUserEmailChangeInitiator,
    IUserIdRoleActive,
+   IUserPasswordResetTarget,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -76,6 +77,15 @@ export const USER_ID_NAME_PROJECTION: Record<keyof IUserIdName, 1> = {
    _id: 1,
    firstName: 1,
    lastName: 1,
+};
+
+export const USER_PASSWORD_RESET_TARGET_PROJECTION: Record<
+   keyof IUserPasswordResetTarget,
+   1
+> = {
+   _id: 1,
+   firstName: 1,
+   email: 1,
 };
 
 export const USER_INVITE_ISSUER_PROJECTION: Record<keyof IUserInviteIssuer, 1> =

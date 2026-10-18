@@ -25,6 +25,8 @@ import {
    DisableTotpSchema,
    RecoveryCodeSchema,
 } from '@auth/totp.schemas.ts';
+import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
+import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 
 const authRouter = Router();
 
@@ -45,16 +47,23 @@ authRouter.post(
 authRouter.post(
    '/reset-password/:token',
    resetPasswordRateLimiter,
+   requireValidRawToken('This link is invalid or has expired.'),
    validateBody(ResetPasswordSchema),
    resetPasswordController
 );
 
 // ── TOTP (authenticated user managing their own 2FA) ─────────────────────────────
-authRouter.post(`/totp/enroll`, authenticate, enrollTotpController);
+authRouter.post(
+   `/totp/enroll`,
+   authenticate,
+   requireLiveSession,
+   enrollTotpController
+);
 
 authRouter.post(
    '/totp/enroll/confirm',
    authenticate,
+   requireLiveSession,
    validateBody(TotpCodeSchema),
    confirmTotpEnrollmentController
 );
@@ -62,6 +71,7 @@ authRouter.post(
 authRouter.delete(
    '/totp',
    authenticate,
+   requireLiveSession,
    validateBody(DisableTotpSchema),
    disableTotpController
 );

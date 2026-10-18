@@ -32,7 +32,7 @@ import {
 } from '@models/Invite_v3.model.ts';
 import {
    getPasswordResetCollection,
-   type IPasswordResetDocument,
+   type IPasswordResetDocumentRead,
 } from '@models/PasswordReset_v3.model.ts';
 import {
    getEmailChangeCollection,
@@ -107,7 +107,7 @@ async function runToggleTransaction(
          { session }
       );
       const passwordResets = await getPasswordResetCollection().deleteMany(
-         { userId: id } satisfies StrictMongoFilter<IPasswordResetDocument>,
+         { userId: id } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
          { session }
       );
 

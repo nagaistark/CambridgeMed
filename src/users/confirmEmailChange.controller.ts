@@ -12,6 +12,10 @@ import {
    getSessionCollection,
    type ISessionDocument,
 } from '@models/Session_v3.model.ts';
+import {
+   getPasswordResetCollection,
+   type IPasswordResetDocumentRead,
+} from '@models/PasswordReset_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
@@ -86,6 +90,13 @@ async function runConfirmTransaction(
          {
             userId: change.userId,
          } satisfies StrictMongoFilter<ISessionDocument>,
+         { session }
+      );
+
+      await getPasswordResetCollection().deleteMany(
+         {
+            userId: change.userId,
+         } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
          { session }
       );
 
