@@ -17,6 +17,10 @@ import type {
    IUserIdRolePermissions,
    IUserLogin,
    IUserRefresh,
+   IUserSecondFactor,
+   IUserTotpLogin,
+   IUserTotpManagement,
+   IUserRecoveryCodes,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -24,6 +28,7 @@ import type {
    IPatientInitial,
 } from '@models/Patient_v3.model.ts';
 import type { ISessionRefresh } from '@models/Session_v3.model.ts';
+import type { IPasswordResetRedeemCheck } from '@models/PasswordReset_v3.model.ts';
 import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
@@ -125,6 +130,61 @@ export const USER_ID_ROLE_PERMISSIONS_PROJECTION: Record<
    _id: 1,
    role: 1,
    permissions: 1,
+};
+
+export const USER_SECOND_FACTOR_PROJECTION: Record<keyof IUserSecondFactor, 1> =
+   {
+      _id: 1,
+      isTotpEnabled: 1,
+      totpSecret: 1,
+      totpLastUsedStep: 1,
+      totpRecoveryCodes: 1,
+   };
+
+export const USER_TOTP_LOGIN_PROJECTION: Record<keyof IUserTotpLogin, 1> = {
+   _id: 1,
+   firstName: 1,
+   lastName: 1,
+   email: 1,
+   role: 1,
+   permissions: 1,
+   isActive: 1,
+   passwordResetRequired: 1,
+   isTotpEnabled: 1,
+   totpSecret: 1,
+   totpLastUsedStep: 1,
+   totpRecoveryCodes: 1,
+};
+
+export const USER_TOTP_MANAGEMENT_PROJECTION: Record<
+   keyof IUserTotpManagement,
+   1
+> = {
+   _id: 1,
+   email: 1,
+   isActive: 1,
+   passwordHash: 1,
+   isTotpEnabled: 1,
+   totpSecret: 1,
+   totpPendingSecret: 1,
+   totpLastUsedStep: 1,
+   totpRecoveryCodes: 1,
+};
+
+export const USER_RECOVERY_CODES_PROJECTION: Record<
+   keyof IUserRecoveryCodes,
+   1
+> = {
+   _id: 1,
+   totpRecoveryCodes: 1,
+};
+
+export const PASSWORD_RESET_REDEEM_CHECK_PROJECTION: Record<
+   keyof IPasswordResetRedeemCheck,
+   1
+> = {
+   _id: 1,
+   userId: 1,
 };
 
 export const USER_LOGIN_PROJECTION: Record<keyof IUserLogin, 1> = {

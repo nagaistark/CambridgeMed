@@ -16,6 +16,7 @@ import {
    loginAccountRateLimiter,
    loginIpRateLimiter,
    resetPasswordRateLimiter,
+   totpManagementRateLimiter,
 } from '@utils/rateLimiters.ts';
 import { enrollTotpController } from '@auth/enrollTotp.controller.ts';
 import { confirmTotpEnrollmentController } from '@auth/confirmTotpEnrollment.controller.ts';
@@ -26,6 +27,7 @@ import {
    TotpCodeSchema,
    DisableTotpSchema,
    RecoveryCodeSchema,
+   TotpEnrollSchema,
 } from '@auth/totp.schemas.ts';
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import { requireLiveSession } from '@middleware/requireLiveSession.ts';
@@ -62,9 +64,11 @@ authRouter.post(
 
 // ── TOTP (authenticated user managing their own 2FA) ─────────────────────────────
 authRouter.post(
-   `/totp/enroll`,
+   '/totp/enroll',
    authenticate,
    requireLiveSession,
+   totpManagementRateLimiter,
+   validateBody(TotpEnrollSchema),
    enrollTotpController
 );
 
@@ -72,14 +76,16 @@ authRouter.post(
    '/totp/enroll/confirm',
    authenticate,
    requireLiveSession,
+   totpManagementRateLimiter,
    validateBody(TotpCodeSchema),
    confirmTotpEnrollmentController
 );
 
-authRouter.delete(
-   '/totp',
+authRouter.post(
+   '/totp/disable',
    authenticate,
    requireLiveSession,
+   totpManagementRateLimiter,
    validateBody(DisableTotpSchema),
    disableTotpController
 );

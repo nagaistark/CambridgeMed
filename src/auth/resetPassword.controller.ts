@@ -1,14 +1,18 @@
 import type { Request, NextFunction } from 'express';
-import type { ClientSession, CountDocumentsOptions, ObjectId } from 'mongodb';
+import type { ClientSession, ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
 import {
    getUserCollection,
+   UserSecondFactorValidator,
    type IUserDocument,
+   type IUserSecondFactor,
 } from '@models/User_v3.model.ts';
 import {
    getPasswordResetCollection,
    type IPasswordResetDocumentRead,
+   type IPasswordResetRedeemCheck,
    PasswordResetDocumentReadValidator,
+   PasswordResetRedeemCheckValidator,
 } from '@models/PasswordReset_v3.model.ts';
 import {
    getSessionCollection,
@@ -23,11 +27,24 @@ import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
+import {
+   PASSWORD_RESET_REDEEM_CHECK_PROJECTION,
+   USER_SECOND_FACTOR_PROJECTION,
+} from '@ssot/user_mongodb_query_projection_constants.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { ResetPasswordBody } from '@auth/resetPassword.schema.ts';
-import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import type {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+   StrictUpdate,
+} from '@utils/pathFinder_v3.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
 import logger from '../logger.ts';
+import {
+   checkSecondFactor,
+   sendSecondFactorFailure,
+   toSecondFactorInput,
+} from './secondFactor.ts';
 
 type ResetPasswordParams = { token: string };
 
@@ -129,22 +146,24 @@ export async function resetPasswordController(
    try {
       const requestId = res.locals.requestId;
       const { token } = req.params; // Shape already enforced by requireValidRawToken on the route.
-      const { newPassword } = res.locals.validatedBody;
+      const { newPassword, totpCode, recoveryCode } = res.locals.validatedBody;
 
       const tokenHash = generateStandardHash(token);
 
-      // ── Step 1: Cheap pre-flight (before Argon2) ───────────────────────────────
-      /* Advisory only: it stops an attacker from forcing a 100-300ms Argon2 hash for every guessed token. The atomic claim inside the transaction remains the authority. */
-      const isRedeemable =
-         (await getPasswordResetCollection().countDocuments(
+      /// ── Step 1: Non-consuming pre-flight (before Argon2) ───────────────────────
+      /* Advisory, but it now also yields the userId we need for the step-up. It must NOT consume the token: a mistyped code would otherwise burn the reset link. The atomic claim inside the transaction remains the authority. */
+      const redeemRaw =
+         await getPasswordResetCollection().findOne<IPasswordResetRedeemCheck>(
             {
                tokenHash,
                expiresAt: { $gt: new Date() },
             } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
+            {
+               projection: PASSWORD_RESET_REDEEM_CHECK_PROJECTION,
+            } satisfies StrictFindOneOptions<IPasswordResetRedeemCheck>
+         );
 
-      if (!isRedeemable) {
+      if (redeemRaw === null) {
          return void res
             .status(404)
             .json(
@@ -152,10 +171,73 @@ export async function resetPasswordController(
             );
       }
 
-      // ── Step 2: Hash BEFORE opening the transaction ────────────────────────────
+      const decodedRedeem = Schema.decodeUnknownEither(
+         PasswordResetRedeemCheckValidator
+      )(redeemRaw);
+      if (Either.isLeft(decodedRedeem)) {
+         throw new Error(`Stored password reset failed validation.`, {
+            cause: decodedRedeem.left,
+         });
+      }
+
+      // ── Step 2: second-factor step-up ──────────────────────────────────────────
+      /* A reset link proves mailbox control. For accounts with 2FA, the reset must be as strong as the front door: a mailbox-only attacker may not trigger the reset's side effects (every session killed, pending email changes deleted). */
+      const userRaw = await getUserCollection().findOne<IUserSecondFactor>(
+         {
+            _id: decodedRedeem.right.userId,
+         } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_SECOND_FACTOR_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserSecondFactor>
+      );
+
+      if (userRaw === null) {
+         return void res
+            .status(404)
+            .json(
+               createErrorResponse('NOT_FOUND', INVALID_LINK_MESSAGE, requestId)
+            );
+      }
+
+      const decodedUser = Schema.decodeUnknownEither(UserSecondFactorValidator)(
+         userRaw
+      );
+      if (Either.isLeft(decodedUser)) {
+         throw new Error(
+            `Stored user failed validation during password reset.`,
+            { cause: decodedUser.left }
+         );
+      }
+      const user = decodedUser.right;
+
+      if (user.isTotpEnabled) {
+         const factor = toSecondFactorInput({ totpCode, recoveryCode });
+
+         if (factor === null) {
+            /* Only the holder of a live reset link can see this, so it leaks nothing to strangers. */
+            return void res
+               .status(403)
+               .json(
+                  createErrorResponse(
+                     'FORBIDDEN',
+                     `A two-factor authentication code is required to reset this password.`,
+                     requestId,
+                     { requiresTotp: true }
+                  )
+               );
+         }
+
+         const outcome = await checkSecondFactor(user, factor);
+         if (outcome.status !== 'verified') {
+            sendSecondFactorFailure(res, outcome);
+            return;
+         }
+      }
+
+      // ── Step 3: Hash BEFORE opening the transaction ────────────────────────────
       const passwordHash = await hashPassword(newPassword);
 
-      // ── Step 3: Run the transaction ────────────────────────────────────────────
+      // ── Step 4: Run the transaction ────────────────────────────────────────────
       const authConnection = DatabaseManager.getInstance().auth.client;
       if (!authConnection) {
          throw new Error(

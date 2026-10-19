@@ -6,6 +6,7 @@ declare global {
       interface Locals {
          requestId: string;
          authenticatedUser?: AuthenticatedUser;
+         totpChallengeSub?: string;
       }
    }
 }

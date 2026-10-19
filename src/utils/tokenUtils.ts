@@ -153,3 +153,7 @@ export function setTotpChallengeCookie(res: Response, token: string): void {
 export function clearTotpChallengeCookie(res: Response): void {
    eraseCookie(res, TOTP_CHALLENGE_COOKIE_NAME, '/api/auth/totp');
 }
+
+export function readTotpChallengeCookie(req: Request): string | undefined {
+   return readStringCookie(req, TOTP_CHALLENGE_COOKIE_NAME);
+}

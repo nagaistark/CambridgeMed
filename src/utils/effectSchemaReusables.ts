@@ -5,7 +5,12 @@ import { ParseResult, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
-import { recoveryCodeRegex, totpSecretRegex } from '@ssot/totp_constants.ts';
+import {
+   recoveryCodeRegex,
+   TOTP_DIGITS,
+   totpCodeRegex,
+   totpSecretRegex,
+} from '@ssot/totp_constants.ts';
 import {
    MAX_CURSOR_LENGTH,
    MAX_PAGE_SIZE,
@@ -403,6 +408,22 @@ export const recoveryCodeCheck = baseString.pipe(
    Schema.pattern(recoveryCodeRegex, {
       message: () => `Invalid recovery code format (recoveryCodeCheck).`,
    })
+);
+
+export const totpCodeString = baseString.pipe(
+   Schema.pattern(totpCodeRegex, {
+      message: () => `Code must be exactly ${TOTP_DIGITS} digits.`,
+   })
+);
+
+/* Users may type recovery codes in lowercase; canonicalise to the SSOT's uppercase form once, here, so no controller has to remember. */
+export const recoveryCodeString = Schema.transform(
+   baseString,
+   recoveryCodeCheck,
+   {
+      decode: (code: string) => code.toUpperCase(),
+      encode: (code: string) => code,
+   }
 );
 
 // ===== Pagination Schema (req.query) =============================================

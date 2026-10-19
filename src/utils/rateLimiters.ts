@@ -30,6 +30,8 @@ import {
    LOGIN_IP_MAX_FAILED_REQUESTS,
    LOGIN_ACCOUNT_WINDOW_MS,
    LOGIN_ACCOUNT_MAX_FAILED_REQUESTS,
+   TOTP_MANAGEMENT_WINDOW_MS,
+   TOTP_MANAGEMENT_MAX_FAILED_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 import { Schema } from 'effect';
 import { LoginSchema } from '@auth/login.schema.ts';
@@ -149,5 +151,17 @@ export const loginAccountRateLimiter = makeRateLimiter(
             ? `account:${body.email}`
             : ipKeyGenerator(req.ip ?? 'unknown');
       },
+   }
+);
+
+/* Same keying idea as inviteCreateRateLimiter: per person, not per IP. */
+export const totpManagementRateLimiter = makeRateLimiter(
+   TOTP_MANAGEMENT_WINDOW_MS,
+   TOTP_MANAGEMENT_MAX_FAILED_REQUESTS,
+   {
+      skipSuccessfulRequests: true,
+      keyGenerator: (req, res) =>
+         res.locals.authenticatedUser?.sub ??
+         ipKeyGenerator(req.ip ?? 'unknown'),
    }
 );

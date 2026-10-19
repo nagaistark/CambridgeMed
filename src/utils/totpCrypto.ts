@@ -16,6 +16,8 @@ import {
    RECOVERY_CODE_SEPARATOR,
    TOTP_RECOVERY_CODE_COUNT,
    TOTP_SECRET_SEPARATOR,
+   AUTH_TAG_BYTE_LENGTH,
+   totpSecretRegex,
 } from '@ssot/totp_constants.ts';
 
 // ── Key derivation ───────────────────────────────────────────────────────────────
@@ -44,33 +46,47 @@ const HMAC_KEY: Buffer = Buffer.from(
 /* Encrypts the raw base32 TOTP secret before writing it to MongoDB. Output format: iv_hex:authTag_hex:ciphertext_hex. A fresh random IV is generated for every encryption, so two identical secrets encrypted separately will produce different ciphertexts. */
 export function encryptTotpSecret(plaintext: string): string {
    const iv = randomBytes(IV_BYTE_LENGTH);
-   const cipher = createCipheriv(CIPHER_ALGORITHM, ENCRYPTION_KEY, iv);
+   const cipher = createCipheriv(CIPHER_ALGORITHM, ENCRYPTION_KEY, iv, {
+      authTagLength: AUTH_TAG_BYTE_LENGTH,
+   });
    const encrypted = Buffer.concat([
       cipher.update(plaintext, 'utf8'),
       cipher.final(),
    ]);
-   const authTag = cipher.getAuthTag(); // GCM's integrity tag — detects tampering
+   const authTag = cipher.getAuthTag();
 
-   return [
+   const stored = [
       iv.toString('hex'),
       authTag.toString('hex'),
       encrypted.toString('hex'),
    ].join(TOTP_SECRET_SEPARATOR);
+
+   /* Fail at the source: a secret that doesn't match the storage format would only be discovered at the next validated read. */
+   if (!totpSecretRegex.test(stored)) {
+      throw new Error(
+         `Encrypted TOTP secret does not match the storage format.`
+      );
+   }
+   return stored;
 }
 
 /* Decrypts a stored TOTP secret back to its raw base32 form. If the ciphertext was tampered with, `decipher.final()` throws an error because the GCM auth tag won't match — this is AES-GCM's built-in integrity guarantee. We let that error propagate naturally. */
 export function decryptTotpSecret(stored: string): string {
-   const parts = stored.split(TOTP_SECRET_SEPARATOR);
-   if (parts.length !== 3) {
+   /* The SSOT regex guarantees three well-formed hex segments, which also stops Buffer.from(x, 'hex') from silently truncating bad input. */
+   if (!totpSecretRegex.test(stored)) {
       throw new Error(`Malformed stored TOTP secret: unexpected format.`);
    }
 
-   const [ivHex, authTagHex, encryptedHex] = parts;
+   const [ivHex, authTagHex, encryptedHex] = stored.split(
+      TOTP_SECRET_SEPARATOR
+   );
    const iv = Buffer.from(ivHex, 'hex');
    const authTag = Buffer.from(authTagHex, 'hex');
    const encrypted = Buffer.from(encryptedHex, 'hex');
 
-   const decipher = createDecipheriv(CIPHER_ALGORITHM, ENCRYPTION_KEY, iv);
+   const decipher = createDecipheriv(CIPHER_ALGORITHM, ENCRYPTION_KEY, iv, {
+      authTagLength: AUTH_TAG_BYTE_LENGTH,
+   });
    decipher.setAuthTag(authTag);
 
    return Buffer.concat([

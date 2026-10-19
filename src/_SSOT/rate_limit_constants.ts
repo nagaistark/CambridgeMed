@@ -56,3 +56,13 @@ export const LOGIN_IP_WINDOW_MS = 15 * 60 * 1_000;
 export const LOGIN_IP_MAX_FAILED_REQUESTS = 10;
 export const LOGIN_ACCOUNT_WINDOW_MS = 15 * 60 * 1_000;
 export const LOGIN_ACCOUNT_MAX_FAILED_REQUESTS = 10;
+
+// ── Global API backstop (every /api request, per IP) ─────────────────────────────
+/* Sized for ~12 staff behind one clinic IP. Each active user refreshes once a minute (15 per window) before making a single real request. Route-specific limiters do the real abuse prevention; this is only the flood backstop. */
+export const GLOBAL_API_WINDOW_MS = 15 * 60 * 1_000;
+export const GLOBAL_API_MAX_REQUESTS = 3_000;
+
+// ── TOTP self-management (enroll, enroll/confirm, disable) ───────────────────────
+/* Counted per user, failures only. Bounds password and code guessing from a hijacked session. */
+export const TOTP_MANAGEMENT_WINDOW_MS = 15 * 60 * 1_000;
+export const TOTP_MANAGEMENT_MAX_FAILED_REQUESTS = 10;

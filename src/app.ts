@@ -42,8 +42,12 @@ import {
    FALLBACK_HEX_SECRET_PATTERN,
    SENSITIVE_URL_PARAM_NAMES,
 } from '@ssot/logging_constants.ts';
-import { escapeRegex } from './utils/escapeRegex.ts';
-import { requireTrustedOrigin } from './middleware/requireTrustedOrigin.ts';
+import { escapeRegex } from '@utils/escapeRegex.ts';
+import { requireTrustedOrigin } from '@middleware/requireTrustedOrigin.ts';
+import {
+   GLOBAL_API_MAX_REQUESTS,
+   GLOBAL_API_WINDOW_MS,
+} from '@ssot/rate_limit_constants.ts';
 
 // ===== APP INITIALIZATION & CONFIG ===============================================
 const app: Express = express();
@@ -140,8 +144,8 @@ app.use('/api', requireTrustedOrigin);
 
 // G. Rate limiting
 const limiter = rateLimit({
-   windowMs: 15 * 60 * 1000,
-   limit: 100,
+   windowMs: GLOBAL_API_WINDOW_MS,
+   limit: GLOBAL_API_MAX_REQUESTS,
    standardHeaders: 'draft-8',
    legacyHeaders: false,
    ipv6Subnet: 56, // treating /56 IPv6 subnets as one identity

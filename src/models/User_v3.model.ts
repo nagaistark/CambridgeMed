@@ -53,16 +53,22 @@ export const UserDocumentStruct = Schema.Struct({
       message: () =>
          `totpSecret must be null or a validly formatted encrypted secret.`,
    }),
-   totpRecoveryCodes: Schema.Union(
-      Schema.Array(sha256HexString).pipe(Schema.itemsCount(0)),
-      Schema.Array(sha256HexString).pipe(
-         Schema.itemsCount(TOTP_RECOVERY_CODE_COUNT)
-      )
-   ).annotations({
+
+   /* Enrollment in progress: written by /totp/enroll, promoted to totpSecret by /totp/enroll/confirm. A separate field keeps `totpSecret` meaning exactly "the live secret". */
+   totpPendingSecret: Schema.NullOr(totpSecretCheck).annotations({
       message: () =>
-         `Must contain either zero codes or exactly ${TOTP_RECOVERY_CODE_COUNT} recovery codes.`,
+         `totpPendingSecret must be null or a validly formatted encrypted secret.`,
    }),
+
+   /* A used code is deleted, so "fewer than the initial count" is a normal state. */
+   totpRecoveryCodes: Schema.Array(sha256HexString).pipe(
+      Schema.maxItems(TOTP_RECOVERY_CODE_COUNT)
+   ),
    totpLastUsedStep: nonNegativeIntegerStringToNumber,
+
+   /* Attempt gate (see secondFactor.ts). */
+   totpAttempts: nonNegativeIntegerStringToNumber,
+   totpAttemptsWindowStartedAt: Schema.NullOr(Schema.ValidDateFromSelf),
 
    invitedBy: Schema.NullOr(stringToObjectId),
    isActive: Schema.Boolean.annotations({
@@ -172,7 +178,12 @@ const validateInviteRole = <
 const validateTotp = <
    A extends Pick<
       IUserDocument,
-      'isTotpEnabled' | 'totpSecret' | 'totpRecoveryCodes'
+      | 'isTotpEnabled'
+      | 'totpSecret'
+      | 'totpPendingSecret'
+      | 'totpRecoveryCodes'
+      | 'totpAttempts'
+      | 'totpAttemptsWindowStartedAt'
    >,
    I,
    R,
@@ -190,13 +201,27 @@ const validateTotp = <
             });
          }
 
-         if (
-            profile.isTotpEnabled !==
-            (profile.totpRecoveryCodes.length === TOTP_RECOVERY_CODE_COUNT)
-         ) {
+         if (profile.isTotpEnabled && profile.totpPendingSecret !== null) {
+            issues.push({
+               path: ['totpPendingSecret'],
+               message: `A pending enrollment cannot coexist with enabled TOTP.`,
+            });
+         }
+
+         if (!profile.isTotpEnabled && profile.totpRecoveryCodes.length > 0) {
             issues.push({
                path: ['totpRecoveryCodes'],
-               message: `Recovery codes must be fully present if and only if TOTP is enabled.`,
+               message: `Recovery codes may exist only while TOTP is enabled.`,
+            });
+         }
+
+         if (
+            profile.totpAttempts > 0 &&
+            profile.totpAttemptsWindowStartedAt === null
+         ) {
+            issues.push({
+               path: ['totpAttemptsWindowStartedAt'],
+               message: `An open attempt window must have a start time.`,
             });
          }
 
@@ -220,7 +245,10 @@ const SafeUserSchema = UserDocumentStruct.omit(
    'passwordHash',
    'totpSecret',
    'totpRecoveryCodes',
-   'totpLastUsedStep'
+   'totpLastUsedStep',
+   'totpPendingSecret',
+   'totpAttempts',
+   'totpAttemptsWindowStartedAt'
 ).pipe(
    validateChronology,
    validateInviteRole,
@@ -347,6 +375,61 @@ const UserRefreshSchema = UserDocumentStruct.pick(
 ).pipe(validatePermissionsForRole);
 export type IUserRefresh = Schema.Schema.Type<typeof UserRefreshSchema>;
 
+/* TOTP-related projection schemas */
+/* The minimal second-factor state; the parameter type of checkSecondFactor(). */
+const UserSecondFactorSchema = UserDocumentStruct.pick(
+   '_id',
+   'isTotpEnabled',
+   'totpSecret',
+   'totpLastUsedStep',
+   'totpRecoveryCodes'
+);
+export type IUserSecondFactor = Schema.Schema.Type<
+   typeof UserSecondFactorSchema
+>;
+
+/* Mid-login TOTP (verify and recover): identity, account-state flags, second-factor state. */
+const UserTotpLoginSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'email',
+   'role',
+   'permissions',
+   'isActive',
+   'passwordResetRequired',
+   'isTotpEnabled',
+   'totpSecret',
+   'totpLastUsedStep',
+   'totpRecoveryCodes'
+).pipe(validatePermissionsForRole);
+export type IUserTotpLogin = Schema.Schema.Type<typeof UserTotpLoginSchema>;
+
+/* TOTP self-management (enroll, confirm, disable). */
+const UserTotpManagementSchema = UserDocumentStruct.pick(
+   '_id',
+   'email',
+   'isActive',
+   'passwordHash',
+   'isTotpEnabled',
+   'totpSecret',
+   'totpPendingSecret',
+   'totpLastUsedStep',
+   'totpRecoveryCodes'
+);
+export type IUserTotpManagement = Schema.Schema.Type<
+   typeof UserTotpManagementSchema
+>;
+
+/* What a recovery-code $pull hands back. */
+const UserRecoveryCodesSchema = UserDocumentStruct.pick(
+   '_id',
+   'totpRecoveryCodes'
+);
+export type IUserRecoveryCodes = Schema.Schema.Type<
+   typeof UserRecoveryCodesSchema
+>;
+
 // ===== Validators against which we validate the documents ========================
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
@@ -392,6 +475,17 @@ export const UserIdRolePermissionsValidator = Schema.typeSchema(
 
 export const UserLoginValidator = Schema.typeSchema(UserLoginSchema);
 export const UserRefreshValidator = Schema.typeSchema(UserRefreshSchema);
+
+export const UserSecondFactorValidator = Schema.typeSchema(
+   UserSecondFactorSchema
+);
+export const UserTotpLoginValidator = Schema.typeSchema(UserTotpLoginSchema);
+export const UserTotpManagementValidator = Schema.typeSchema(
+   UserTotpManagementSchema
+);
+export const UserRecoveryCodesValidator = Schema.typeSchema(
+   UserRecoveryCodesSchema
+);
 
 /* MongoDB Collection Connection */
 export function getUserCollection(): Collection<IUserDocument> {

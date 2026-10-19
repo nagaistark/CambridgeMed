@@ -66,17 +66,25 @@ const validateResetTimeline = <
 };
 
 // ===== Full document schemas =====================================================
-export const PasswordResetDocumentCreateSchema =
+const PasswordResetDocumentCreateSchema =
    PasswordResetDocumentCreateStruct.pipe(
       validateChronology,
       validateResetTimeline
    );
 
-export const PasswordResetDocumentReadSchema =
-   PasswordResetDocumentReadStruct.pipe(
-      validateChronology,
-      validateResetTimeline
-   );
+const PasswordResetDocumentReadSchema = PasswordResetDocumentReadStruct.pipe(
+   validateChronology,
+   validateResetTimeline
+);
+
+/* Minimal shape for the pre-flight in resetPasswordController. */
+const PasswordResetRedeemCheckSchema = PasswordResetDocumentReadStruct.pick(
+   '_id',
+   'userId'
+);
+export type IPasswordResetRedeemCheck = Schema.Schema.Type<
+   typeof PasswordResetRedeemCheckSchema
+>;
 
 // ===== Validators against which we validate the documents ========================
 export const PasswordResetDocumentCreateValidator = Schema.typeSchema(
@@ -85,6 +93,10 @@ export const PasswordResetDocumentCreateValidator = Schema.typeSchema(
 
 export const PasswordResetDocumentReadValidator = Schema.typeSchema(
    PasswordResetDocumentReadSchema
+);
+
+export const PasswordResetRedeemCheckValidator = Schema.typeSchema(
+   PasswordResetRedeemCheckSchema
 );
 
 // ===== MongoDB Collection Connection =============================================

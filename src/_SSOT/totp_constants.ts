@@ -24,8 +24,19 @@ export const CIPHER_ALGORITHM = 'aes-256-gcm' as const;
 export const AES_KEY_BYTE_LENGTH = 32 as const; // Required for AES-256 (Passed to hkdfSync)
 export const IV_BYTE_LENGTH = 12 as const; // 96 bits: Standard for GCM
 export const IV_HEX_LENGTH = IV_BYTE_LENGTH * 2; // 24 hex characters
-export const AUTH_TAG_HEX_LENGTH = 32 as const; // 16 bytes auth tag = 32 hex characters
+export const AUTH_TAG_BYTE_LENGTH = 16 as const; // GCM's full-size tag
+export const AUTH_TAG_HEX_LENGTH = AUTH_TAG_BYTE_LENGTH * 2; // 32 hex characters
 export const TOTP_SECRET_SEPARATOR = ':' as const;
+
+// ── TOTP VERIFICATION CONFIG ─────────────────────────────────────────────────────
+export const TOTP_DIGITS = 6 as const;
+export const TOTP_EPOCH_TOLERANCE_SECONDS = 5 as const;
+
+// ── ATTEMPT GATE CONFIG ──────────────────────────────────────────────────────────
+/* Attempt gate: tickets per account per window. Legit typos cost a ticket; success resets the gate. */
+export const TOTP_MAX_ATTEMPTS = 5 as const;
+export const TOTP_ATTEMPT_WINDOW_MS = 15 * 60 * 1_000;
+export const TOTP_RECOVERY_CODE_LOW_THRESHOLD = 2 as const;
 
 // ── HMAC CONFIG (Dictated by SHA-256) ────────────────────────────────────────────
 export const HMAC_KEY_BYTE_LENGTH = 32 as const; // Recommended key length for HMAC-SHA256
@@ -51,3 +62,4 @@ const escapedRecoveryCodeSeparator = escapeRegex(RECOVERY_CODE_SEPARATOR);
 export const recoveryCodeRegex = new RegExp(
    `^[0-9A-F]{${RECOVERY_CODE_PART_HEX_LENGTH}}${escapedRecoveryCodeSeparator}[0-9A-F]{${RECOVERY_CODE_PART_HEX_LENGTH}}$`
 );
+export const totpCodeRegex = new RegExp(`^\\d{${TOTP_DIGITS}}$`);

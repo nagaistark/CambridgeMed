@@ -1,22 +1,29 @@
 import type { Request, NextFunction } from 'express';
-import { verify } from 'otplib';
+import { Either, Schema } from 'effect';
+import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
+   UserTotpManagementValidator,
    type IUserDocument,
+   type IUserTotpManagement,
 } from '@models/User_v3.model.ts';
-import {
-   decryptTotpSecret,
-   generateRecoveryCodes,
-   hashRecoveryCode,
-} from '@utils/totpCrypto.ts';
+import { generateRecoveryCodes, hashRecoveryCode } from '@utils/totpCrypto.ts';
+import { verifyTotpCode } from '@auth/secondFactor.ts';
+import { revokeOtherSessions } from '@auth/revokeOtherSessions.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { TotpCodeBody } from '@auth/totp.schemas.ts';
-import { ObjectId } from 'mongodb';
-import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
+import { USER_TOTP_MANAGEMENT_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import type {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+   StrictUpdate,
+} from '@utils/pathFinder_v3.ts';
+import { sanitizeError } from '../mongoDBConnect.ts';
+import logger from '../logger.ts';
 
 export async function confirmTotpEnrollmentController(
    _req: Request,
@@ -25,15 +32,18 @@ export async function confirmTotpEnrollmentController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { sub, sessionId } = res.locals.authenticatedUser;
       const { code } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
-      const user = await userCollection.findOne({
-         _id: new ObjectId(sub),
-      } satisfies StrictMongoFilter<IUserDocument>);
+      const userRaw = await userCollection.findOne<IUserTotpManagement>(
+         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            projection: USER_TOTP_MANAGEMENT_PROJECTION,
+         } satisfies StrictFindOneOptions<IUserTotpManagement>
+      );
 
-      if (!user) {
+      if (userRaw === null) {
          return void res
             .status(404)
             .json(
@@ -41,17 +51,16 @@ export async function confirmTotpEnrollmentController(
             );
       }
 
-      if (!user.totpSecret) {
-         return void res
-            .status(400)
-            .json(
-               createErrorResponse(
-                  'VALIDATION_ERROR',
-                  `No pending TOTP enrollment found. Please start the enrollment process first.`,
-                  requestId
-               )
-            );
+      const decodedUser = Schema.decodeUnknownEither(
+         UserTotpManagementValidator
+      )(userRaw);
+      if (Either.isLeft(decodedUser)) {
+         throw new Error(
+            `Stored user failed validation during TOTP confirmation.`,
+            { cause: decodedUser.left }
+         );
       }
+      const user = decodedUser.right;
 
       if (user.isTotpEnabled) {
          return void res
@@ -65,16 +74,26 @@ export async function confirmTotpEnrollmentController(
             );
       }
 
-      // ── Verify the submitted code ──────────────────────────────────────────────
-      const rawSecret = decryptTotpSecret(user.totpSecret);
-      const result = await verify({
-         token: code,
-         secret: rawSecret,
-         epochTolerance: 5,
-         afterTimeStep: user.totpLastUsedStep,
+      if (user.totpPendingSecret === null) {
+         return void res
+            .status(400)
+            .json(
+               createErrorResponse(
+                  'VALIDATION_ERROR',
+                  `No pending TOTP enrollment found. Please start the enrollment process first.`,
+                  requestId
+               )
+            );
+      }
+
+      // ── Verify against the PENDING secret ──────────────────────────────────────
+      const check = await verifyTotpCode({
+         encryptedSecret: user.totpPendingSecret,
+         code,
+         lastUsedStep: user.totpLastUsedStep,
       });
 
-      if (!result.valid) {
+      if (!check.valid) {
          return void res
             .status(401)
             .json(
@@ -86,29 +105,51 @@ export async function confirmTotpEnrollmentController(
             );
       }
 
-      // ── Generate and persist recovery codes + Add Time Step ────────────────────
-
-      /* Plaintext codes are generated, hashed for storage, then returned to the user exactly once. The plaintext is never persisted anywhere — after this response is sent, it is gone forever. */
+      // ── Plaintext codes: generated, hashed for storage, shown exactly once ─────
       const plainTextCodes = generateRecoveryCodes();
       const hashedCodes = plainTextCodes.map(hashRecoveryCode);
 
-      /* Narrowing and extracting the step */
-      if (!('timeStep' in result)) {
-         throw new Error(
-            `TOTP verification succeeded but returned no timeStep. Cannot safely persist replay protection state.`
-         );
-      }
-
-      await userCollection.updateOne(
-         { _id: user._id } satisfies StrictMongoFilter<IUserDocument>,
+      // ── Promote pending → live, atomically ─────────────────────────────────────
+      /* The filter pins every fact the decision rested on: still disabled, the SAME pending secret we verified against, and a step strictly newer than the last used (replay protection). If any of them moved, nothing is written. */
+      const enabled = await userCollection.updateOne(
+         {
+            _id: user._id,
+            isTotpEnabled: false,
+            totpPendingSecret: user.totpPendingSecret,
+            totpLastUsedStep: { $lt: check.timeStep },
+         } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: {
                isTotpEnabled: true,
+               totpSecret: user.totpPendingSecret,
+               totpPendingSecret: null,
                totpRecoveryCodes: hashedCodes,
-               totpLastUsedStep: result.timeStep,
+               totpLastUsedStep: check.timeStep,
             },
          } satisfies StrictUpdate<IUserDocument>
       );
+
+      if (enabled.matchedCount === 0) {
+         return void res
+            .status(409)
+            .json(
+               createErrorResponse(
+                  'CONFLICT',
+                  `Enrollment state changed. Please restart the enrollment process.`,
+                  requestId
+               )
+            );
+      }
+
+      /* Sessions created before 2FA existed are pre-2FA keys. Best effort on purpose: enabling is an UPGRADE, so a failure here must not hide the recovery codes (shown only once), but it must not pass silently either. */
+      try {
+         await revokeOtherSessions(user._id, new ObjectId(sessionId));
+      } catch (revokeErr) {
+         logger.error(
+            `Failed to revoke other sessions after TOTP enrollment: ${sanitizeError(revokeErr).message}`,
+            { requestId, userId: sub }
+         );
+      }
 
       return void res.status(200).json({
          success: true,
