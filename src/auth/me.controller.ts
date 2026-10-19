@@ -1,6 +1,8 @@
 import type { Request, NextFunction } from 'express';
+import { Either, Schema } from 'effect';
 import {
    getUserCollection,
+   SafeUserValidator,
    type IUserDocument,
    type ISafeUser,
 } from '@models/User_v3.model.ts';
@@ -21,26 +23,33 @@ export async function meController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-
-      /* res.locals.authenticatedUser is guaranteed to be populated here because this controller only runs behind the `authenticate` middleware. If `authenticate` had not set this, the request would have already been rejected with a 401 before reaching us. */
       const { sub } = res.locals.authenticatedUser;
 
-      /* Only fetch the data that is safe to expose (SAFE_USER_PROJECTION). */
-      const user = await getUserCollection().findOne<ISafeUser>(
+      const userRaw = await getUserCollection().findOne<ISafeUser>(
          { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: SAFE_USER_PROJECTION,
          } satisfies StrictFindOneOptions<ISafeUser>
       );
 
-      if (!user) {
+      if (userRaw === null) {
          return void res
             .status(404)
             .json(
                createErrorResponse('NOT_FOUND', `Account not found.`, requestId)
             );
       }
-      /* isActive is authoritative only in the database. A user deactivated mid-session should be caught here immediately, not up to a minute later when the access token finally expires. */
+
+      const decodedUser =
+         Schema.decodeUnknownEither(SafeUserValidator)(userRaw);
+      if (Either.isLeft(decodedUser)) {
+         throw new Error(`Stored user failed validation in /me.`, {
+            cause: decodedUser.left,
+         });
+      }
+      const user = decodedUser.right;
+
+      /* isActive is authoritative only in the database; catching it here beats waiting for the access token to expire. */
       if (!user.isActive) {
          return void res
             .status(403)
@@ -53,7 +62,6 @@ export async function meController(
             );
       }
 
-      /* At this point the `user` is already `ISafeUser`. */
       return void res.status(200).json(buildMeResponse('Session valid.', user));
    } catch (err) {
       next(err);

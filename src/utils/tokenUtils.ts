@@ -1,10 +1,11 @@
 import { SignJWT } from 'jose';
-import type { Response } from 'express';
+import type { Request, Response } from 'express';
 import { myEnv } from '../validateConfig.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
 import {
    generateRandomToken,
    generateStandardHash,
+   HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
 import {
    TOTP_CHALLENGE_AUDIENCE,
@@ -53,6 +54,22 @@ export function generateRefreshToken(): { raw: string; hash: string } {
 
 // ── Cookie management ────────────────────────────────────────────────────────────
 const isProduction = myEnv.environment === 'production';
+
+/* req.cookies is `any` (and cookie-parser turns `j:{...}` cookies into OBJECTS). Reading through `unknown` forces a real runtime check instead of an implicit cast. */
+function readStringCookie(req: Request, name: string): string | undefined {
+   const value: unknown = req.cookies[name];
+   return typeof value === 'string' && value.length > 0 ? value : undefined;
+}
+
+export function readAccessTokenCookie(req: Request): string | undefined {
+   return readStringCookie(req, ACCESS_TOKEN_COOKIE_NAME);
+}
+
+/* Refresh tokens have a known shape, so junk is rejected before it costs a hash or a DB hit. */
+export function readRefreshTokenCookie(req: Request): string | undefined {
+   const value = readStringCookie(req, REFRESH_TOKEN_COOKIE_NAME);
+   return value !== undefined && HEX96_REGEX.test(value) ? value : undefined;
+}
 
 // ── Private cookie primitives ────────────────────────────────────────────────────
 /* These are not exported. They encode the security baseline that every cookie in this application must meet. All public cookie functions delegate to these so the security flags are defined in exactly one place. */

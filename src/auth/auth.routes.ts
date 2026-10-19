@@ -13,6 +13,8 @@ import { forgotPasswordController } from '@auth/forgotPassword.controller.ts';
 import { resetPasswordController } from '@auth/resetPassword.controller.ts';
 import {
    forgotPasswordRateLimiter,
+   loginAccountRateLimiter,
+   loginIpRateLimiter,
    resetPasswordRateLimiter,
 } from '@utils/rateLimiters.ts';
 import { enrollTotpController } from '@auth/enrollTotp.controller.ts';
@@ -30,10 +32,16 @@ import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 
 const authRouter = Router();
 
-authRouter.post('/login', validateBody(LoginSchema), loginController);
+authRouter.post(
+   '/login',
+   loginIpRateLimiter, // cheap, per-IP, before any parsing work
+   validateBody(LoginSchema),
+   loginAccountRateLimiter, // needs the decoded email, so it comes after
+   loginController
+);
 authRouter.post('/logout', logoutController);
 authRouter.post('/refresh', refreshController);
-authRouter.get('/me', authenticate, meController);
+authRouter.get('/me', authenticate, requireLiveSession, meController);
 
 // ── Password recovery (unauthenticated) ──────────────────────────────────────────
 /* Both routes are public. The user has no session — that's the whole point. The rate limiter on forgot-password is the primary abuse-prevention mechanism since the route is both public and triggers an outbound email. */

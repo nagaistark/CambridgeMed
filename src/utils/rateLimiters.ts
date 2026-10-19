@@ -26,7 +26,13 @@ import {
    USER_ADMIN_TOGGLE_MAX_REQUESTS,
    INVITE_CREATE_WINDOW_MS,
    INVITE_CREATE_MAX_REQUESTS,
+   LOGIN_IP_WINDOW_MS,
+   LOGIN_IP_MAX_FAILED_REQUESTS,
+   LOGIN_ACCOUNT_WINDOW_MS,
+   LOGIN_ACCOUNT_MAX_FAILED_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
+import { Schema } from 'effect';
+import { LoginSchema } from '@auth/login.schema.ts';
 
 /* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-7'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
 function makeRateLimiter(
@@ -119,5 +125,29 @@ export const inviteCreateRateLimiter = makeRateLimiter(
       keyGenerator: (req, res) =>
          res.locals.authenticatedUser?.sub ??
          ipKeyGenerator(req.ip ?? 'unknown'),
+   }
+);
+
+/* Narrows `unknown` to `{ email: string }` using the SAME atom as the login schema. No cast, no drift. */
+const hasLoginEmail = Schema.is(LoginSchema.pick('email'));
+
+export const loginIpRateLimiter = makeRateLimiter(
+   LOGIN_IP_WINDOW_MS,
+   LOGIN_IP_MAX_FAILED_REQUESTS,
+   { skipSuccessfulRequests: true }
+);
+
+/* Must be mounted AFTER validateBody (the email is only trustworthy once decoded). Counts per account, including non-existent ones, so the limiter itself is no enumeration oracle. */
+export const loginAccountRateLimiter = makeRateLimiter(
+   LOGIN_ACCOUNT_WINDOW_MS,
+   LOGIN_ACCOUNT_MAX_FAILED_REQUESTS,
+   {
+      skipSuccessfulRequests: true,
+      keyGenerator: (req, res) => {
+         const body: unknown = res.locals['validatedBody'];
+         return hasLoginEmail(body)
+            ? `account:${body.email}`
+            : ipKeyGenerator(req.ip ?? 'unknown');
+      },
    }
 );

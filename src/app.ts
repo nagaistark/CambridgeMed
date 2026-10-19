@@ -162,35 +162,8 @@ const limiter = rateLimit({
    },
 });
 
-const authLimiter = rateLimit({
-   windowMs: 15 * 60 * 1000,
-   limit: 10,
-   standardHeaders: 'draft-8',
-   legacyHeaders: false,
-   skipSuccessfulRequests: true, // A correct password doesn't consume the quota
-   ipv6Subnet: 56, // treating /56 IPv6 subnets as one identity
-   handler: (
-      _req: Request,
-      res: Response,
-      _next: NextFunction,
-      options: Options
-   ) => {
-      const requestId = res.locals['requestId'];
-      res.status(options.statusCode).json(
-         createErrorResponse(
-            'RATE_LIMITED',
-            'Too many login attempts. Please wait 15 minutes before trying again.',
-            requestId
-         )
-      );
-   },
-});
-
 // General API protection
 app.use('/api', limiter);
-
-// Stricter limit on login to prevent brute-force attacks
-app.use('/api/auth/login', authLimiter);
 
 // H. Body Parsers & Static Files
 app.use(express.json({ limit: '100kb' }));

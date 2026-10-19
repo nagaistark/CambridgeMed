@@ -11,6 +11,7 @@ import {
    MAX_PAGE_SIZE,
    paginationLimit,
 } from '@ssot/pagination_constants.ts';
+import { isIP } from 'node:net';
 
 const baseStringMaxLength = 128 as const;
 const longStringMaxLength = 2056 as const;
@@ -18,9 +19,6 @@ const shortDateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const fullDateRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{1,3}Z$/;
 const emailRegex =
    /^(?!\.)(?!.*\.\.)([A-Z0-9_'+\-.]*)[A-Z0-9_+-]@([A-Z0-9][A-Z0-9-]*\.)+[A-Z]{2,}$/i;
-const ipRegex =
-   /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$|^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,7}:$|^(?:[0-9a-fA-F]{1,4}:){1,6}:[0-9a-fA-F]{1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,5}(?::[0-9a-fA-F]{1,4}){1,2}$|^(?:[0-9a-fA-F]{1,4}:){1,4}(?::[0-9a-fA-F]{1,4}){1,3}$|^(?:[0-9a-fA-F]{1,4}:){1,3}(?::[0-9a-fA-F]{1,4}){1,4}$|^(?:[0-9a-fA-F]{1,4}:){1,2}(?::[0-9a-fA-F]{1,4}){1,5}$|^[0-9a-fA-F]{1,4}:(?::[0-9a-fA-F]{1,4}){1,6}$|^:(?::[0-9a-fA-F]{1,4}){1,7}$|^::$/;
-
 const postalCodeCanadaRegex = /^[A-Za-z]\d[A-Za-z][ ]?\d[A-Za-z]\d$/i;
 const phoneNANPRegex = /^1?[2-9]\d{2}[2-9]\d{6}$/;
 const chartNumberRegex = /^[A-Za-z0-9-]{10}$/;
@@ -389,7 +387,7 @@ export const argon2HashString = customTrim.pipe(
 );
 
 export const ipAddress = baseString.pipe(
-   Schema.pattern(ipRegex, {
+   Schema.filter((str: string) => isIP(str) !== 0, {
       message: () => `Invalid IP Address format (ipAddress).`,
    })
 );

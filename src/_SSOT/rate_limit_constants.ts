@@ -49,3 +49,10 @@ export const INVITE_PREVIEW_MAX_REQUESTS = 20;
 /* Authenticated, role/ownership-gated mutations (superadmin or direct inviter). No CPU-exhaustion or enumeration vector like the public token endpoints. This limiter exists to bound the blast radius of a misbehaving admin client or compromised session, not to defend against anonymous abuse. Shared between both toggle endpoints since they present the same risk profile. */
 export const USER_ADMIN_TOGGLE_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes
 export const USER_ADMIN_TOGGLE_MAX_REQUESTS = 20;
+
+// ── Login (POST /api/auth/login) ─────────────────────────────────────────────────
+/* Two nets. Per IP stops one machine spraying many accounts; per account stops many machines hammering one. Both count FAILURES only, so a correct login never burns budget. */
+export const LOGIN_IP_WINDOW_MS = 15 * 60 * 1_000;
+export const LOGIN_IP_MAX_FAILED_REQUESTS = 10;
+export const LOGIN_ACCOUNT_WINDOW_MS = 15 * 60 * 1_000;
+export const LOGIN_ACCOUNT_MAX_FAILED_REQUESTS = 10;

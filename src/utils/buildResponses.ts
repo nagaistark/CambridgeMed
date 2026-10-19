@@ -16,7 +16,6 @@ import type {
 import type {
    AuthUserResponse,
    AuthUserResponseLogout,
-   IUserDocument,
    ISafeUser,
    IPublicUser,
 } from '@models/User_v3.model.ts';
@@ -28,7 +27,7 @@ import { encodeCursor } from '@utils/cursorPagination.ts';
 Function overloads: when called with a user argument, the return type is AuthUserResponse... */
 export function buildAuthResponse(
    message: string,
-   user: IUserDocument
+   user: IPublicUser
 ): AuthUserResponse;
 
 /* ...when called without one, the return type is AuthUserResponseLogout */
@@ -36,7 +35,7 @@ export function buildAuthResponse(message: string): AuthUserResponseLogout;
 
 export function buildAuthResponse(
    message: string,
-   user?: IUserDocument
+   user?: IPublicUser
 ): AuthUserResponse | AuthUserResponseLogout {
    if (user) {
       return {

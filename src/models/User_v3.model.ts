@@ -319,6 +319,34 @@ export type IUserIdRolePermissions = Schema.Schema.Type<
    typeof UserIdRolePermissionsSchema
 >;
 
+/* Minimal shape for loginController. */
+const UserLoginSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'email',
+   'role',
+   'permissions',
+   'passwordHash',
+   'isActive',
+   'passwordResetRequired',
+   'isTotpEnabled'
+).pipe(validatePermissionsForRole);
+export type IUserLogin = Schema.Schema.Type<typeof UserLoginSchema>;
+
+/* Minimal shape for refreshController: identity for the response and token, plus the two account-state flags. No passwordHash! */
+const UserRefreshSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'email',
+   'role',
+   'permissions',
+   'isActive',
+   'passwordResetRequired'
+).pipe(validatePermissionsForRole);
+export type IUserRefresh = Schema.Schema.Type<typeof UserRefreshSchema>;
+
 // ===== Validators against which we validate the documents ========================
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
@@ -361,6 +389,9 @@ export const UserIdRoleActiveValidator = Schema.typeSchema(
 export const UserIdRolePermissionsValidator = Schema.typeSchema(
    UserIdRolePermissionsSchema
 );
+
+export const UserLoginValidator = Schema.typeSchema(UserLoginSchema);
+export const UserRefreshValidator = Schema.typeSchema(UserRefreshSchema);
 
 /* MongoDB Collection Connection */
 export function getUserCollection(): Collection<IUserDocument> {

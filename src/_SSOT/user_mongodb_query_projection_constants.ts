@@ -15,12 +15,15 @@ import type {
    IUserIdRoleActive,
    IUserPasswordResetTarget,
    IUserIdRolePermissions,
+   IUserLogin,
+   IUserRefresh,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
    IPatientDocument,
    IPatientInitial,
 } from '@models/Patient_v3.model.ts';
+import type { ISessionRefresh } from '@models/Session_v3.model.ts';
 import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
 
@@ -122,6 +125,36 @@ export const USER_ID_ROLE_PERMISSIONS_PROJECTION: Record<
    _id: 1,
    role: 1,
    permissions: 1,
+};
+
+export const USER_LOGIN_PROJECTION: Record<keyof IUserLogin, 1> = {
+   _id: 1,
+   firstName: 1,
+   lastName: 1,
+   email: 1,
+   role: 1,
+   permissions: 1,
+   passwordHash: 1,
+   isActive: 1,
+   passwordResetRequired: 1,
+   isTotpEnabled: 1,
+};
+
+export const USER_REFRESH_PROJECTION: Record<keyof IUserRefresh, 1> = {
+   _id: 1,
+   firstName: 1,
+   lastName: 1,
+   email: 1,
+   role: 1,
+   permissions: 1,
+   isActive: 1,
+   passwordResetRequired: 1,
+};
+
+export const SESSION_REFRESH_PROJECTION: Record<keyof ISessionRefresh, 1> = {
+   _id: 1,
+   userId: 1,
+   rotatedAt: 1,
 };
 
 export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {

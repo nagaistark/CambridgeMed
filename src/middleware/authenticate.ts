@@ -1,14 +1,12 @@
 import type { Request, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 import { getPublicKey } from '@utils/jwtUtils.ts';
-import {
-   ACCESS_TOKEN_COOKIE_NAME,
-   ACCESS_TOKEN_AUDIENCE,
-} from '@utils/tokenUtils.ts';
+import { ACCESS_TOKEN_AUDIENCE } from '@utils/tokenUtils.ts';
 import { allRoles } from '@ssot/user_roles_constants.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import type { CustomSessionPayload } from '@ssot/jwt_payload_constants.ts';
+import { readAccessTokenCookie } from '@utils/tokenUtils.ts';
 
 export async function authenticate(
    req: Request,
@@ -16,8 +14,7 @@ export async function authenticate(
    next: NextFunction
 ): Promise<void> {
    try {
-      const rawToken: string | undefined =
-         req.cookies[ACCESS_TOKEN_COOKIE_NAME];
+      const rawToken = readAccessTokenCookie(req);
 
       // ── Token presence check ─────────────────────────────────────────
       /* A missing token is a controlled, expected condition, not an error. We handle it directly rather than throwing. That's how we tell the client "you need to authenticate first". */
