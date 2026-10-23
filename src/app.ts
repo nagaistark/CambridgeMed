@@ -84,10 +84,23 @@ morgan.token('safe-url', (req: Request): string => {
    return url.replace(FALLBACK_HEX_SECRET_PATTERN, '[REDACTED]');
 });
 
-const morganFormat =
-   process.env.NODE_ENV === 'production'
-      ? ':request-id :remote-addr :method :safe-url :status :res[content-length] - :response-time ms'
-      : ':request-id :method :safe-url :status :response-time ms';
+morgan.token(
+   'request-id',
+   (_req: Request, res: Response): string => res.locals.requestId
+);
+
+const morganFormat: morgan.FormatFn<Request, Response> = (tokens, req, res) =>
+   [
+      res.locals.requestId,
+      process.env.NODE_ENV === 'production' ? req.ip : undefined,
+      req.method,
+      tokens['safe-url'](req, res),
+      tokens.status(req, res),
+      tokens['response-time'](req, res),
+      'ms',
+   ]
+      .filter(part => part !== undefined)
+      .join(' ');
 
 app.use(
    morgan(morganFormat, {
