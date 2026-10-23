@@ -13,4 +13,4 @@ export const ARGON2_CONFIG: HashOptions & { type: 2 } = {
 };
 
 export const argon2Regex =
-   /^\$argon2id\$v=19\$m=65536,t=3,p=4\$[A-Za-z0-9+/]{22}\$[A-Za-z0-9+/]{43}$/;
+   /^\$argon2id\$v=19\$m=65536,p=4,t=3\$[A-Za-z0-9+/]{22}\$[A-Za-z0-9+/]{43}$/;
