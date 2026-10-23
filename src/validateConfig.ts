@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { env } from 'node:process';
 import { Buffer } from 'node:buffer';
-import { Schema, ParseResult, Either } from 'effect';
+import { Schema, ParseResult, Either, Redacted } from 'effect';
+import { TOTP_KEY_ID_PATTERN, totpKeyIdRegex } from '@ssot/totp_constants.ts';
 import logger from './logger.ts';
 
 // ===== BASIC LEAF SCHEMAS ========================================================
@@ -151,27 +152,80 @@ const httpUrl = Schema.transformOrFail(
    }
 );
 
-const base64Exact32Bytes = Schema.transformOrFail(
-   trimmedString,
-   Schema.instanceOf(Buffer),
+const totpKeyId = nonEmptyReasonablyLongString.pipe(
+   Schema.pattern(totpKeyIdRegex, {
+      message: () => `TOTP key id must be 1-16 lowercase letters or digits.`,
+   })
+);
+
+/* 32 bytes in base64 are always 43 characters plus one '=' pad. Anchoring on that, instead of trusting Buffer.from(…, 'base64') (which silently skips garbage), makes a typo fail loudly at startup. */
+const totpKeyringEntryRegex = new RegExp(
+   `^(${TOTP_KEY_ID_PATTERN}):([A-Za-z0-9+/]{43}=)$`
+);
+
+const totpKeyring = Schema.transformOrFail(
+   nonEmptyReasonablyLongString,
+   Schema.ReadonlyMapFromSelf({
+      key: Schema.String,
+      value: Schema.instanceOf(Buffer),
+   }),
    {
       strict: true,
       decode: (str, _options, ast) => {
-         const buf = Buffer.from(str, 'base64');
-         return buf.length === 32
-            ? ParseResult.succeed(buf)
-            : ParseResult.fail(
-                 new ParseResult.Type(
-                    ast,
-                    str,
-                    `TOTP_ENCRYPTION_KEY must be a base64 string that decodes to exactly 32 bytes.`
-                 )
-              );
+         /* '<redacted>' as the `actual`: this input IS the secret. */
+         const fail = (message: string) =>
+            ParseResult.fail(new ParseResult.Type(ast, '<redacted>', message));
+
+         const keys = new Map<string, Buffer>();
+         for (const entry of str
+            .split(',')
+            .map(part => part.trim())
+            .filter(Boolean)) {
+            const match = totpKeyringEntryRegex.exec(entry);
+            if (match === null) {
+               return fail(
+                  `Each TOTP_ENCRYPTION_KEYRING entry must look like "<id>:<base64 of 32 bytes>".`
+               );
+            }
+            const [, id, encoded] = match;
+            if (keys.has(id)) {
+               return fail(
+                  `TOTP_ENCRYPTION_KEYRING contains the key id "${id}" twice.`
+               );
+            }
+            const key = Buffer.from(encoded, 'base64');
+            if (key.length !== 32) {
+               return fail(`Key "${id}" must decode to exactly 32 bytes.`);
+            }
+            keys.set(id, key);
+         }
+
+         return keys.size > 0
+            ? ParseResult.succeed(keys)
+            : fail(`TOTP_ENCRYPTION_KEYRING must contain at least one key.`);
       },
-      encode: buf => ParseResult.succeed(buf.toString('base64')),
+      encode: keys =>
+         ParseResult.succeed(
+            [...keys]
+               .map(([id, key]) => `${id}:${key.toString('base64')}`)
+               .join(',')
+         ),
    }
 );
-const redactedTotpKey = Schema.Redacted(base64Exact32Bytes);
+const redactedTotpKeyring = Schema.Redacted(totpKeyring);
+
+const TotpEncryptionConfigSchema = Schema.Struct({
+   keyring: redactedTotpKeyring,
+   activeKeyId: totpKeyId,
+}).pipe(
+   Schema.filter(
+      ({ keyring, activeKeyId }) => Redacted.value(keyring).has(activeKeyId),
+      {
+         message: () =>
+            `TOTP_ACTIVE_KEY_ID must name a key present in TOTP_ENCRYPTION_KEYRING.`,
+      }
+   )
+);
 
 const commaSeparatedOrigins = Schema.transform(
    nonEmptyReasonablyLongString,
@@ -235,7 +289,7 @@ const ConfigSchema = Schema.Struct({
    }),
    argon2Secret: redactedArgon2Secret,
    appBaseUrl: httpUrl,
-   totpEncryptionKey: redactedTotpKey,
+   totpEncryption: TotpEncryptionConfigSchema,
 });
 
 export type Env = Schema.Schema.Type<typeof ConfigSchema>;
@@ -272,7 +326,10 @@ const rawConfig = {
    },
    argon2Secret: env.ARGON2_SECRET,
    appBaseUrl: env.APP_BASE_URL,
-   totpEncryptionKey: env.TOTP_ENCRYPTION_KEY,
+   totpEncryption: {
+      keyring: env.TOTP_ENCRYPTION_KEYRING,
+      activeKeyId: env.TOTP_ACTIVE_KEY_ID,
+   },
 };
 
 /* ArrayFormatter walks the issue tree and gives back only `{ path, message }` per issue — it never echoes the raw offending value back at you. Combined with Redacted above, there are now two independent layers between a bad secret and your log stream: the formatter doesn't expose values, and even if it somehow did, Redacted values print as `<redacted>` regardless of what wraps them. */

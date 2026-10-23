@@ -1,7 +1,6 @@
 import {
    createCipheriv,
    createDecipheriv,
-   createHmac,
    hkdfSync,
    randomBytes,
 } from 'node:crypto';
@@ -10,7 +9,6 @@ import { Redacted } from 'effect';
 import {
    AES_KEY_BYTE_LENGTH,
    CIPHER_ALGORITHM,
-   HMAC_KEY_BYTE_LENGTH,
    IV_BYTE_LENGTH,
    RECOVERY_CODE_PART_BYTE_LENGTH,
    RECOVERY_CODE_SEPARATOR,
@@ -19,36 +17,58 @@ import {
    AUTH_TAG_BYTE_LENGTH,
    totpSecretRegex,
 } from '@ssot/totp_constants.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 
-// ── Key derivation ───────────────────────────────────────────────────────────────
-/* Computed once when this module is first imported and cached for the lifetime of the process. HKDF extracts two distinct sub-keys from the single master key. The `info` string is the domain-separation label — even if the algorithm and salt are the same, different `info` values produce completely different keys. */
-const ENCRYPTION_KEY: Buffer = Buffer.from(
-   hkdfSync(
-      'sha256',
-      Redacted.value(myEnv.totpEncryptionKey),
-      Buffer.alloc(0), // empty salt: RFC 5869 §3.1 says this is fine when the IKM is already a strong key
-      'cambridge-med:totp:secret-encryption:v1',
-      AES_KEY_BYTE_LENGTH
-   )
+// ── Key ring ─────────────────────────────────────────────────────────────────────
+/* Stored format: keyId:iv:authTag:ciphertext. The key id travels WITH the data, so any number of keys can be live at once: new encryptions use the active key, old ciphertexts keep decrypting under the key that made them. That is what makes rotation possible without a big-bang re-encryption.
+
+The `v1` inside the HKDF label is the version of THIS SCHEME (algorithm + derivation). It is unrelated to key ids and changes only if the scheme itself changes. */
+const ENCRYPTION_KEY_INFO = 'cambridge-med:totp:secret-encryption:v1';
+
+function deriveEncryptionKey(masterKey: Buffer): Buffer {
+   return Buffer.from(
+      hkdfSync(
+         'sha256',
+         masterKey,
+         Buffer.alloc(0), // empty salt: RFC 5869 §3.1 allows it when the IKM is already a strong key
+         ENCRYPTION_KEY_INFO,
+         AES_KEY_BYTE_LENGTH
+      )
+   );
+}
+
+const { keyring, activeKeyId } = myEnv.totpEncryption;
+
+/* Derived once at import and held for the process lifetime. */
+const ENCRYPTION_KEYS: ReadonlyMap<string, Buffer> = new Map(
+   [...Redacted.value(keyring)].map(([id, masterKey]): [string, Buffer] => [
+      id,
+      deriveEncryptionKey(masterKey),
+   ])
 );
 
-const HMAC_KEY: Buffer = Buffer.from(
-   hkdfSync(
-      'sha256',
-      Redacted.value(myEnv.totpEncryptionKey),
-      Buffer.alloc(0),
-      'cambridge-med:totp:recovery-code-hmac:v1',
-      HMAC_KEY_BYTE_LENGTH
-   )
-);
+function requireKey(keyId: string): Buffer {
+   const key = ENCRYPTION_KEYS.get(keyId);
+   if (key === undefined) {
+      throw new Error(
+         `TOTP encryption key "${keyId}" is not in the configured key ring.`
+      );
+   }
+   return key;
+}
+
+/* Fail fast at startup rather than on the first enrollment. (validateConfig already guarantees it; this keeps the guarantee local.) */
+requireKey(activeKeyId);
 
 // ── TOTP secret encryption ───────────────────────────────────────────────────────
-/* Encrypts the raw base32 TOTP secret before writing it to MongoDB. Output format: iv_hex:authTag_hex:ciphertext_hex. A fresh random IV is generated for every encryption, so two identical secrets encrypted separately will produce different ciphertexts. */
 export function encryptTotpSecret(plaintext: string): string {
    const iv = randomBytes(IV_BYTE_LENGTH);
-   const cipher = createCipheriv(CIPHER_ALGORITHM, ENCRYPTION_KEY, iv, {
-      authTagLength: AUTH_TAG_BYTE_LENGTH,
-   });
+   const cipher = createCipheriv(
+      CIPHER_ALGORITHM,
+      requireKey(activeKeyId),
+      iv,
+      { authTagLength: AUTH_TAG_BYTE_LENGTH }
+   );
    const encrypted = Buffer.concat([
       cipher.update(plaintext, 'utf8'),
       cipher.final(),
@@ -56,12 +76,13 @@ export function encryptTotpSecret(plaintext: string): string {
    const authTag = cipher.getAuthTag();
 
    const stored = [
+      activeKeyId,
       iv.toString('hex'),
       authTag.toString('hex'),
       encrypted.toString('hex'),
    ].join(TOTP_SECRET_SEPARATOR);
 
-   /* Fail at the source: a secret that doesn't match the storage format would only be discovered at the next validated read. */
+   /* Fail at the source: a value that does not match the storage format would only surface at the next validated read. */
    if (!totpSecretRegex.test(stored)) {
       throw new Error(
          `Encrypted TOTP secret does not match the storage format.`
@@ -70,49 +91,48 @@ export function encryptTotpSecret(plaintext: string): string {
    return stored;
 }
 
-/* Decrypts a stored TOTP secret back to its raw base32 form. If the ciphertext was tampered with, `decipher.final()` throws an error because the GCM auth tag won't match — this is AES-GCM's built-in integrity guarantee. We let that error propagate naturally. */
+/* If the ciphertext was tampered with, `decipher.final()` throws (GCM integrity). An unknown key id also throws. Both are operational/security problems and are meant to surface as 500s. */
 export function decryptTotpSecret(stored: string): string {
-   /* The SSOT regex guarantees three well-formed hex segments, which also stops Buffer.from(x, 'hex') from silently truncating bad input. */
-   if (!totpSecretRegex.test(stored)) {
+   const groups = totpSecretRegex.exec(stored)?.groups;
+   if (groups === undefined) {
       throw new Error(`Malformed stored TOTP secret: unexpected format.`);
    }
+   const { keyId, iv, authTag, ciphertext } = groups;
 
-   const [ivHex, authTagHex, encryptedHex] = stored.split(
-      TOTP_SECRET_SEPARATOR
+   const decipher = createDecipheriv(
+      CIPHER_ALGORITHM,
+      requireKey(keyId),
+      Buffer.from(iv, 'hex'),
+      { authTagLength: AUTH_TAG_BYTE_LENGTH }
    );
-   const iv = Buffer.from(ivHex, 'hex');
-   const authTag = Buffer.from(authTagHex, 'hex');
-   const encrypted = Buffer.from(encryptedHex, 'hex');
-
-   const decipher = createDecipheriv(CIPHER_ALGORITHM, ENCRYPTION_KEY, iv, {
-      authTagLength: AUTH_TAG_BYTE_LENGTH,
-   });
-   decipher.setAuthTag(authTag);
+   decipher.setAuthTag(Buffer.from(authTag, 'hex'));
 
    return Buffer.concat([
-      decipher.update(encrypted),
+      decipher.update(Buffer.from(ciphertext, 'hex')),
       decipher.final(),
    ]).toString('utf8');
 }
 
-// ── Recovery codes ───────────────────────────────────────────────────────────────
+/* Rotation helper: true while a stored secret is still under the active key. Once no stored secret says `false`, an old key can be retired from the ring. */
+export function isEncryptedWithActiveKey(stored: string): boolean {
+   return stored.startsWith(`${activeKeyId}${TOTP_SECRET_SEPARATOR}`);
+}
 
-/* Generates the plaintext recovery codes. Call this once at enrollment confirmation time, return the plaintext to the user immediately, then hash every code before persisting. The plaintext is never stored anywhere. */
+// ── Recovery codes ───────────────────────────────────────────────────────────────
+/* Plaintext codes: generate once, show once, store only their hashes. */
 export function generateRecoveryCodes(): string[] {
    return Array.from({ length: TOTP_RECOVERY_CODE_COUNT }, () => {
       const a = randomBytes(RECOVERY_CODE_PART_BYTE_LENGTH)
          .toString('hex')
-         .toUpperCase(); // 10 hex chars
+         .toUpperCase();
       const b = randomBytes(RECOVERY_CODE_PART_BYTE_LENGTH)
          .toString('hex')
-         .toUpperCase(); // 10 hex chars
-      return `${a}${RECOVERY_CODE_SEPARATOR}${b}`; // e.g. "3F9A2B1C4D-8E7F6A5B2C"
+         .toUpperCase();
+      return `${a}${RECOVERY_CODE_SEPARATOR}${b}`;
    });
 }
 
-/* Hashes a single recovery code for storage. We normalize to uppercase before hashing so that case-insensitive submission from the user still matches. The HMAC key is the domain-separated sub-key derived above. */
+/* A plain SHA-256 of an 80-bit random code. It is deliberately NOT keyed with the TOTP encryption key: if it were, rotating that key would silently invalidate every stored recovery code. An 80-bit random input cannot be brute-forced offline, so a keyed hash would buy nothing here. Canonicalised (upper-case, trimmed) so case-insensitive entry still matches. */
 export function hashRecoveryCode(code: string): string {
-   return createHmac('sha256', HMAC_KEY)
-      .update(code.toUpperCase().trim())
-      .digest('hex');
+   return generateStandardHash(code.toUpperCase().trim());
 }

@@ -398,7 +398,7 @@ export const ipAddress = baseString.pipe(
 );
 
 // ===== TOTP-RELATED CHECKS =======================================================
-export const totpSecretCheck = baseString.pipe(
+export const totpSecretCheck = customTrim.pipe(
    Schema.pattern(totpSecretRegex, {
       message: () => `Invalid encrypted TOTP secret format (totpSecretCheck).`,
    })

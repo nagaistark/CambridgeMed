@@ -24,9 +24,10 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import logger from '../logger.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 export async function confirmTotpEnrollmentController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<TotpCodeBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
@@ -95,10 +96,10 @@ export async function confirmTotpEnrollmentController(
 
       if (!check.valid) {
          return void res
-            .status(401)
+            .status(403)
             .json(
                createErrorResponse(
-                  'UNAUTHORIZED',
+                  'INVALID_CREDENTIALS',
                   `Invalid code. Please check your authenticator app and try again.`,
                   requestId
                )
@@ -115,6 +116,7 @@ export async function confirmTotpEnrollmentController(
          {
             _id: user._id,
             isTotpEnabled: false,
+            isActive: true,
             totpPendingSecret: user.totpPendingSecret,
             totpLastUsedStep: { $lt: check.timeStep },
          } satisfies StrictMongoFilter<IUserDocument>,
@@ -125,6 +127,7 @@ export async function confirmTotpEnrollmentController(
                totpPendingSecret: null,
                totpRecoveryCodes: hashedCodes,
                totpLastUsedStep: check.timeStep,
+               updatedAt: new Date(),
             },
          } satisfies StrictUpdate<IUserDocument>
       );
@@ -150,6 +153,13 @@ export async function confirmTotpEnrollmentController(
             { requestId, userId: sub }
          );
       }
+
+      securityLog.record({
+         event: 'TOTP_ENABLED',
+         actorId: user._id,
+         targetUserId: user._id,
+         ...requestContext(req, res),
+      });
 
       return void res.status(200).json({
          success: true,

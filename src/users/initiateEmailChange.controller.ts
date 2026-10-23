@@ -93,10 +93,10 @@ export async function initiateEmailChangeController(
 
       if (!isPasswordValid) {
          return void res
-            .status(401)
+            .status(403)
             .json(
                createErrorResponse(
-                  'UNAUTHORIZED',
+                  'INVALID_CREDENTIALS',
                   `Current password is incorrect.`,
                   requestId
                )

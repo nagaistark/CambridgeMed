@@ -409,7 +409,6 @@ export type IUserTotpLogin = Schema.Schema.Type<typeof UserTotpLoginSchema>;
 const UserTotpManagementSchema = UserDocumentStruct.pick(
    '_id',
    'email',
-   'isActive',
    'passwordHash',
    'isTotpEnabled',
    'totpSecret',

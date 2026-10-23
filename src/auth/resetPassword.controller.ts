@@ -24,8 +24,7 @@ import {
 } from '@models/EmailChange_v3.model.ts';
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
-import { DatabaseManager } from '../mongoDBConnect.ts';
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import {
    PASSWORD_RESET_REDEEM_CHECK_PROJECTION,
@@ -41,10 +40,17 @@ import type {
 import type { ExpandType } from '@utils/helperTypes.ts';
 import logger from '../logger.ts';
 import {
-   checkSecondFactor,
+   clearSecondFactorAttempts,
+   consumeSecondFactor,
+   recordFactorUsage,
    sendSecondFactorFailure,
    toSecondFactorInput,
+   verifySecondFactor,
+   type FactorClaim,
+   type SecondFactorContext,
 } from './secondFactor.ts';
+import { requestContext } from '@/services/securityLog.service.ts';
+import { withAuthTransaction } from '@/utils/withAuthTransaction.ts';
 
 type ResetPasswordParams = { token: string };
 
@@ -59,82 +65,91 @@ type ResetOutcome =
 
 type ResetTransactionParams = ExpandType<
    Pick<IPasswordResetDocumentRead, 'tokenHash'> &
-      Pick<IUserDocument, 'passwordHash'>
+      Pick<IUserDocument, 'passwordHash'> & {
+         /* null = the account has no second factor. */
+         readonly claim: FactorClaim | null;
+      }
 >;
 
-// ── Transaction helper ───────────────────────────────────────────────────────────
+/* ORDER MATTERS. Each step is placed so a failure undoes exactly what it should:
+   1. Claim the token. 2. Compare-and-swap the account (the "stale" test).
+      If the account no longer matches, return normally: the commit keeps the token consumed, and NO factor has been spent yet.
+   3. Spend the second factor. If it was replayed or raced, THROW: the whole transaction rolls back, so the token is un-claimed and the password unchanged. The user can retry with a fresh code.
+   4. Sweep. */
 async function runResetTransaction(
    session: ClientSession,
    params: ResetTransactionParams
 ): Promise<ResetOutcome> {
-   const { tokenHash, passwordHash } = params;
+   const { tokenHash, passwordHash, claim } = params;
+   const now = new Date();
 
-   return session.withTransaction(async (): Promise<ResetOutcome> => {
-      const now = new Date();
+   const claimedRaw = await getPasswordResetCollection().findOneAndDelete(
+      {
+         tokenHash,
+         expiresAt: { $gt: now },
+      } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
+      { session }
+   );
+   if (claimedRaw === null) return { status: 'invalid' };
 
-      // ── Atomic, single-use claim ─────────────────────────────────────────────
-      /* One operation decides "exists AND not expired AND now mine": a delete that returns the document. Two concurrent redemptions cannot both get it; the loser sees null (or a write conflict that the driver retries into null). Expiry is checked HERE, in the same atomic step as the claim, not in an earlier read that could be stale by the time the Argon2 hash finishes. */
-      const claimedRaw = await getPasswordResetCollection().findOneAndDelete(
-         {
-            tokenHash,
-            expiresAt: { $gt: now },
-         } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
-         { session }
+   const decodedClaim = Schema.decodeUnknownEither(
+      PasswordResetDocumentReadValidator
+   )(claimedRaw);
+   if (Either.isLeft(decodedClaim)) {
+      throw decodedClaim.left;
+   }
+   const validatedClaim = decodedClaim.right;
+
+   /* Defensive: the factor we verified must belong to the account this token resets. Tokens are unique, so this "cannot happen"; if it ever does, abort (plain Error: logged, vague 500, nothing consumed). */
+   if (claim !== null && !claim.userId.equals(validatedClaim.userId)) {
+      throw new Error(
+         `Second-factor claim does not belong to the password-reset account.`
       );
+   }
 
-      if (claimedRaw === null) return { status: 'invalid' };
+   const applied = await getUserCollection().updateOne(
+      {
+         _id: validatedClaim.userId,
+         email: validatedClaim.email,
+         isActive: true,
+      } satisfies StrictMongoFilter<IUserDocument>,
+      {
+         $set: { passwordHash, passwordResetRequired: false, updatedAt: now },
+      } satisfies StrictUpdate<IUserDocument>,
+      { session }
+   );
+   if (applied.matchedCount === 0) {
+      return { status: 'stale_claim', userId: validatedClaim.userId };
+   }
 
-      const decodedClaim = Schema.decodeUnknownEither(
-         PasswordResetDocumentReadValidator
-      )(claimedRaw);
-
-      if (Either.isLeft(decodedClaim)) {
-         throw decodedClaim.left;
+   if (claim !== null) {
+      const consumption = await consumeSecondFactor(claim, { session });
+      if (consumption.status === 'rejected') {
+         throw makeAppError(
+            'FACTOR_REJECTED',
+            401,
+            'INVALID_CREDENTIALS',
+            `Invalid code.`
+         );
       }
-      const validatedClaim = decodedClaim.right;
+   }
 
-      // ── Compare-and-swap on the account's current state ──────────────────────
-      /* `email: claim.email` is the binding. A link mailed to an address the account no longer uses (attacker's address after a revert, old address after a confirm) matches nothing here. `isActive: true` closes the "deactivated user redeems an old link, later gets reactivated with a password somebody else chose" gap. Returning normally commits the transaction, so the dead token stays consumed. */
-      const applied = await getUserCollection().updateOne(
-         {
-            _id: validatedClaim.userId,
-            email: validatedClaim.email,
-            isActive: true,
-         } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            $set: {
-               passwordHash,
-               passwordResetRequired: false,
-               updatedAt: now,
-            },
-         } satisfies StrictUpdate<IUserDocument>,
-         { session }
-      );
+   await getSessionCollection().deleteMany(
+      {
+         userId: validatedClaim.userId,
+      } satisfies StrictMongoFilter<ISessionDocument>,
+      { session }
+   );
 
-      if (applied.matchedCount === 0) {
-         return { status: 'stale_claim', userId: validatedClaim.userId };
-      }
+   await getEmailChangeCollection().deleteMany(
+      {
+         userId: validatedClaim.userId,
+         confirmedAt: null,
+      } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
+      { session }
+   );
 
-      // ── Void every credential minted under the old password ──────────────────
-      /* Sessions: every device re-authenticates against the new password. The user just proved control of the mailbox on file, which is the recovery credential. */
-      await getSessionCollection().deleteMany(
-         {
-            userId: validatedClaim.userId,
-         } satisfies StrictMongoFilter<ISessionDocument>,
-         { session }
-      );
-
-      /* Spare keys: an email change that was started (and authorised) under the old password but not yet confirmed must die with that password. Otherwise the person who started it could still confirm it from the link in their own inbox. A CONFIRMED change is deliberately left alone: its cancel link is the owner's recovery handle until `cancelExpiresAt`. */
-      await getEmailChangeCollection().deleteMany(
-         {
-            userId: validatedClaim.userId,
-            confirmedAt: null,
-         } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
-         { session }
-      );
-
-      return { status: 'reset', userId: validatedClaim.userId };
-   });
+   return { status: 'reset', userId: validatedClaim.userId };
 }
 
 // ── Controller ───────────────────────────────────────────────────────────────────
@@ -180,8 +195,7 @@ export async function resetPasswordController(
          });
       }
 
-      // ── Step 2: second-factor step-up ──────────────────────────────────────────
-      /* A reset link proves mailbox control. For accounts with 2FA, the reset must be as strong as the front door: a mailbox-only attacker may not trigger the reset's side effects (every session killed, pending email changes deleted). */
+      // ── Step 2: second-factor step-up (phase 1: verify only) ───────────────────
       const userRaw = await getUserCollection().findOne<IUserSecondFactor>(
          {
             _id: decodedRedeem.right.userId,
@@ -210,11 +224,17 @@ export async function resetPasswordController(
       }
       const user = decodedUser.right;
 
+      let claim: FactorClaim | null = null;
+      const context: SecondFactorContext = {
+         purpose: 'password-reset',
+         actorId: null, // the holder of a link has no session
+         ...requestContext(req, res),
+      };
+
       if (user.isTotpEnabled) {
          const factor = toSecondFactorInput({ totpCode, recoveryCode });
 
          if (factor === null) {
-            /* Only the holder of a live reset link can see this, so it leaks nothing to strangers. */
             return void res
                .status(403)
                .json(
@@ -227,37 +247,23 @@ export async function resetPasswordController(
                );
          }
 
-         const outcome = await checkSecondFactor(user, factor);
-         if (outcome.status !== 'verified') {
-            sendSecondFactorFailure(res, outcome);
+         const verification = await verifySecondFactor(user, factor, context);
+         if (verification.status !== 'verified') {
+            sendSecondFactorFailure(res, verification, 401); // pre-session route
             return;
          }
+         claim = verification.claim;
       }
 
       // ── Step 3: Hash BEFORE opening the transaction ────────────────────────────
       const passwordHash = await hashPassword(newPassword);
 
       // ── Step 4: Run the transaction ────────────────────────────────────────────
-      const authConnection = DatabaseManager.getInstance().auth.client;
-      if (!authConnection) {
-         throw new Error(
-            `Auth database connection unavailable during password reset.`
-         );
-      }
+      const outcome = await withAuthTransaction(session =>
+         runResetTransaction(session, { tokenHash, passwordHash, claim })
+      );
 
-      const session = authConnection.startSession();
-      let outcome: ResetOutcome;
-
-      try {
-         outcome = await runResetTransaction(session, {
-            tokenHash,
-            passwordHash,
-         });
-      } finally {
-         await session.endSession();
-      }
-
-      // ── Step 4: Respond ────────────────────────────────────────────────────────
+      // ── Step 5: Respond ────────────────────────────────────────────────────────
       if (outcome.status === 'invalid') {
          return void res
             .status(404)
@@ -278,6 +284,11 @@ export async function resetPasswordController(
             .json(
                createErrorResponse('NOT_FOUND', INVALID_LINK_MESSAGE, requestId)
             );
+      }
+
+      if (claim !== null) {
+         await clearSecondFactorAttempts(user._id);
+         recordFactorUsage(claim, context);
       }
 
       clearAuthCookies(res);

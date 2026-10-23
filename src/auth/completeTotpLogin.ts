@@ -10,6 +10,7 @@ import {
 import {
    checkSecondFactor,
    sendSecondFactorFailure,
+   type SecondFactorContext,
    type SecondFactorInput,
 } from '@auth/secondFactor.ts';
 import { sendRecoveryCodeUsedEmail } from '@auth/recoveryCodeUsed.email.ts';
@@ -17,6 +18,7 @@ import { issueSession } from '@utils/issueSession.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import type { TotpChallengeResponse } from '@utils/customTypedResponses.ts';
+import { requestContext } from '@services/securityLog.service.ts';
 import { TOTP_RECOVERY_CODE_LOW_THRESHOLD } from '@ssot/totp_constants.ts';
 import { USER_TOTP_LOGIN_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import type {
@@ -27,7 +29,7 @@ import { createErrorResponse } from '../errorHandlers.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import logger from '../logger.ts';
 
-/* A failed notification must never undo a successful login, but it must not vanish silently either. */
+/* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to await AFTER the response has been sent. */
 async function notifyRecoveryCodeUsed(
    user: IUserTotpLogin,
    remaining: number
@@ -114,10 +116,17 @@ export async function completeTotpLogin(
          );
    }
 
-   /* On failure we deliberately do NOT clear the challenge cookie: a mistyped code should be retryable without re-entering the password. The attempt gate, not the cookie, bounds retries. */
-   const outcome = await checkSecondFactor(user, input);
+   /* `actorId: null`: the caller has proven a password but holds no session yet. */
+   const context: SecondFactorContext = {
+      purpose: 'login',
+      actorId: null,
+      ...requestContext(req, res),
+   };
+
+   /* On failure we deliberately do NOT clear the challenge cookie: a mistyped code should be retryable without re-entering the password. The attempt gate, not the cookie, bounds retries. Pre-session route, hence 401. */
+   const outcome = await checkSecondFactor(user, input, context);
    if (outcome.status !== 'verified') {
-      sendSecondFactorFailure(res, outcome);
+      sendSecondFactorFailure(res, outcome, 401);
       return;
    }
 
@@ -131,15 +140,16 @@ export async function completeTotpLogin(
          .json(buildAuthResponse(`Login successful.`, user));
    }
 
-   await notifyRecoveryCodeUsed(user, remaining);
-
-   return void res.status(200).json({
+   /* The response goes out FIRST. The email provider's round trip (hundreds of ms, occasionally seconds) is none of the user's business. We still `await` the notification afterwards, so the work stays owned by this request's async chain (no floating promise) and cannot reject. */
+   res.status(200).json({
       ...buildAuthResponse(`Login successful via recovery code.`, user),
       remainingRecoveryCodes: remaining,
       ...(remaining <= TOTP_RECOVERY_CODE_LOW_THRESHOLD
          ? {
-              warning: `You have ${remaining} recovery code${remaining === 1 ? '' : 's'} remaining. Consider disabling and re-enabling 2FA to generate new ones.`,
+              warning: `You have ${remaining} recovery code${remaining === 1 ? '' : 's'} remaining. Generate a fresh set from your security settings.`,
            }
          : {}),
    });
+
+   await notifyRecoveryCodeUsed(user, remaining);
 }

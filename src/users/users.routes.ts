@@ -10,6 +10,7 @@ import {
    emailTokenRateLimiter,
    nameChangeRateLimiter,
    passwordChangeRateLimiter,
+   totpManagementRateLimiter,
    userAdminToggleRateLimiter,
 } from '@utils/rateLimiters.ts';
 import {
@@ -33,6 +34,8 @@ import { getUserController } from './getUser.controller.ts';
 import { toggleCanIssueInvitesController } from './toggleCanIssueInvites.controller.ts';
 import { toggleIsActiveController } from './toggleIsActive.controller.ts';
 import { requireLiveSession } from '@middleware/requireLiveSession.ts';
+import { resetUserTotpController } from '@auth/resetUserTotp.controller.ts';
+import { AdminResetTotpSchema } from '@auth/totp.schemas.ts';
 
 const usersRouter = Router();
 
@@ -112,6 +115,17 @@ userAdminRouter.patch(
    validateParams(MongoIdParamsSchema),
    validateBody(SetIsActiveSchema),
    toggleIsActiveController
+);
+
+userAdminRouter.post(
+   '/:id/totp/reset',
+   requirePermissions('MANAGE_USERS'),
+   requireLiveSession,
+   totpManagementRateLimiter, // counts FAILED re-auth attempts per admin
+   userAdminToggleRateLimiter,
+   validateParams(MongoIdParamsSchema),
+   validateBody(AdminResetTotpSchema),
+   resetUserTotpController
 );
 
 // ── MOUNT SUB-ROUTERS ON MAIN ROUTER ─────────────────────────────────────────────

@@ -28,9 +28,11 @@ import {
    DisableTotpSchema,
    RecoveryCodeSchema,
    TotpEnrollSchema,
+   RegenerateRecoveryCodesSchema,
 } from '@auth/totp.schemas.ts';
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import { requireLiveSession } from '@middleware/requireLiveSession.ts';
+import { regenerateRecoveryCodesController } from './regenerateRecoveryCodes.controller.ts';
 
 const authRouter = Router();
 
@@ -88,6 +90,15 @@ authRouter.post(
    totpManagementRateLimiter,
    validateBody(DisableTotpSchema),
    disableTotpController
+);
+
+authRouter.post(
+   '/totp/recovery-codes/regenerate',
+   authenticate,
+   requireLiveSession,
+   totpManagementRateLimiter,
+   validateBody(RegenerateRecoveryCodesSchema),
+   regenerateRecoveryCodesController
 );
 
 // ── TOTP (mid-login, challenge token only — no session yet) ──────────────────────

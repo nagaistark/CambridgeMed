@@ -15,6 +15,7 @@ const ALL_ERROR_CODES = [
    // ── Auth errors (401/403) ────────────────────────────────────────────
    'UNAUTHORIZED', // No credentials provided — "I don't know who you are"
    'FORBIDDEN', // Valid credentials, insufficient permissions — "No means no"
+   'INVALID_CREDENTIALS',
    // ── Rate limiting (429) ──────────────────────────────────────────────
    'RATE_LIMITED', // express-rate-limit triggered — tell client to back off
    // ── Server/operational errors (5XX) ──────────────────────────────────

@@ -162,7 +162,6 @@ export const USER_TOTP_MANAGEMENT_PROJECTION: Record<
 > = {
    _id: 1,
    email: 1,
-   isActive: 1,
    passwordHash: 1,
    isTotpEnabled: 1,
    totpSecret: 1,

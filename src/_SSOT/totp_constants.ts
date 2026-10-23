@@ -39,7 +39,7 @@ export const TOTP_ATTEMPT_WINDOW_MS = 15 * 60 * 1_000;
 export const TOTP_RECOVERY_CODE_LOW_THRESHOLD = 2 as const;
 
 // ── HMAC CONFIG (Dictated by SHA-256) ────────────────────────────────────────────
-export const HMAC_KEY_BYTE_LENGTH = 32 as const; // Recommended key length for HMAC-SHA256
+// export const HMAC_KEY_BYTE_LENGTH = 32 as const; // Recommended key length for HMAC-SHA256
 
 // ── TOTP SECRET CONFIG ───────────────────────────────────────────────────────────
 export const TOTP_SECRET_BYTES = 20 as const; // Changing this safely updates everything below
@@ -55,8 +55,14 @@ export const CIPHERTEXT_HEX_LENGTH = CIPHERTEXT_BYTE_LENGTH * 2; // 64 character
 
 // ── REGULAR EXPRESSIONS ──────────────────────────────────────────────────────────
 const escapedTotpSecretSeparator = escapeRegex(TOTP_SECRET_SEPARATOR);
+export const TOTP_KEY_ID_PATTERN = '[a-z0-9]{1,16}' as const;
+export const totpKeyIdRegex = new RegExp(`^${TOTP_KEY_ID_PATTERN}$`);
+/* keyId:iv:authTag:ciphertext. Named groups let totpCrypto parse without index juggling or casts. */
 export const totpSecretRegex = new RegExp(
-   `^[0-9a-f]{${IV_HEX_LENGTH}}${escapedTotpSecretSeparator}[0-9a-f]{${AUTH_TAG_HEX_LENGTH}}${escapedTotpSecretSeparator}[0-9a-f]{${CIPHERTEXT_HEX_LENGTH}}$`
+   `^(?<keyId>${TOTP_KEY_ID_PATTERN})${escapedTotpSecretSeparator}` +
+      `(?<iv>[0-9a-f]{${IV_HEX_LENGTH}})${escapedTotpSecretSeparator}` +
+      `(?<authTag>[0-9a-f]{${AUTH_TAG_HEX_LENGTH}})${escapedTotpSecretSeparator}` +
+      `(?<ciphertext>[0-9a-f]{${CIPHERTEXT_HEX_LENGTH}})$`
 );
 const escapedRecoveryCodeSeparator = escapeRegex(RECOVERY_CODE_SEPARATOR);
 export const recoveryCodeRegex = new RegExp(

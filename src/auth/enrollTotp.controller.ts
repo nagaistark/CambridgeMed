@@ -24,9 +24,10 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 export async function enrollTotpController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<TotpEnrollBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
@@ -69,23 +70,11 @@ export async function enrollTotpController(
       );
       if (!isPasswordValid) {
          return void res
-            .status(401)
-            .json(
-               createErrorResponse(
-                  'UNAUTHORIZED',
-                  `Current password is incorrect.`,
-                  requestId
-               )
-            );
-      }
-
-      if (!user.isActive) {
-         return void res
             .status(403)
             .json(
                createErrorResponse(
-                  'FORBIDDEN',
-                  `This account has been deactivated. Please contact an administrator.`,
+                  'INVALID_CREDENTIALS',
+                  `Current password is incorrect.`,
                   requestId
                )
             );
@@ -129,6 +118,13 @@ export async function enrollTotpController(
                )
             );
       }
+
+      securityLog.record({
+         event: 'TOTP_ENROLLMENT_STARTED',
+         actorId: user._id,
+         targetUserId: user._id,
+         ...requestContext(req, res),
+      });
 
       const otpauthUri = generateURI({
          secret: rawSecret,
