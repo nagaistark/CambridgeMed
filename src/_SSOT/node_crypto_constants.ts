@@ -14,10 +14,10 @@ export function generateStandardHash(input: string): string {
 }
 
 // Validates the raw token (96 chars)
-export const HEX96_REGEX = /^[a-f0-9]{96}$/i;
+export const HEX96_REGEX = /^[a-f0-9]{96}$/;
 
 // Validates a stored hash (64 chars)
-export const HEX64_REGEX = /^[a-f0-9]{64}$/i;
+export const HEX64_REGEX = /^[a-f0-9]{64}$/;
 
 export const hexHashValidator = {
    validator: (str: string) => {

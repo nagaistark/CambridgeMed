@@ -13,7 +13,7 @@ import {
    argon2HashString,
    clinicStaffEmail,
    nameString,
-   nonNegativeIntegerStringToNumber,
+   nonNegativeInteger,
    passwordString,
    sha256HexString,
    stringToObjectId,
@@ -45,8 +45,8 @@ export const UserDocumentStruct = Schema.Struct({
          archivedAt: Schema.ValidDateFromSelf,
       }).pipe(Schema.extend(UserInputSchema.pick('email')))
    ).pipe(Schema.maxItems(EMAIL_CHANGE_CAP)),
-   nameChangesUsed: nonNegativeIntegerStringToNumber,
-   emailChangesUsed: nonNegativeIntegerStringToNumber,
+   nameChangesUsed: nonNegativeInteger,
+   emailChangesUsed: nonNegativeInteger,
 
    isTotpEnabled: Schema.Boolean,
    totpSecret: Schema.NullOr(totpSecretCheck).annotations({
@@ -64,10 +64,10 @@ export const UserDocumentStruct = Schema.Struct({
    totpRecoveryCodes: Schema.Array(sha256HexString).pipe(
       Schema.maxItems(TOTP_RECOVERY_CODE_COUNT)
    ),
-   totpLastUsedStep: nonNegativeIntegerStringToNumber,
+   totpLastUsedStep: nonNegativeInteger,
 
    /* Attempt gate (see secondFactor.ts). */
-   totpAttempts: nonNegativeIntegerStringToNumber,
+   totpAttempts: nonNegativeInteger,
    totpAttemptsWindowStartedAt: Schema.NullOr(Schema.ValidDateFromSelf),
 
    invitedBy: Schema.NullOr(stringToObjectId),

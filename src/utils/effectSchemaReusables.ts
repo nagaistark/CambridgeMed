@@ -62,7 +62,7 @@ export const longString = customTrim.pipe(
 
 export const nameString = Schema.transform(
    baseString.pipe(
-      Schema.pattern(/^[\p{L} .'\-'']+$/iu, {
+      Schema.pattern(/^[\p{L} .'\-'’]+$/iu, {
          message: () =>
             `Must not contain invalid or consecutive non-alphanumeric characters in name (nameString).`,
       })
