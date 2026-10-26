@@ -1,3 +1,4 @@
+import type { ISessionDocument } from '@models/Session_v3.model.ts';
 import type {
    ICreateInviteResponse,
    IInviteDocumentRead,
@@ -137,6 +138,24 @@ export function buildListUsersResponse<T extends Pick<IPublicUser, '_id'>>(
       hasNextPage && last !== undefined ? last._id.toHexString() : null;
 
    return { success: true, users, pagination: { nextCursor, limit } };
+}
+
+// ── Session responses ────────────────────────────────────────────────────────────
+export function buildListSessionsResponse<
+   T extends Pick<ISessionDocument, '_id'>,
+>(
+   sessions: readonly T[],
+   hasNextPage: boolean,
+   limit: number
+): {
+   success: true;
+   sessions: readonly T[];
+   pagination: { nextCursor: string | null; limit: number };
+} {
+   const last = sessions.at(-1);
+   const nextCursor =
+      hasNextPage && last !== undefined ? last._id.toHexString() : null;
+   return { success: true, sessions, pagination: { nextCursor, limit } };
 }
 
 // ── Patient responses ────────────────────────────────────────────────────────────

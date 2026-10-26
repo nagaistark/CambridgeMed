@@ -21,13 +21,19 @@ import type {
    IUserTotpLogin,
    IUserTotpManagement,
    IUserRecoveryCodes,
+   IUserIdNameEmail,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
    IPatientDocument,
    IPatientInitial,
 } from '@models/Patient_v3.model.ts';
-import type { ISessionRefresh } from '@models/Session_v3.model.ts';
+import type {
+   ISessionAdminView,
+   ISessionOwner,
+   ISessionRefresh,
+   ISessionSelfView,
+} from '@models/Session_v3.model.ts';
 import type { IPasswordResetRedeemCheck } from '@models/PasswordReset_v3.model.ts';
 import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
@@ -87,6 +93,14 @@ export const USER_ID_NAME_PROJECTION: Record<keyof IUserIdName, 1> = {
    firstName: 1,
    lastName: 1,
 };
+
+export const USER_ID_NAME_EMAIL_PROJECTION: Record<keyof IUserIdNameEmail, 1> =
+   {
+      _id: 1,
+      firstName: 1,
+      lastName: 1,
+      email: 1,
+   };
 
 export const USER_PASSWORD_RESET_TARGET_PROJECTION: Record<
    keyof IUserPasswordResetTarget,
@@ -243,7 +257,33 @@ export const INVITE_PREVIEW_PROJECTION: Record<keyof IInvitePreview, 1> = {
    usedAt: 1,
 };
 
-// ── Patient projections ──────────────────────────────────────────────────────────
+// ── Sessions projections ─────────────────────────────────────────────────────────
+export const SESSION_SELF_VIEW_PROJECTION: Record<keyof ISessionSelfView, 1> = {
+   _id: 1,
+   ipAddress: 1,
+   userAgent: 1,
+   createdAt: 1,
+   expiresAt: 1,
+   rotatedAt: 1,
+};
+
+export const SESSION_ADMIN_VIEW_PROJECTION: Record<keyof ISessionAdminView, 1> =
+   {
+      _id: 1,
+      userId: 1,
+      ipAddress: 1,
+      userAgent: 1,
+      createdAt: 1,
+      expiresAt: 1,
+      rotatedAt: 1,
+   };
+
+export const SESSION_OWNER_PROJECTION: Record<keyof ISessionOwner, 1> = {
+   _id: 1,
+   userId: 1,
+};
+
+// ── Patients projections ─────────────────────────────────────────────────────────
 /* The inclusion projection for GET /api/patients. Its type is derived directly from PatientSummary via LeafPaths, so it stays in sync automatically. clinicalInfo is absent because PatientSummary doesn't include it — the constraint enforces this without any manual bookkeeping. */
 export const LIST_PATIENT_PROJECTION: Partial<
    StrictIndexConfig<PatientSummary>

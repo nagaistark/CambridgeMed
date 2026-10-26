@@ -429,6 +429,15 @@ export type IUserRecoveryCodes = Schema.Schema.Type<
    typeof UserRecoveryCodesSchema
 >;
 
+/* Superadmin session list: who owns a session. Email included on purpose (that endpoint is superadmin-only); other lists stay name-only. */
+const UserIdNameEmailSchema = UserDocumentStruct.pick(
+   '_id',
+   'firstName',
+   'lastName',
+   'email'
+);
+export type IUserIdNameEmail = Schema.Schema.Type<typeof UserIdNameEmailSchema>;
+
 // ===== Validators against which we validate the documents ========================
 export const UserDocumentValidator = Schema.typeSchema(UserDocumentSchema);
 export const UserDocumentArrayValidator = Schema.Array(UserDocumentValidator);
@@ -473,17 +482,25 @@ export const UserIdRolePermissionsValidator = Schema.typeSchema(
 );
 
 export const UserLoginValidator = Schema.typeSchema(UserLoginSchema);
+
 export const UserRefreshValidator = Schema.typeSchema(UserRefreshSchema);
 
 export const UserSecondFactorValidator = Schema.typeSchema(
    UserSecondFactorSchema
 );
+
 export const UserTotpLoginValidator = Schema.typeSchema(UserTotpLoginSchema);
+
 export const UserTotpManagementValidator = Schema.typeSchema(
    UserTotpManagementSchema
 );
+
 export const UserRecoveryCodesValidator = Schema.typeSchema(
    UserRecoveryCodesSchema
+);
+
+export const UserIdNameEmailArrayValidator = Schema.Array(
+   Schema.typeSchema(UserIdNameEmailSchema)
 );
 
 /* MongoDB Collection Connection */

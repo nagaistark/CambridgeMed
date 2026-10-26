@@ -11,6 +11,7 @@ import type {
    BSONType,
    BSONTypeAlias,
    Long,
+   FindOneAndDeleteOptions,
 } from 'mongodb';
 
 /* 1. The Recursion Depth Limiter. */
@@ -297,6 +298,14 @@ export type StrictFindOneOptions<TSchema> = Omit<
 
 export type StrictFindOneAndUpdateOptions<TSchema> = Omit<
    FindOneAndUpdateOptions,
+   'projection' | 'sort'
+> & {
+   projection?: StrictProjection<TSchema>;
+   sort?: StrictSort<TSchema>;
+};
+
+export type StrictFindOneAndDeleteOptions<TSchema> = Omit<
+   FindOneAndDeleteOptions,
    'projection' | 'sort'
 > & {
    projection?: StrictProjection<TSchema>;

@@ -32,6 +32,8 @@ import {
    LOGIN_ACCOUNT_MAX_FAILED_REQUESTS,
    TOTP_MANAGEMENT_WINDOW_MS,
    TOTP_MANAGEMENT_MAX_FAILED_REQUESTS,
+   SESSION_KILL_WINDOW_MS,
+   SESSION_KILL_MAX_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 import { Schema } from 'effect';
 import { LoginSchema } from '@auth/login.schema.ts';
@@ -164,4 +166,17 @@ export const totpManagementRateLimiter = makeRateLimiter(
          res.locals.authenticatedUser?.sub ??
          ipKeyGenerator(req.ip ?? 'unknown'),
    }
+);
+
+/* Per person, not per IP. The IP fallback goes through ipKeyGenerator so an IPv6 user can't dodge the limit by cycling addresses inside their /64. This is the third copy of this logic (invite create, TOTP management); worth pointing those two at it as well. */
+function keyByUserOrIp(req: Request, res: Response): string {
+   return (
+      res.locals.authenticatedUser?.sub ?? ipKeyGenerator(req.ip ?? 'unknown')
+   );
+}
+
+export const sessionKillRateLimiter = makeRateLimiter(
+   SESSION_KILL_WINDOW_MS,
+   SESSION_KILL_MAX_REQUESTS,
+   { keyGenerator: keyByUserOrIp }
 );

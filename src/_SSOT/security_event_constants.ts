@@ -7,6 +7,8 @@ export const securityEventTypes = [
    'SECOND_FACTOR_FAILED',
    'SECOND_FACTOR_LOCKED',
    'RECOVERY_CODE_USED',
+   'SESSION_TERMINATED',
+   'SESSION_TERMINATED_BY_ADMIN',
 ] as const;
 export type SecurityEventType = (typeof securityEventTypes)[number];
 
@@ -26,6 +28,8 @@ export const SECURITY_EVENT_SEVERITY: Record<
    SECOND_FACTOR_FAILED: 'warn',
    SECOND_FACTOR_LOCKED: 'warn',
    RECOVERY_CODE_USED: 'warn',
+   SESSION_TERMINATED: 'info',
+   SESSION_TERMINATED_BY_ADMIN: 'warn',
 };
 
 /* WHY a second factor was being checked. Recorded on every failure and lockout so an investigator can tell a login guess from a reset-link abuse. */

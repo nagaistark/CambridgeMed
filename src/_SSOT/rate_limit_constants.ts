@@ -66,3 +66,8 @@ export const GLOBAL_API_MAX_REQUESTS = 3_000;
 /* Counted per user, failures only. Bounds password and code guessing from a hijacked session. */
 export const TOTP_MANAGEMENT_WINDOW_MS = 15 * 60 * 1_000;
 export const TOTP_MANAGEMENT_MAX_FAILED_REQUESTS = 10;
+
+// ── Session termination (DELETE /api/sessions/:id) ───────────────────────────────
+/* Authenticated and ownership-scoped, so no enumeration or CPU vector. This bounds the blast radius of a compromised session sweeping through someone's devices. Counted per user. The current limit: 20 per 15 minutes. */
+export const SESSION_KILL_WINDOW_MS = 15 * 60 * 1_000;
+export const SESSION_KILL_MAX_REQUESTS = 20;

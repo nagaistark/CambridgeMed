@@ -13,6 +13,7 @@ import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import type { ISessionDocument } from '@models/Session_v3.model.ts';
 import { ObjectId } from 'mongodb';
 import { Either, Schema } from 'effect';
+import { evictExcessSessions } from '@utils/evictExcessSessions.ts';
 
 /* Creates a Session document, signs both tokens, sets the auth cookies. Shared by the password-only login path, the TOTP verification path and the recovery-code path. */
 export async function issueSession(
@@ -67,6 +68,8 @@ export async function issueSession(
    });
 
    await getSessionCollection().insertOne(validatedSession);
+
+   await evictExcessSessions(validatedSession.userId, validatedSession._id);
 
    setAuthCookies(
       res,
