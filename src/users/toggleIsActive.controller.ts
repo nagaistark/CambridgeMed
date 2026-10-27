@@ -39,8 +39,9 @@ import {
    type IEmailChangeDocumentRead,
 } from '@models/EmailChange_v3.model.ts';
 import { allowedRoles, isAllowedRole } from '@ssot/user_roles_constants.ts';
-import type { ExpandType } from '@/utils/helperTypes.ts';
-import logger from '@/logger.ts';
+import type { ExpandType } from '@utils/helperTypes.ts';
+import logger from '../logger.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 // ── Transaction outcome ──────────────────────────────────────────────────────────
 /* Every settled result the transaction can produce. 'no_match' means the conditional update matched nothing, so NOTHING was written or swept. The controller then diagnoses why, outside the transaction. */
@@ -133,7 +134,7 @@ async function runToggleTransaction(
 // ── Controller ───────────────────────────────────────────────────────────────────
 /* Authorization (MANAGE_USERS, i.e. superadmin only) is enforced at the route. This controller owns only the state transition. */
 export async function toggleIsActiveController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<SetIsActiveBody> &
       ResponseWithValidatedParams<IMongoIdParam> &
       AuthenticatedResponse,
@@ -170,6 +171,13 @@ export async function toggleIsActiveController(
             targetId: id.toHexString(),
             sessionsRevoked: outcome.sessionsRevoked,
             invitesRevoked: outcome.invitesRevoked,
+         });
+
+         securityLog.record({
+            event: isActive ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
+            actorId: new ObjectId(sub),
+            targetUserId: id,
+            ...requestContext(req, res),
          });
 
          return void res.status(200).json({

@@ -187,8 +187,10 @@ function recordRejection(
       targetUserId: userId,
       requestId: context.requestId,
       ipAddress: context.ipAddress,
-      purpose: context.purpose,
-      factorKind: input.kind,
+      // purpose: context.purpose,
+      // factorKind: input.kind,
+      secondFactorPurpose: context.purpose,
+      secondFactorKind: input.kind,
    });
 }
 
@@ -204,8 +206,8 @@ export function recordFactorUsage(
       targetUserId: claim.userId,
       requestId: context.requestId,
       ipAddress: context.ipAddress,
-      purpose: context.purpose,
-      factorKind: 'recovery',
+      secondFactorPurpose: context.purpose,
+      secondFactorKind: 'recovery',
    });
 }
 

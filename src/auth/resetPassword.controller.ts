@@ -49,7 +49,7 @@ import {
    type FactorClaim,
    type SecondFactorContext,
 } from './secondFactor.ts';
-import { requestContext } from '@/services/securityLog.service.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { withAuthTransaction } from '@/utils/withAuthTransaction.ts';
 
 type ResetPasswordParams = { token: string };
@@ -291,12 +291,14 @@ export async function resetPasswordController(
          recordFactorUsage(claim, context);
       }
 
-      clearAuthCookies(res);
-
-      logger.info(`Password reset completed.`, {
-         userId: outcome.userId,
-         requestId,
+      securityLog.record({
+         event: 'PASSWORD_RESET_COMPLETED',
+         actorId: null, // the holder of a link has no session
+         targetUserId: outcome.userId,
+         ...requestContext(req, res),
       });
+
+      clearAuthCookies(res);
 
       return void res.status(200).json({
          success: true,

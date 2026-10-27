@@ -36,9 +36,10 @@ import type {
 import { Either, Schema } from 'effect';
 import logger from '../logger.ts';
 import { USER_ID_PASSWORDHASH_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 export async function changePasswordController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<ChangePasswordBody> & AuthenticatedResponse,
    next: NextFunction
 ): Promise<void> {
@@ -163,6 +164,13 @@ export async function changePasswordController(
       } finally {
          await session.endSession();
       }
+
+      securityLog.record({
+         event: 'PASSWORD_CHANGED',
+         actorId: validatedUser._id,
+         targetUserId: validatedUser._id,
+         ...requestContext(req, res),
+      });
 
       clearAuthCookies(res);
 

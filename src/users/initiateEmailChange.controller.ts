@@ -39,13 +39,14 @@ import { verifyPassword } from '@utils/hashAndVerify.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import { Either, Schema } from 'effect';
 import { USER_EMAIL_CHANGE_INITIATOR_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 const EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE = `This email address is already claimed by a pending change request.`;
 const EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE = `You already have an active email change request. Please complete or cancel it first.`;
 const EMAIL_CHANGE_COOLDOWN_MESSAGE = `Your email address was changed recently. For your security, further changes are paused for a few days. You can revert the change using the cancellation link sent to your previous address.`;
 
 export async function initiateEmailChangeController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<InitiateEmailChangeBody> &
       AuthenticatedResponse,
    next: NextFunction
@@ -344,6 +345,13 @@ export async function initiateEmailChangeController(
          }
          throw emailErr;
       }
+
+      securityLog.record({
+         event: 'EMAIL_CHANGE_REQUESTED',
+         actorId: validatedUser._id,
+         targetUserId: validatedUser._id,
+         ...requestContext(req, res),
+      });
 
       return void res.status(200).json({
          success: true,

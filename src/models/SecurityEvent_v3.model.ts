@@ -24,8 +24,10 @@ const SecurityEventStruct = Schema.Struct({
    targetUserId: stringToObjectId,
    requestId: baseString,
    ipAddress: Schema.NullOr(ipAddress),
-   purpose: Schema.NullOr(Schema.Literal(...secondFactorPurposes)),
-   factorKind: Schema.NullOr(Schema.Literal(...secondFactorKinds)),
+
+   /* Populated only by second-factor events (SECOND_FACTOR_FAILED, SECOND_FACTOR_LOCKED, RECOVERY_CODE_USED); null for every other event. */
+   secondFactorPurpose: Schema.NullOr(Schema.Literal(...secondFactorPurposes)),
+   secondFactorKind: Schema.NullOr(Schema.Literal(...secondFactorKinds)),
 });
 
 export type ISecurityEventDocument = Schema.Schema.Type<
@@ -45,4 +47,5 @@ export function getSecurityEventCollection(): Collection<ISecurityEventDocument>
 export const securityEventIndexes = [
    { key: { targetUserId: 1, occurredAt: -1 } },
    { key: { event: 1, occurredAt: -1 } },
+   { key: { actorId: 1, occurredAt: -1 } },
 ] satisfies readonly TypedIndexDescription<ISecurityEventDocument>[];

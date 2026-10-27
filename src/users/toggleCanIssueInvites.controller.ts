@@ -35,9 +35,10 @@ import {
    getInviteCollection,
    type IInviteDocumentRead,
 } from '@models/Invite_v3.model.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 export async function toggleCanIssueInvitesController(
-   _req: Request,
+   req: Request,
    res: ResponseWithValidatedBody<SetCanIssueInvitesBody> &
       ResponseWithValidatedParams<IMongoIdParam> &
       AuthenticatedResponse,
@@ -214,6 +215,15 @@ export async function toggleCanIssueInvitesController(
       } finally {
          await session.endSession();
       }
+
+      securityLog.record({
+         event: canIssueInvites
+            ? 'INVITE_PRIVILEGE_GRANTED'
+            : 'INVITE_PRIVILEGE_REVOKED',
+         actorId: new ObjectId(sub),
+         targetUserId: validatedTargetUser._id,
+         ...requestContext(req, res),
+      });
 
       return void res.status(200).json({
          success: true,

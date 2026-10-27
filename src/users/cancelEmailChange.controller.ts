@@ -20,10 +20,10 @@ import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
-import logger from '../logger.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import type { ClientSession, ObjectId } from 'mongodb';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 type CancelParams = { token: string };
 type CancelOutcome =
@@ -144,6 +144,12 @@ export async function cancelEmailChangeController(
          }
 
          if (result.status === 'cancelled') {
+            securityLog.record({
+               event: 'EMAIL_CHANGE_CANCELLED',
+               actorId: null,
+               targetUserId: result.userId,
+               ...requestContext(req, res),
+            });
             return void res.status(200).json({
                success: true,
                message: `Email change cancelled successfully.`,
@@ -152,9 +158,11 @@ export async function cancelEmailChangeController(
 
          // 'reverted': every session was destroyed inside the transaction.
          clearAuthCookies(res);
-         logger.warn(`Confirmed email change was reverted.`, {
-            userId: result.userId,
-            requestId,
+         securityLog.record({
+            event: 'EMAIL_CHANGE_REVERTED',
+            actorId: null,
+            targetUserId: result.userId,
+            ...requestContext(req, res),
          });
 
          return void res.status(200).json({

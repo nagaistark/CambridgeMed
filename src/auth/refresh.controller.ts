@@ -33,10 +33,12 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 // ── The presented token is NOT the current one ───────────────────────────────────
 /* Always sends a response. Either the token was rotated away moments ago (benign multi-tab race, 409), rotated away long ago (reuse, nuclear option, 401), or unknown (401). Expired sessions are treated as nonexistent. */
 async function respondToNonCurrentToken(
+   req: Request,
    res: Response,
    tokenHash: string,
    now: Date
@@ -95,6 +97,13 @@ async function respondToNonCurrentToken(
    }
 
    /* Reuse outside the grace window: stale client bug or a stolen token. We can't tell which and don't need to. Nuclear option: every session of this user dies. */
+   securityLog.record({
+      event: 'SESSION_REUSE_DETECTED',
+      actorId: null,
+      targetUserId: stale.userId,
+      ...requestContext(req, res),
+   });
+
    await sessionCollection.deleteMany({
       userId: stale.userId,
    } satisfies StrictMongoFilter<ISessionDocument>);
@@ -148,7 +157,7 @@ export async function refreshController(
       );
 
       if (sessionRaw === null) {
-         await respondToNonCurrentToken(res, tokenHash, now);
+         await respondToNonCurrentToken(req, res, tokenHash, now);
          return;
       }
 

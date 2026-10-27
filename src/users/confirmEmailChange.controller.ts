@@ -20,11 +20,11 @@ import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
-import logger from '../logger.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import type { ClientSession, ObjectId } from 'mongodb';
 import { EMAIL_CHANGE_CAP } from '@ssot/user_change_constants.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 type ConfirmParams = { token: string };
 type ConfirmOutcome =
@@ -140,9 +140,11 @@ export async function confirmEmailChangeController(
 
          clearAuthCookies(res);
 
-         logger.info(`Email change confirmed.`, {
-            userId: result.userId,
-            requestId,
+         securityLog.record({
+            event: 'EMAIL_CHANGE_CONFIRMED',
+            actorId: null, // the link works without a session
+            targetUserId: result.userId,
+            ...requestContext(req, res),
          });
 
          return void res.status(200).json({

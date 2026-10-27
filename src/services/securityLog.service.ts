@@ -31,8 +31,8 @@ export type SecurityEventInput = RequestContext & {
    readonly event: SecurityEventType;
    readonly actorId: ObjectId | null;
    readonly targetUserId: ObjectId;
-   readonly purpose?: SecondFactorPurpose;
-   readonly factorKind?: SecondFactorKind;
+   readonly secondFactorPurpose?: SecondFactorPurpose;
+   readonly secondFactorKind?: SecondFactorKind;
 };
 
 /* Never rejects: an audit-store outage must not turn a successful action into a failed one. The process-log line written by `record` is the guaranteed trace; this is the durable one. */
@@ -65,8 +65,8 @@ function record(input: SecurityEventInput): void {
       targetUserId: input.targetUserId,
       requestId: input.requestId,
       ipAddress: input.ipAddress,
-      purpose: input.purpose ?? null,
-      factorKind: input.factorKind ?? null,
+      secondFactorPurpose: input.secondFactorPurpose ?? null,
+      secondFactorKind: input.secondFactorKind ?? null,
    };
 
    const log = severity === 'warn' ? logger.warn : logger.info;
@@ -74,8 +74,8 @@ function record(input: SecurityEventInput): void {
       requestId: doc.requestId,
       actorId: doc.actorId?.toHexString() ?? null,
       targetUserId: doc.targetUserId.toHexString(),
-      purpose: doc.purpose,
-      factorKind: doc.factorKind,
+      secondFactorPurpose: doc.secondFactorPurpose,
+      secondFactorKind: doc.secondFactorKind,
    });
 
    void persist(doc);
