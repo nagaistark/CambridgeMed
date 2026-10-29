@@ -1,0 +1,88 @@
+{
+   "$jsonSchema": {
+      "bsonType": "object",
+      "additionalProperties": false,
+      "required": [
+         "_id",
+         "occurredAt",
+         "event",
+         "severity",
+         "actorId",
+         "targetUserId",
+         "requestId",
+         "ipAddress",
+         "purpose",
+         "factorKind"
+      ],
+      "properties": {
+         "_id": { "bsonType": "objectId" },
+         "occurredAt": { "bsonType": "date" },
+         "event": {
+            "bsonType": "string",
+            "enum": [
+               "TOTP_ENROLLMENT_STARTED",
+               "TOTP_ENABLED",
+               "TOTP_DISABLED",
+               "TOTP_RECOVERY_CODES_REGENERATED",
+               "TOTP_RESET_BY_ADMIN",
+               "SECOND_FACTOR_FAILED",
+               "SECOND_FACTOR_LOCKED",
+               "RECOVERY_CODE_USED"
+            ]
+         },
+         "severity": { "bsonType": "string", "enum": ["info", "warn"] },
+         "actorId": { "bsonType": ["objectId", "null"] },
+         "targetUserId": { "bsonType": "objectId" },
+         "requestId": {
+            "bsonType": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?\\z"
+         },
+         "ipAddress": {
+            "bsonType": ["string", "null"],
+            "maxLength": 128,
+            "pattern": "^[0-9a-fA-F:.]+(%[0-9A-Za-z._-]+)?\\z"
+         },
+         "purpose": {
+            "enum": [
+               "login",
+               "password-reset",
+               "disable",
+               "regenerate-codes",
+               "admin-reset",
+               null
+            ]
+         },
+         "factorKind": { "enum": ["totp", "recovery", null] }
+      },
+      "oneOf": [
+         {
+            "properties": {
+               "event": {
+                  "enum": [
+                     "TOTP_ENROLLMENT_STARTED",
+                     "TOTP_ENABLED",
+                     "TOTP_RECOVERY_CODES_REGENERATED"
+                  ]
+               },
+               "severity": { "enum": ["info"] }
+            }
+         },
+         {
+            "properties": {
+               "event": {
+                  "enum": [
+                     "TOTP_DISABLED",
+                     "TOTP_RESET_BY_ADMIN",
+                     "SECOND_FACTOR_FAILED",
+                     "SECOND_FACTOR_LOCKED",
+                     "RECOVERY_CODE_USED"
+                  ]
+               },
+               "severity": { "enum": ["warn"] }
+            }
+         }
+      ]
+   }
+}

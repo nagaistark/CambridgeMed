@@ -1,0 +1,61 @@
+{
+   "$jsonSchema": {
+      "bsonType": "object",
+      "additionalProperties": false,
+      "required": [
+         "_id",
+         "tokenHash",
+         "issuedBy",
+         "email",
+         "role",
+         "canIssueInvites",
+         "usedAt",
+         "acceptedBy",
+         "expiresAt",
+         "createdAt",
+         "updatedAt"
+      ],
+      "properties": {
+         "_id": { "bsonType": "objectId" },
+         "tokenHash": { "bsonType": "string", "pattern": "^[a-f0-9]{64}\\z" },
+         "issuedBy": { "bsonType": "objectId" },
+         "email": {
+            "bsonType": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([a-z0-9_'+\\-.]*)[a-z0-9_+-]@([a-z0-9][a-z0-9-]*\\.)+[a-z]{2,}\\z"
+         },
+         "role": { "bsonType": "string", "enum": ["doctor", "secretary"] },
+         "canIssueInvites": { "bsonType": "bool" },
+         "usedAt": { "bsonType": ["date", "null"] },
+         "acceptedBy": { "bsonType": ["objectId", "null"] },
+         "expiresAt": { "bsonType": "date" },
+         "createdAt": { "bsonType": "date" },
+         "updatedAt": { "bsonType": "date" }
+      },
+      "allOf": [
+         {
+            "oneOf": [
+               {
+                  "properties": {
+                     "usedAt": { "bsonType": "null" },
+                     "acceptedBy": { "bsonType": "null" }
+                  }
+               },
+               {
+                  "properties": {
+                     "usedAt": { "bsonType": "date" },
+                     "acceptedBy": { "bsonType": "objectId" }
+                  }
+               }
+            ]
+         },
+         {
+            "anyOf": [
+               { "properties": { "canIssueInvites": { "enum": [false] } } },
+               { "properties": { "role": { "enum": ["doctor"] } } }
+            ]
+         }
+      ]
+   }
+}

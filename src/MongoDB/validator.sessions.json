@@ -1,0 +1,45 @@
+{
+   "$jsonSchema": {
+      "bsonType": "object",
+      "additionalProperties": false,
+      "required": [
+         "_id",
+         "userId",
+         "currentTokenHash",
+         "previousTokenHash",
+         "rotatedAt",
+         "ipAddress",
+         "userAgent",
+         "expiresAt",
+         "createdAt",
+         "updatedAt"
+      ],
+      "properties": {
+         "_id": { "bsonType": "objectId" },
+         "userId": { "bsonType": "objectId" },
+         "currentTokenHash": {
+            "bsonType": "string",
+            "pattern": "^[a-f0-9]{64}\\z"
+         },
+         "previousTokenHash": {
+            "bsonType": ["string", "null"],
+            "pattern": "^[a-f0-9]{64}\\z"
+         },
+         "rotatedAt": { "bsonType": "date" },
+         "ipAddress": {
+            "bsonType": ["string", "null"],
+            "maxLength": 128,
+            "pattern": "^[0-9a-fA-F:.]+(%[0-9A-Za-z._-]+)?\\z"
+         },
+         "userAgent": {
+            "bsonType": ["string", "null"],
+            "minLength": 1,
+            "maxLength": 2056,
+            "pattern": "^\\S(?:[\\s\\S]*\\S)?\\z"
+         },
+         "expiresAt": { "bsonType": "date" },
+         "createdAt": { "bsonType": "date" },
+         "updatedAt": { "bsonType": "date" }
+      }
+   }
+}

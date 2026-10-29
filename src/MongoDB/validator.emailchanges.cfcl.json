@@ -1,0 +1,66 @@
+{
+   "$and": [
+      {
+         "$jsonSchema": {
+            "bsonType": "object",
+            "additionalProperties": false,
+            "required": [
+               "_id",
+               "confirmTokenHash",
+               "cancelTokenHash",
+               "userId",
+               "oldEmail",
+               "newEmail",
+               "confirmExpiresAt",
+               "cancelExpiresAt",
+               "confirmedAt",
+               "createdAt",
+               "updatedAt"
+            ],
+            "properties": {
+               "_id": { "bsonType": "objectId" },
+               "confirmTokenHash": {
+                  "bsonType": "string",
+                  "pattern": "^[a-f0-9]{64}\\z"
+               },
+               "cancelTokenHash": {
+                  "bsonType": "string",
+                  "pattern": "^[a-f0-9]{64}\\z"
+               },
+               "userId": { "bsonType": "objectId" },
+               "oldEmail": {
+                  "bsonType": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^(?!\\.)(?!.*\\.\\.)([a-z0-9_'+\\-.]*)[a-z0-9_+-]@([a-z0-9][a-z0-9-]*\\.)+[a-z]{2,}\\z"
+               },
+               "newEmail": {
+                  "bsonType": "string",
+                  "minLength": 1,
+                  "maxLength": 128,
+                  "pattern": "^(?!\\.)(?!.*\\.\\.)([a-z0-9_'+\\-.]*)[a-z0-9_+-]@([a-z0-9][a-z0-9-]*\\.)+[a-z]{2,}\\z"
+               },
+               "confirmExpiresAt": { "bsonType": "date" },
+               "cancelExpiresAt": { "bsonType": "date" },
+               "confirmedAt": { "bsonType": ["date", "null"] },
+               "createdAt": { "bsonType": "date" },
+               "updatedAt": { "bsonType": "date" }
+            }
+         }
+      },
+      {
+         "$expr": {
+            "$and": [
+               { "$lte": ["$createdAt", "$updatedAt"] },
+               { "$gte": ["$cancelExpiresAt", "$confirmExpiresAt"] },
+               {
+                  "$or": [
+                     { "$eq": ["$confirmedAt", null] },
+                     { "$lte": ["$confirmedAt", "$confirmExpiresAt"] }
+                  ]
+               }
+            ]
+         }
+      }
+   ]
+}

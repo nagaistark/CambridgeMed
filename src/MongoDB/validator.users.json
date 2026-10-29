@@ -1,0 +1,182 @@
+{
+   "$jsonSchema": {
+      "bsonType": "object",
+      "additionalProperties": false,
+      "required": [
+         "_id",
+         "firstName",
+         "lastName",
+         "email",
+         "role",
+         "permissions",
+         "invitedBy",
+         "isActive",
+         "passwordHash",
+         "passwordResetRequired",
+         "previousNames",
+         "previousEmails",
+         "nameChangesUsed",
+         "emailChangesUsed",
+         "isTotpEnabled",
+         "totpSecret",
+         "totpPendingSecret",
+         "totpRecoveryCodes",
+         "totpLastUsedStep",
+         "totpAttempts",
+         "totpAttemptsWindowStartedAt",
+         "createdAt",
+         "updatedAt"
+      ],
+      "properties": {
+         "_id": { "bsonType": "objectId" },
+         "firstName": {
+            "bsonType": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[\\p{L} .'’\\-]+\\z"
+         },
+         "lastName": {
+            "bsonType": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[\\p{L} .'’\\-]+\\z"
+         },
+         "email": {
+            "bsonType": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([a-z0-9_'+\\-.]*)[a-z0-9_+-]@([a-z0-9][a-z0-9-]*\\.)+[a-z]{2,}\\z"
+         },
+         "role": {
+            "bsonType": "string",
+            "enum": ["doctor", "secretary", "superadmin"]
+         },
+         "permissions": { "bsonType": "int", "minimum": 1 },
+         "invitedBy": { "bsonType": ["objectId", "null"] },
+         "isActive": { "bsonType": "bool" },
+         "passwordHash": {
+            "bsonType": "string",
+            "pattern": "^\\$argon2id\\$v=19\\$m=65536,p=4,t=3\\$[A-Za-z0-9+/]{22}\\$[A-Za-z0-9+/]{43}\\z"
+         },
+         "passwordResetRequired": { "bsonType": "bool" },
+         "previousNames": {
+            "bsonType": "array",
+            "maxItems": 10,
+            "items": {
+               "bsonType": "object",
+               "additionalProperties": false,
+               "required": ["archivedAt", "firstName", "lastName"],
+               "properties": {
+                  "archivedAt": { "bsonType": "date" },
+                  "firstName": {
+                     "bsonType": "string",
+                     "minLength": 1,
+                     "maxLength": 128,
+                     "pattern": "^[\\p{L} .'’\\-]+\\z"
+                  },
+                  "lastName": {
+                     "bsonType": "string",
+                     "minLength": 1,
+                     "maxLength": 128,
+                     "pattern": "^[\\p{L} .'’\\-]+\\z"
+                  }
+               }
+            }
+         },
+         "previousEmails": {
+            "bsonType": "array",
+            "maxItems": 10,
+            "items": {
+               "bsonType": "object",
+               "additionalProperties": false,
+               "required": ["archivedAt", "email"],
+               "properties": {
+                  "archivedAt": { "bsonType": "date" },
+                  "email": {
+                     "bsonType": "string",
+                     "minLength": 1,
+                     "maxLength": 128,
+                     "pattern": "^(?!\\.)(?!.*\\.\\.)([a-z0-9_'+\\-.]*)[a-z0-9_+-]@([a-z0-9][a-z0-9-]*\\.)+[a-z]{2,}\\z"
+                  }
+               }
+            }
+         },
+         "nameChangesUsed": { "bsonType": "int", "minimum": 0, "maximum": 10 },
+         "emailChangesUsed": { "bsonType": "int", "minimum": 0, "maximum": 10 },
+         "isTotpEnabled": { "bsonType": "bool" },
+         "totpSecret": {
+            "bsonType": ["string", "null"],
+            "pattern": "^[a-z0-9]{1,16}:[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]{64}\\z"
+         },
+         "totpPendingSecret": {
+            "bsonType": ["string", "null"],
+            "pattern": "^[a-z0-9]{1,16}:[0-9a-f]{24}:[0-9a-f]{32}:[0-9a-f]{64}\\z"
+         },
+         "totpRecoveryCodes": {
+            "bsonType": "array",
+            "maxItems": 10,
+            "items": { "bsonType": "string", "pattern": "^[a-f0-9]{64}\\z" }
+         },
+         "totpLastUsedStep": { "bsonType": "int", "minimum": 0 },
+         "totpAttempts": { "bsonType": "int", "minimum": 0 },
+         "totpAttemptsWindowStartedAt": { "bsonType": ["date", "null"] },
+         "createdAt": { "bsonType": "date" },
+         "updatedAt": { "bsonType": "date" }
+      },
+      "allOf": [
+         {
+            "oneOf": [
+               {
+                  "properties": {
+                     "role": { "enum": ["secretary"] },
+                     "permissions": { "enum": [12] },
+                     "invitedBy": { "bsonType": "objectId" }
+                  }
+               },
+               {
+                  "properties": {
+                     "role": { "enum": ["doctor"] },
+                     "permissions": { "enum": [60, 62] },
+                     "invitedBy": { "bsonType": "objectId" }
+                  }
+               },
+               {
+                  "properties": {
+                     "role": { "enum": ["superadmin"] },
+                     "permissions": { "enum": [3] },
+                     "invitedBy": { "bsonType": "null" }
+                  }
+               }
+            ]
+         },
+         {
+            "oneOf": [
+               {
+                  "properties": {
+                     "isTotpEnabled": { "enum": [true] },
+                     "totpSecret": { "bsonType": "string" },
+                     "totpPendingSecret": { "bsonType": "null" }
+                  }
+               },
+               {
+                  "properties": {
+                     "isTotpEnabled": { "enum": [false] },
+                     "totpSecret": { "bsonType": "null" },
+                     "totpRecoveryCodes": { "maxItems": 0 }
+                  }
+               }
+            ]
+         },
+         {
+            "anyOf": [
+               { "properties": { "totpAttempts": { "maximum": 0 } } },
+               {
+                  "properties": {
+                     "totpAttemptsWindowStartedAt": { "bsonType": "date" }
+                  }
+               }
+            ]
+         }
+      ]
+   }
+}
