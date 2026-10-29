@@ -108,6 +108,18 @@ export const EmailChangeDocumentReadSchema = EmailChangeDocumentReadStruct.pipe(
    validateConfirmationTimeliness
 );
 
+/* Minimal shape for loadEmailChangeStatus. */
+const EmailChangeStatusSourceSchema = EmailChangeDocumentReadStruct.pick(
+   'oldEmail',
+   'newEmail',
+   'confirmedAt',
+   'confirmExpiresAt',
+   'cancelExpiresAt'
+);
+export type IEmailChangeStatusSource = Schema.Schema.Type<
+   typeof EmailChangeStatusSourceSchema
+>;
+
 // ===== Validators against which we validate the documents ========================
 export const EmailChangeDocumentCreateValidator = Schema.typeSchema(
    EmailChangeDocumentCreateSchema
@@ -115,6 +127,10 @@ export const EmailChangeDocumentCreateValidator = Schema.typeSchema(
 
 export const EmailChangeDocumentReadValidator = Schema.typeSchema(
    EmailChangeDocumentReadSchema
+);
+
+export const EmailChangeStatusSourceValidator = Schema.typeSchema(
+   EmailChangeStatusSourceSchema
 );
 
 // ===== MongoDB Collection Connection =============================================

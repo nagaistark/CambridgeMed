@@ -15,6 +15,7 @@ import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
+import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 
 export async function meController(
    _req: Request,
@@ -24,13 +25,18 @@ export async function meController(
    try {
       const requestId = res.locals.requestId;
       const { sub } = res.locals.authenticatedUser;
+      const userId = new ObjectId(sub);
 
-      const userRaw = await getUserCollection().findOne<ISafeUser>(
-         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            projection: SAFE_USER_PROJECTION,
-         } satisfies StrictFindOneOptions<ISafeUser>
-      );
+      /* Independent reads, run in parallel (same idea as requireLiveSession). */
+      const [userRaw, emailChange] = await Promise.all([
+         getUserCollection().findOne<ISafeUser>(
+            { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               projection: SAFE_USER_PROJECTION,
+            } satisfies StrictFindOneOptions<ISafeUser>
+         ),
+         loadEmailChangeStatus(userId, new Date()),
+      ]);
 
       if (userRaw === null) {
          return void res
@@ -62,7 +68,9 @@ export async function meController(
             );
       }
 
-      return void res.status(200).json(buildMeResponse('Session valid.', user));
+      return void res
+         .status(200)
+         .json(buildMeResponse('Session valid.', user, emailChange));
    } catch (err) {
       next(err);
    }

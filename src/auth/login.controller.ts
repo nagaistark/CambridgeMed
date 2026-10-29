@@ -22,6 +22,7 @@ import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
+import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 
 /* A real hash, made once at startup with the CURRENT ARGON2_CONFIG, of a password nobody knows. When no user matches, we still run a full verification against it so "no such user" costs the same as "wrong password". Because it is generated rather than pasted, it cannot drift from the config. */
 const TIMING_DUMMY_HASH: string = await hashPassword(generateRandomToken());
@@ -111,11 +112,14 @@ export async function loginController(
          });
       }
 
+      /* Read-only and fallible, so it goes BEFORE issueSession commits a session and sets cookies. Placed after every credential check: unknown emails and the 202 challenge path never reach it. */
+      const emailChange = await loadEmailChangeStatus(user._id, new Date());
+
       await issueSession(user, req, res);
 
       return void res
          .status(200)
-         .json(buildAuthResponse('Login successful', user));
+         .json(buildAuthResponse('Login successful', user, emailChange));
    } catch (err) {
       next(err);
    }

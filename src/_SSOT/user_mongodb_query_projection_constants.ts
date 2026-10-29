@@ -34,6 +34,7 @@ import type {
    ISessionRefresh,
    ISessionSelfView,
 } from '@models/Session_v3.model.ts';
+import type { IEmailChangeStatusSource } from '@models/EmailChange_v3.model.ts';
 import type { IPasswordResetRedeemCheck } from '@models/PasswordReset_v3.model.ts';
 import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
@@ -281,6 +282,18 @@ export const SESSION_ADMIN_VIEW_PROJECTION: Record<keyof ISessionAdminView, 1> =
 export const SESSION_OWNER_PROJECTION: Record<keyof ISessionOwner, 1> = {
    _id: 1,
    userId: 1,
+};
+
+// ── EmailChange projections ──────────────────────────────────────────────────────
+export const EMAIL_CHANGE_STATUS_PROJECTION: Record<
+   keyof IEmailChangeStatusSource,
+   1
+> = {
+   oldEmail: 1,
+   newEmail: 1,
+   confirmedAt: 1,
+   confirmExpiresAt: 1,
+   cancelExpiresAt: 1,
 };
 
 // ── Patients projections ─────────────────────────────────────────────────────────

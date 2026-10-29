@@ -50,7 +50,7 @@ import {
    type SecondFactorContext,
 } from './secondFactor.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
-import { withAuthTransaction } from '@/utils/withAuthTransaction.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 
 type ResetPasswordParams = { token: string };
 

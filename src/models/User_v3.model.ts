@@ -9,6 +9,7 @@ import {
    EMAIL_CHANGE_CAP,
    NAME_CHANGE_CAP,
 } from '@ssot/user_change_constants.ts';
+import type { EmailChangeStatus } from '@ssot/email_change_status_constants.ts';
 import {
    argon2HashString,
    clinicStaffEmail,
@@ -523,6 +524,10 @@ export type AuthUserResponse = {
    success: true;
    message: string;
    user: IPublicUser;
+   emailChange: EmailChangeStatus;
 };
 
-export type AuthUserResponseLogout = Omit<AuthUserResponse, 'user'>;
+export type AuthUserResponseLogout = Omit<
+   AuthUserResponse,
+   'user' | 'emailChange'
+>;

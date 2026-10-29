@@ -40,6 +40,8 @@ import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import { Either, Schema } from 'effect';
 import { USER_EMAIL_CHANGE_INITIATOR_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
+import { classifyEmailChange } from '@ssot/email_change_status_constants.ts';
 
 const EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE = `This email address is already claimed by a pending change request.`;
 const EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE = `You already have an active email change request. Please complete or cancel it first.`;
@@ -203,26 +205,12 @@ export async function initiateEmailChangeController(
          confirmExpiresAt: { $lte: now },
       } satisfies StrictMongoFilter<IEmailChangeDocumentRead>);
 
-      const confirmedChangeInCooldown =
-         (await emailChangeCollection.countDocuments(
-            {
-               userId: new ObjectId(sub),
-               confirmedAt: { $ne: null },
-               cancelExpiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
+      const existingChange = await loadEmailChangeStatus(
+         validatedUser._id,
+         now
+      );
 
-      const userHasActiveChange =
-         (await emailChangeCollection.countDocuments(
-            {
-               userId: new ObjectId(sub),
-               cancelExpiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
-
-      if (confirmedChangeInCooldown) {
+      if (existingChange.state === 'confirmed') {
          return void res
             .status(409)
             .json(
@@ -234,7 +222,7 @@ export async function initiateEmailChangeController(
             );
       }
 
-      if (userHasActiveChange) {
+      if (existingChange.state === 'pending') {
          return void res
             .status(409)
             .json(
@@ -356,6 +344,7 @@ export async function initiateEmailChangeController(
       return void res.status(200).json({
          success: true,
          message: `Email change initiated. Check both your current and new email addresses for next steps.`,
+         emailChange: classifyEmailChange(validatedEmailChangePayload, now),
       });
    } catch (err) {
       next(err);

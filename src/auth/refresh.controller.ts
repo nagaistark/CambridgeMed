@@ -34,6 +34,7 @@ import type {
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 
 // ── The presented token is NOT the current one ───────────────────────────────────
 /* Always sends a response. Either the token was rotated away moments ago (benign multi-tab race, 409), rotated away long ago (reuse, nuclear option, 401), or unknown (401). Expired sessions are treated as nonexistent. */
@@ -227,6 +228,9 @@ export async function refreshController(
          expirationTime: accessTokenExpirationTimestampMS,
       });
 
+      /* Read-only, so it belongs above the commit point. If this threw AFTER the rotation, the new cookies would never reach the client, and its retry would look like token reuse and trigger the nuclear option. */
+      const emailChange = await loadEmailChangeStatus(user._id, now);
+
       // ── Commit: atomic compare-and-swap rotation ──────────────────────────────
       /* The filter IS the decision: "this token is STILL the current one and the session is STILL alive". Of two concurrent requests presenting the same token exactly one matches; the loser sees matchedCount 0. expiresAt is deliberately NOT updated: it is the Monday reset, not this token's lifetime. */
       const rotation = await sessionCollection.updateOne(
@@ -268,7 +272,13 @@ export async function refreshController(
 
       return void res
          .status(200)
-         .json(buildAuthResponse('Token refreshed successfully.', user));
+         .json(
+            buildAuthResponse(
+               'Token refreshed successfully.',
+               user,
+               emailChange
+            )
+         );
    } catch (err) {
       next(err);
    }

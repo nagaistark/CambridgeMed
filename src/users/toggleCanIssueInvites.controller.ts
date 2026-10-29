@@ -28,7 +28,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
 import {
-   SAFE_USER_PROJECTION,
+   USER_ID_ROLE_PERMISSIONS_PROJECTION,
    USER_INVITE_ISSUER_PROJECTION,
 } from '@ssot/user_mongodb_query_projection_constants.ts';
 import {
@@ -64,7 +64,7 @@ export async function toggleCanIssueInvitesController(
                $and: [{ _id: id }, scopeClause],
             } satisfies StrictMongoFilter<IUserDocument>,
             {
-               projection: SAFE_USER_PROJECTION,
+               projection: USER_ID_ROLE_PERMISSIONS_PROJECTION,
             } satisfies StrictFindOneOptions<IUserIdRolePermissions>
          );
 

@@ -28,6 +28,7 @@ import type {
 import { createErrorResponse } from '../errorHandlers.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import logger from '../logger.ts';
+import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 
 /* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to await AFTER the response has been sent. */
 async function notifyRecoveryCodeUsed(
@@ -116,6 +117,9 @@ export async function completeTotpLogin(
          );
    }
 
+   /* BEFORE checkSecondFactor: that call SPENDS the code. A read that failed after it would burn a recovery code and still fail the login. The status is only ever sent once the factor has verified. */
+   const emailChange = await loadEmailChangeStatus(user._id, new Date());
+
    /* `actorId: null`: the caller has proven a password but holds no session yet. */
    const context: SecondFactorContext = {
       purpose: 'login',
@@ -137,12 +141,16 @@ export async function completeTotpLogin(
    if (remaining === null) {
       return void res
          .status(200)
-         .json(buildAuthResponse(`Login successful.`, user));
+         .json(buildAuthResponse(`Login successful.`, user, emailChange));
    }
 
    /* The response goes out FIRST. The email provider's round trip (hundreds of ms, occasionally seconds) is none of the user's business. We still `await` the notification afterwards, so the work stays owned by this request's async chain (no floating promise) and cannot reject. */
    res.status(200).json({
-      ...buildAuthResponse(`Login successful via recovery code.`, user),
+      ...buildAuthResponse(
+         `Login successful via recovery code.`,
+         user,
+         emailChange
+      ),
       remainingRecoveryCodes: remaining,
       ...(remaining <= TOTP_RECOVERY_CODE_LOW_THRESHOLD
          ? {
