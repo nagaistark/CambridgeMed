@@ -36,7 +36,7 @@ export type ISecurityEventDocument = Schema.Schema.Type<
 
 export const SecurityEventValidator = Schema.typeSchema(SecurityEventStruct);
 
-/* Lives in the AUDIT database. The DB user the app connects with there should hold insert + find only (no update/delete): an attacker who owns the app must not be able to erase their own footprints. */
+/* Lives in the AUDIT database. The DB user the app connects with there should hold "insert" only (no find/update/delete): an attacker who owns the app must not be able to erase their own footprints. */
 export function getSecurityEventCollection(): Collection<ISecurityEventDocument> {
    return DatabaseManager.getInstance()
       .audit.db()
