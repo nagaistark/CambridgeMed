@@ -12,8 +12,9 @@ import {
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import type { ISessionDocument } from '@models/Session_v3.model.ts';
 import { ObjectId } from 'mongodb';
-import { Either, Schema } from 'effect';
+import { Either, Option, Schema } from 'effect';
 import { evictExcessSessions } from '@utils/evictExcessSessions.ts';
+import { ipAddress } from '@utils/effectSchemaReusables.ts';
 
 /* Creates a Session document, signs both tokens, sets the auth cookies. Shared by the password-only login path, the TOTP verification path and the recovery-code path. */
 export async function issueSession(
@@ -33,6 +34,10 @@ export async function issueSession(
 
    const now = new Date();
 
+   /* Best-effort metadata: a malformed value becomes null, it never fails a login that already succeeded. */
+   const ipOrNull = (raw: string | undefined): string | null =>
+      Option.getOrNull(Schema.decodeUnknownOption(ipAddress)(raw));
+
    const candidate: ISessionDocument = {
       _id: new ObjectId(),
       userId: user._id,
@@ -40,7 +45,7 @@ export async function issueSession(
       previousTokenHash: null,
       rotatedAt: now,
       expiresAt: new Date(refreshTokenExpirationTimestampMS),
-      ipAddress: req.ip ?? null,
+      ipAddress: ipOrNull(req.ip),
       /* `||` on purpose: an empty header must become null too. trim() because slicing can leave trailing whitespace, which the schema rejects. */
       userAgent: req.headers['user-agent']?.slice(0, 512).trim() || null,
       createdAt: now,
