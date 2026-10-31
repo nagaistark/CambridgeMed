@@ -55,19 +55,6 @@ export async function meController(
       }
       const user = decodedUser.right;
 
-      /* isActive is authoritative only in the database; catching it here beats waiting for the access token to expire. */
-      if (!user.isActive) {
-         return void res
-            .status(403)
-            .json(
-               createErrorResponse(
-                  'FORBIDDEN',
-                  `This account has been deactivated. Please contact an administrator.`,
-                  requestId
-               )
-            );
-      }
-
       return void res
          .status(200)
          .json(buildMeResponse('Session valid.', user, emailChange));

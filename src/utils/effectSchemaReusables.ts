@@ -173,7 +173,7 @@ export const objectIdInstance = Schema.instanceOf(ObjectId, {
    message: () => `Must be a valid ObjectId instance (objectIdInstance).`,
 });
 
-const objectIdInput = baseString.pipe(
+export const objectIdInput = baseString.pipe(
    Schema.pattern(/^[a-f\d]{24}$/i, {
       message: () =>
          `Must be a valid 24-character hex string format (objectIdInput).`,

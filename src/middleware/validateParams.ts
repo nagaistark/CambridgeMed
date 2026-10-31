@@ -5,9 +5,10 @@ export function validateParams<A, I>(
    schema: Schema.Schema<A, I, never>
 ): RequestHandler {
    return (req: Request, res: Response, next: NextFunction): void => {
-      const result = Schema.decodeUnknownEither(schema, { errors: 'all' })(
-         req.params
-      );
+      const result = Schema.decodeUnknownEither(schema, {
+         errors: 'all',
+         onExcessProperty: 'error',
+      })(req.params);
       if (result._tag === 'Left') {
          return next(result.left);
       }

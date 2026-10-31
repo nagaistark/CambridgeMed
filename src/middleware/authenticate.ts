@@ -2,11 +2,12 @@ import type { Request, NextFunction } from 'express';
 import { jwtVerify } from 'jose';
 import { getPublicKey } from '@utils/jwtUtils.ts';
 import { ACCESS_TOKEN_AUDIENCE } from '@utils/tokenUtils.ts';
-import { allRoles } from '@ssot/user_roles_constants.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
-import type { CustomSessionPayload } from '@ssot/jwt_payload_constants.ts';
 import { readAccessTokenCookie } from '@utils/tokenUtils.ts';
+import { Either, Schema } from 'effect';
+import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
+import { JWT_ISSUER } from '@ssot/jwt_constants.ts';
 
 export async function authenticate(
    req: Request,
@@ -40,26 +41,17 @@ export async function authenticate(
       Any failure throws a JOSEError subclass, which next(err) passes to handleJwtError in the error pipeline. We do not handle those errors here — that is the specialist's job. */
 
       const publicKey = await getPublicKey();
-      const { payload } = await jwtVerify<CustomSessionPayload>(
-         rawToken,
-         publicKey,
-         {
-            algorithms: ['RS256'],
-            audience: ACCESS_TOKEN_AUDIENCE,
-         }
-      );
-      const session: CustomSessionPayload = payload;
 
-      // ── Defensive payload narrowing ──────────────────────────────────
-      const { sub, role, permissions, sessionId } = session;
+      const { payload } = await jwtVerify(rawToken, publicKey, {
+         algorithms: ['RS256'],
+         audience: ACCESS_TOKEN_AUDIENCE,
+         issuer: JWT_ISSUER,
+      });
 
-      /* The following should never happen, normally. It'd mean we issued a malformed token ourselves. We respond with the same vague 401 to avoid leaking internal details. */
-      if (
-         typeof sub !== 'string' ||
-         !allRoles.includes(role) ||
-         typeof permissions !== 'number' ||
-         typeof sessionId !== 'string'
-      ) {
+      const decodedPayload =
+         Schema.decodeUnknownEither(AUTHENTICATED_USER)(payload);
+
+      if (Either.isLeft(decodedPayload)) {
          return void res
             .status(401)
             .json(
@@ -72,13 +64,7 @@ export async function authenticate(
       }
 
       // ── Attach verified identity ──────────────────────────────────────
-      /* After all four checks pass (the claims are the right shape), we attach the verified identity to res.locals so every downstream controller can read it without touching the database. This is the authenticated user's passport for the remainder of this request's journey. */
-      res.locals.authenticatedUser = {
-         sub,
-         role,
-         permissions,
-         sessionId,
-      };
+      res.locals.authenticatedUser = decodedPayload.right;
       next();
    } catch (err) {
       // Any JOSEError from jwtVerify lands here and travels to handleJwtError.

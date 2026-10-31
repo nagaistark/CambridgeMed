@@ -13,6 +13,7 @@ import {
    TOTP_CHALLENGE_EXPIRY_SECONDS,
 } from '@ssot/totp_constants.ts';
 import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
+import { JWT_ISSUER } from '@ssot/jwt_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 /* Single source of truth for cookie names. Imported by the authenticate middleware and the refresh controller. */
@@ -38,6 +39,7 @@ export async function signAccessToken(
    })
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject(payload.sub)
+      .setIssuer(JWT_ISSUER)
       .setAudience(ACCESS_TOKEN_AUDIENCE)
       .setIssuedAt()
       .setExpirationTime(Math.floor(payload.expirationTime / 1000)) // Unix Timestamps. Should be SECONDS (not milliseconds) since THE EPOCH!!!
@@ -134,6 +136,7 @@ export async function signTotpChallengeToken(userId: string): Promise<string> {
    return new SignJWT({})
       .setProtectedHeader({ alg: 'RS256' })
       .setSubject(userId)
+      .setIssuer(JWT_ISSUER)
       .setAudience(TOTP_CHALLENGE_AUDIENCE)
       .setIssuedAt()
       .setExpirationTime(`${TOTP_CHALLENGE_EXPIRY_SECONDS}s`)

@@ -4,6 +4,7 @@ import { getPublicKey } from '@utils/jwtUtils.ts';
 import { TOTP_CHALLENGE_AUDIENCE } from '@ssot/totp_constants.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { readTotpChallengeCookie } from '@utils/tokenUtils.ts';
+import { JWT_ISSUER } from '@ssot/jwt_constants.ts';
 
 /* Guards /totp/verify and /totp/recover. The user at this point has proven their password is correct but has not yet proven their TOTP code. They hold a challenge token cookie rather than an access token cookie. */
 export async function authenticateTotp(
@@ -32,6 +33,7 @@ export async function authenticateTotp(
       const { payload } = await jwtVerify(rawToken, publicKey, {
          algorithms: ['RS256'],
          audience: TOTP_CHALLENGE_AUDIENCE,
+         issuer: JWT_ISSUER,
       });
 
       const { sub } = payload;

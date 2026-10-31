@@ -65,7 +65,7 @@ type ResetOutcome =
 
 type ResetTransactionParams = ExpandType<
    Pick<IPasswordResetDocumentRead, 'tokenHash'> &
-      Pick<IUserDocument, 'passwordHash'> & {
+      Pick<IUserDocument, 'passwordHash' | 'isTotpEnabled'> & {
          /* null = the account has no second factor. */
          readonly claim: FactorClaim | null;
       }
@@ -80,7 +80,7 @@ async function runResetTransaction(
    session: ClientSession,
    params: ResetTransactionParams
 ): Promise<ResetOutcome> {
-   const { tokenHash, passwordHash, claim } = params;
+   const { tokenHash, passwordHash, claim, isTotpEnabled } = params;
    const now = new Date();
 
    const claimedRaw = await getPasswordResetCollection().findOneAndDelete(
@@ -112,12 +112,14 @@ async function runResetTransaction(
          _id: validatedClaim.userId,
          email: validatedClaim.email,
          isActive: true,
+         isTotpEnabled,
       } satisfies StrictMongoFilter<IUserDocument>,
       {
          $set: { passwordHash, passwordResetRequired: false, updatedAt: now },
       } satisfies StrictUpdate<IUserDocument>,
       { session }
    );
+
    if (applied.matchedCount === 0) {
       return { status: 'stale_claim', userId: validatedClaim.userId };
    }
@@ -260,7 +262,12 @@ export async function resetPasswordController(
 
       // ── Step 4: Run the transaction ────────────────────────────────────────────
       const outcome = await withAuthTransaction(session =>
-         runResetTransaction(session, { tokenHash, passwordHash, claim })
+         runResetTransaction(session, {
+            tokenHash,
+            passwordHash,
+            claim,
+            isTotpEnabled: user.isTotpEnabled,
+         })
       );
 
       // ── Step 5: Respond ────────────────────────────────────────────────────────
