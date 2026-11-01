@@ -35,6 +35,10 @@ export const RESET_PASSWORD_MAX_REQUESTS = 10;
 export const INVITE_CREATE_WINDOW_MS = 1 * 60 * 60 * 1_000; // 1 hour
 export const INVITE_CREATE_MAX_REQUESTS = 10;
 
+/* Failures only (409 existence probes, 403s, 422s, 503s). A legitimate inviter rarely fails; typos and duplicates are the expected cases. The window matches INVITE_CREATE_* so successes and failures are bounded on the same clock. */
+export const INVITE_CREATE_FAILURE_WINDOW_MS = 1 * 60 * 60 * 1_000; // 1 hour
+export const INVITE_CREATE_MAX_FAILED_REQUESTS = 10;
+
 // ── Invite acceptance (POST /api/invites/:token/accept) ──────────────────────────
 /* Fully public, unauthenticated endpoint. The token is the credential, but acceptance also runs an Argon2id hash before the transaction — so this limiter exists specifically to bound how many times an attacker can force that hash per token, not just to prevent brute-force enumeration. */
 export const INVITE_ACCEPT_WINDOW_MS = 15 * 60 * 1_000; // 15 minutes

@@ -34,6 +34,8 @@ import {
    TOTP_MANAGEMENT_MAX_FAILED_REQUESTS,
    SESSION_KILL_WINDOW_MS,
    SESSION_KILL_MAX_REQUESTS,
+   INVITE_CREATE_FAILURE_WINDOW_MS,
+   INVITE_CREATE_MAX_FAILED_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 import { Schema } from 'effect';
 import { LoginSchema } from '@auth/login.schema.ts';
@@ -130,6 +132,12 @@ export const inviteCreateRateLimiter = makeRateLimiter(
          res.locals.authenticatedUser?.sub ??
          ipKeyGenerator(req.ip ?? 'unknown'),
    }
+);
+
+export const inviteCreateFailureRateLimiter = makeRateLimiter(
+   INVITE_CREATE_FAILURE_WINDOW_MS,
+   INVITE_CREATE_MAX_FAILED_REQUESTS,
+   { skipSuccessfulRequests: true, keyGenerator: keyByUserOrIp }
 );
 
 /* Narrows `unknown` to `{ email: string }` using the SAME atom as the login schema. No cast, no drift. */

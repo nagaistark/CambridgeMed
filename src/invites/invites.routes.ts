@@ -18,6 +18,7 @@ import {
 import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import {
    inviteAcceptRateLimiter,
+   inviteCreateFailureRateLimiter,
    inviteCreateRateLimiter,
    invitePreviewRateLimiter,
 } from '@utils/rateLimiters.ts';
@@ -30,6 +31,7 @@ inviteRouter.post(
    authenticate,
    requirePermissions('ISSUE_INVITES'),
    inviteCreateRateLimiter,
+   inviteCreateFailureRateLimiter,
    validateBody(InviteInputSchema),
    createInviteController
 );
