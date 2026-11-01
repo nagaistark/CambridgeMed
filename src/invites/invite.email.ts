@@ -75,14 +75,14 @@ export async function sendInviteEmail(
          <body style="font-family:sans-serif;max-width:580px;margin:0 auto;padding:32px 24px;color:#111827;">
             <h2 style="margin:0 0 16px;">You have been invited to CambridgeMed</h2>
             <p style="margin:0 0 12px;">
-               <strong>${escapeHtml(issuerFullNameHtml)}</strong> ${template.intro} <strong>${roleLabel}</strong>.
+               <strong>${issuerFullNameHtml}</strong> ${template.intro} <strong>${escapeHtml(roleLabel)}</strong>.
             </p>
             ${canIssueInvites ? `<p style="margin:0 0 12px;">${template.privilege}.</p>` : ''}
             <p style="margin:24px 0;">
                <a href="${escapeHtml(registrationUrl)}" style="background:#2563eb; color:#ffffff; padding:12px 24px;border-radius:6px; text-decoration:none; font-weight:600;display:inline-block;">Complete Registration</a>
             </p>
             <p style="color:#6b7280;font-size:13px;margin:0 0 8px;">
-               ${template.exp} <strong>${expiryFormatted}</strong>.
+               ${template.exp} <strong>${escapeHtml(expiryFormatted)}</strong>.
             </p>
             <p style="color:#6b7280;font-size:13px;margin:0;">
                ${template.otherwise}.
