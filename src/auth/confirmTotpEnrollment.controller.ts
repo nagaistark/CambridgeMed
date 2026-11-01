@@ -87,6 +87,7 @@ export async function confirmTotpEnrollmentController(
          encryptedSecret: validatedUser.totpPendingSecret,
          code,
          lastUsedStep: validatedUser.totpLastUsedStep,
+         userId: validatedUser._id,
       });
 
       if (!check.valid) {

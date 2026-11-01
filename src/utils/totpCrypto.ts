@@ -18,6 +18,7 @@ import {
    totpSecretRegex,
 } from '@ssot/totp_constants.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
+import type { ObjectId } from 'mongodb';
 
 // ── Key ring ─────────────────────────────────────────────────────────────────────
 /* Stored format: keyId:iv:authTag:ciphertext. The key id travels WITH the data, so any number of keys can be live at once: new encryptions use the active key, old ciphertexts keep decrypting under the key that made them. That is what makes rotation possible without a big-bang re-encryption.
@@ -60,8 +61,13 @@ function requireKey(keyId: string): Buffer {
 /* Fail fast at startup rather than on the first enrollment. (validateConfig already guarantees it; this keeps the guarantee local.) */
 requireKey(activeKeyId);
 
+/* The context a secret is bound to. Never stored: the caller must supply it again to decrypt. */
+function buildAad(userId: ObjectId): Buffer {
+   return Buffer.from(`totp-secret:${userId.toHexString()}`, 'utf8');
+}
+
 // ── TOTP secret encryption ───────────────────────────────────────────────────────
-export function encryptTotpSecret(plaintext: string): string {
+export function encryptTotpSecret(plaintext: string, userId: ObjectId): string {
    const iv = randomBytes(IV_BYTE_LENGTH);
    const cipher = createCipheriv(
       CIPHER_ALGORITHM,
@@ -69,6 +75,7 @@ export function encryptTotpSecret(plaintext: string): string {
       iv,
       { authTagLength: AUTH_TAG_BYTE_LENGTH }
    );
+   cipher.setAAD(buildAad(userId));
    const encrypted = Buffer.concat([
       cipher.update(plaintext, 'utf8'),
       cipher.final(),
@@ -92,7 +99,7 @@ export function encryptTotpSecret(plaintext: string): string {
 }
 
 /* If the ciphertext was tampered with, `decipher.final()` throws (GCM integrity). An unknown key id also throws. Both are operational/security problems and are meant to surface as 500s. */
-export function decryptTotpSecret(stored: string): string {
+export function decryptTotpSecret(stored: string, userId: ObjectId): string {
    const groups = totpSecretRegex.exec(stored)?.groups;
    if (groups === undefined) {
       throw new Error(`Malformed stored TOTP secret: unexpected format.`);
@@ -105,6 +112,7 @@ export function decryptTotpSecret(stored: string): string {
       Buffer.from(iv, 'hex'),
       { authTagLength: AUTH_TAG_BYTE_LENGTH }
    );
+   decipher.setAAD(buildAad(userId));
    decipher.setAuthTag(Buffer.from(authTag, 'hex'));
 
    return Buffer.concat([

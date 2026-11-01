@@ -102,10 +102,11 @@ export async function verifyTotpCode(input: {
    readonly encryptedSecret: string;
    readonly code: string;
    readonly lastUsedStep: number;
+   readonly userId: ObjectId;
 }): Promise<TotpCodeCheck> {
    const result = await verify({
       token: input.code,
-      secret: decryptTotpSecret(input.encryptedSecret),
+      secret: decryptTotpSecret(input.encryptedSecret, input.userId),
       epochTolerance: TOTP_EPOCH_TOLERANCE_SECONDS,
       afterTimeStep: input.lastUsedStep,
    });
@@ -187,8 +188,6 @@ function recordRejection(
       targetUserId: userId,
       requestId: context.requestId,
       ipAddress: context.ipAddress,
-      // purpose: context.purpose,
-      // factorKind: input.kind,
       secondFactorPurpose: context.purpose,
       secondFactorKind: input.kind,
    });
@@ -255,6 +254,7 @@ async function verifyTotpFactor(
       encryptedSecret: user.totpSecret,
       code,
       lastUsedStep: user.totpLastUsedStep,
+      userId: user._id,
    });
    if (!check.valid) return { status: 'invalid' };
 

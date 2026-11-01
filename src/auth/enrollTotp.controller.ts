@@ -90,7 +90,7 @@ export async function enrollTotpController(
       // ── Generate and persist the PENDING secret ────────────────────────────────
       /* A previous unconfirmed enrollment is simply overwritten: it was never live. The filter pins `isTotpEnabled: false`, so a confirm that lands between our read and this write cannot have its live secret clobbered. */
       const rawSecret = generateSecret({ length: TOTP_SECRET_BYTES });
-      const encryptedSecret = encryptTotpSecret(rawSecret);
+      const encryptedSecret = encryptTotpSecret(rawSecret, validatedUser._id);
 
       const stored = await userCollection.updateOne(
          {
