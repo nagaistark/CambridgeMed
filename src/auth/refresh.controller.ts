@@ -1,5 +1,4 @@
 import type { Request, Response, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import {
    getSessionCollection,
    SessionRefreshValidator,
@@ -35,6 +34,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 // ── The presented token is NOT the current one ───────────────────────────────────
 /* Always sends a response. Either the token was rotated away moments ago (benign multi-tab race, 409), rotated away long ago (reuse, nuclear option, 401), or unknown (401). Expired sessions are treated as nonexistent. */
@@ -70,19 +70,15 @@ async function respondToNonCurrentToken(
          );
    }
 
-   const decodedStale = Schema.decodeUnknownEither(SessionRefreshValidator)(
-      staleRaw
+   const validatedStale = decodeStored(
+      SessionRefreshValidator,
+      staleRaw,
+      'refresh: stale session'
    );
-   if (Either.isLeft(decodedStale)) {
-      throw new Error(`Stored session failed validation during refresh.`, {
-         cause: decodedStale.left,
-      });
-   }
-   const stale = decodedStale.right;
 
    /* A negative difference (rotation landed between our `now` and this read) is, correctly, "within the grace window". */
    if (
-      now.getTime() - stale.rotatedAt.getTime() <
+      now.getTime() - validatedStale.rotatedAt.getTime() <
       SESSION_REUSE_GRACE_WINDOW_MS
    ) {
       /* Another request already rotated this token and set fresh cookies. 409, NOT 401 (which would trigger yet another refresh and a loop): the client waits for the in-flight refresh to settle, then retries. */
@@ -101,12 +97,12 @@ async function respondToNonCurrentToken(
    securityLog.record({
       event: 'SESSION_REUSE_DETECTED',
       actorId: null,
-      targetUserId: stale.userId,
+      targetUserId: validatedStale.userId,
       ...requestContext(req, res),
    });
 
    await sessionCollection.deleteMany({
-      userId: stale.userId,
+      userId: validatedStale.userId,
    } satisfies StrictMongoFilter<ISessionDocument>);
    clearAuthCookies(res);
    return void res
@@ -162,42 +158,41 @@ export async function refreshController(
          return;
       }
 
-      const decodedSession = Schema.decodeUnknownEither(
-         SessionRefreshValidator
-      )(sessionRaw);
-      if (Either.isLeft(decodedSession)) {
-         throw new Error(`Stored session failed validation during refresh.`, {
-            cause: decodedSession.left,
-         });
-      }
-      const session = decodedSession.right;
+      const validatedSession = decodeStored(
+         SessionRefreshValidator,
+         sessionRaw,
+         'refresh: session'
+      );
 
       // ── The account must still be allowed to hold a session ───────────────────
       /* Role and permissions are fetched fresh (never cached on the session), so the new access token always reflects the database. */
       const userRaw = await getUserCollection().findOne<IUserRefresh>(
-         { _id: session.userId } satisfies StrictMongoFilter<IUserDocument>,
+         {
+            _id: validatedSession.userId,
+         } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_REFRESH_PROJECTION,
          } satisfies StrictFindOneOptions<IUserRefresh>
       );
 
-      let user: IUserRefresh | null = null;
+      let validatedUser: IUserRefresh | null = null;
+
       if (userRaw !== null) {
-         const decodedUser =
-            Schema.decodeUnknownEither(UserRefreshValidator)(userRaw);
-         if (Either.isLeft(decodedUser)) {
-            throw new Error(
-               `Stored user failed validation during token refresh.`,
-               { cause: decodedUser.left }
-            );
-         }
-         user = decodedUser.right;
+         validatedUser = decodeStored(
+            UserRefreshValidator,
+            userRaw,
+            'refresh: user'
+         );
       }
 
-      if (user === null || !user.isActive || user.passwordResetRequired) {
+      if (
+         validatedUser === null ||
+         !validatedUser.isActive ||
+         validatedUser.passwordResetRequired
+      ) {
          /* Gone or deactivated: kill the session and clear cookies so the client isn't left holding dead credentials. */
          await sessionCollection.deleteOne({
-            _id: session._id,
+            _id: validatedSession._id,
          } satisfies StrictMongoFilter<ISessionDocument>);
          clearAuthCookies(res);
          return void res
@@ -221,21 +216,21 @@ export async function refreshController(
       const { raw: newRawToken, hash: newTokenHash } = generateRefreshToken();
 
       const accessToken = await signAccessToken({
-         sub: user._id.toString(),
-         role: user.role,
-         permissions: user.permissions,
-         sessionId: session._id.toString(),
+         sub: validatedUser._id.toString(),
+         role: validatedUser.role,
+         permissions: validatedUser.permissions,
+         sessionId: validatedSession._id.toString(),
          expirationTime: accessTokenExpirationTimestampMS,
       });
 
       /* Read-only, so it belongs above the commit point. If this threw AFTER the rotation, the new cookies would never reach the client, and its retry would look like token reuse and trigger the nuclear option. */
-      const emailChange = await loadEmailChangeStatus(user._id, now);
+      const emailChange = await loadEmailChangeStatus(validatedUser._id, now);
 
       // ── Commit: atomic compare-and-swap rotation ──────────────────────────────
       /* The filter IS the decision: "this token is STILL the current one and the session is STILL alive". Of two concurrent requests presenting the same token exactly one matches; the loser sees matchedCount 0. expiresAt is deliberately NOT updated: it is the Monday reset, not this token's lifetime. */
       const rotation = await sessionCollection.updateOne(
          {
-            _id: session._id,
+            _id: validatedSession._id,
             currentTokenHash: tokenHash,
             expiresAt: { $gt: now },
          } satisfies StrictMongoFilter<ISessionDocument>,
@@ -275,7 +270,7 @@ export async function refreshController(
          .json(
             buildAuthResponse(
                'Token refreshed successfully.',
-               user,
+               validatedUser,
                emailChange
             )
          );

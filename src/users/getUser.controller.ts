@@ -21,9 +21,9 @@ import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import { buildGetUserResponse } from '@utils/buildResponses.ts';
 import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
+import { decodeStored } from '@/utils/decodeStored.ts';
 
 export async function getUserController(
    _req: Request,
@@ -55,15 +55,15 @@ export async function getUserController(
                );
          }
 
-         const decodedSafeUser =
-            Schema.decodeUnknownEither(SafeUserValidator)(safeUserRaw);
-         if (Either.isLeft(decodedSafeUser)) {
-            throw decodedSafeUser.left;
-         }
+         const validatedSafeUser = decodeStored(
+            SafeUserValidator,
+            safeUserRaw,
+            'user (safe view)'
+         );
 
          return void res
             .status(200)
-            .json(buildGetUserResponse(decodedSafeUser.right));
+            .json(buildGetUserResponse(validatedSafeUser));
       }
 
       const publicUserRaw = await userCollection.findOne<IPublicUser>(filter, {
@@ -78,15 +78,15 @@ export async function getUserController(
             );
       }
 
-      const decodedPublicUser =
-         Schema.decodeUnknownEither(PublicUserValidator)(publicUserRaw);
-      if (Either.isLeft(decodedPublicUser)) {
-         throw decodedPublicUser.left;
-      }
+      const validatedPublicUser = decodeStored(
+         PublicUserValidator,
+         publicUserRaw,
+         'user (public view)'
+      );
 
       return void res
          .status(200)
-         .json(buildGetUserResponse(decodedPublicUser.right));
+         .json(buildGetUserResponse(validatedPublicUser));
    } catch (err) {
       next(err);
    }

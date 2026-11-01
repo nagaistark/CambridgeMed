@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
@@ -56,6 +55,7 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* A failed notification must never undo a completed reset, but must not vanish silently. Cannot reject. */
 async function notifyOwner(target: IUserPasswordResetTarget): Promise<void> {
@@ -108,19 +108,14 @@ export async function resetUserTotpController(
          );
       }
 
-      const decodedAdmin = Schema.decodeUnknownEither(
-         UserTotpManagementValidator
-      )(adminRaw);
-      if (Either.isLeft(decodedAdmin)) {
-         throw new Error(
-            `Stored admin failed validation during admin TOTP reset.`,
-            { cause: decodedAdmin.left }
-         );
-      }
-      const admin = decodedAdmin.right;
+      const validatedAdmin = decodeStored(
+         UserTotpManagementValidator,
+         adminRaw,
+         'admin TOTP reset: admin'
+      );
 
       const isPasswordValid = await verifyPassword(
-         admin.passwordHash,
+         validatedAdmin.passwordHash,
          currentPassword
       );
       if (!isPasswordValid) {
@@ -137,12 +132,12 @@ export async function resetUserTotpController(
 
       const context: SecondFactorContext = {
          purpose: 'admin-reset',
-         actorId: admin._id,
+         actorId: validatedAdmin._id,
          ...requestContext(req, res),
       };
 
       let adminClaim: FactorClaim | null = null;
-      if (admin.isTotpEnabled) {
+      if (validatedAdmin.isTotpEnabled) {
          const factor = toSecondFactorInput({ totpCode, recoveryCode });
          if (factor === null) {
             return void res
@@ -157,7 +152,11 @@ export async function resetUserTotpController(
                );
          }
 
-         const verification = await verifySecondFactor(admin, factor, context);
+         const verification = await verifySecondFactor(
+            validatedAdmin,
+            factor,
+            context
+         );
          if (verification.status !== 'verified') {
             sendSecondFactorFailure(res, verification, 403);
             return;
@@ -217,20 +216,15 @@ export async function resetUserTotpController(
                );
             }
 
-            const decodedTarget = Schema.decodeUnknownEither(
-               UserPasswordResetTargetValidator
-            )(targetRaw);
-            if (Either.isLeft(decodedTarget)) {
-               throw new Error(
-                  `Stored target user failed validation during admin TOTP reset.`,
-                  { cause: decodedTarget.left }
-               );
-            }
-            const resolvedTarget = decodedTarget.right;
+            const validatedTarget = decodeStored(
+               UserPasswordResetTargetValidator,
+               targetRaw,
+               'admin TOTP reset: target'
+            );
 
             const sessions = await getSessionCollection().deleteMany(
                {
-                  userId: resolvedTarget._id,
+                  userId: validatedTarget._id,
                } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
@@ -238,7 +232,7 @@ export async function resetUserTotpController(
             /* A reset link issued while 2FA was on would otherwise be redeemable without the step-up the moment 2FA is gone. */
             await getPasswordResetCollection().deleteMany(
                {
-                  userId: resolvedTarget._id,
+                  userId: validatedTarget._id,
                } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
                { session }
             );
@@ -246,14 +240,14 @@ export async function resetUserTotpController(
             /* Unconfirmed only: a confirmed change's cancel link is the owner's recovery handle (same rule as everywhere else). */
             await getEmailChangeCollection().deleteMany(
                {
-                  userId: resolvedTarget._id,
+                  userId: validatedTarget._id,
                   confirmedAt: null,
                } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
                { session }
             );
 
             return {
-               target: resolvedTarget,
+               target: validatedTarget,
                sessionsRevoked: sessions.deletedCount,
             };
          }
@@ -261,13 +255,13 @@ export async function resetUserTotpController(
 
       // ── After the commit ───────────────────────────────────────────────────────
       if (adminClaim !== null) {
-         await clearSecondFactorAttempts(admin._id);
+         await clearSecondFactorAttempts(validatedAdmin._id);
          recordFactorUsage(adminClaim, context);
       }
 
       securityLog.record({
          event: 'TOTP_RESET_BY_ADMIN',
-         actorId: admin._id,
+         actorId: validatedAdmin._id,
          targetUserId: target._id,
          ...requestContext(req, res),
       });

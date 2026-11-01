@@ -1,5 +1,4 @@
 import type { Request } from 'express';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
@@ -29,6 +28,7 @@ import { createErrorResponse } from '../errorHandlers.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import logger from '../logger.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to await AFTER the response has been sent. */
 async function notifyRecoveryCodeUsed(
@@ -65,20 +65,16 @@ export async function completeTotpLogin(
       } satisfies StrictFindOneOptions<IUserTotpLogin>
    );
 
-   let user: IUserTotpLogin | null = null;
+   let validatedUser: IUserTotpLogin | null = null;
    if (userRaw !== null) {
-      const decodedUser = Schema.decodeUnknownEither(UserTotpLoginValidator)(
-         userRaw
+      validatedUser = decodeStored(
+         UserTotpLoginValidator,
+         userRaw,
+         'TOTP login user'
       );
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(`Stored user failed validation during TOTP login.`, {
-            cause: decodedUser.left,
-         });
-      }
-      user = decodedUser.right;
    }
 
-   if (user === null || !user.isActive) {
+   if (validatedUser === null || !validatedUser.isActive) {
       clearTotpChallengeCookie(res);
       return void res
          .status(401)
@@ -91,7 +87,7 @@ export async function completeTotpLogin(
          );
    }
 
-   if (user.passwordResetRequired) {
+   if (validatedUser.passwordResetRequired) {
       clearTotpChallengeCookie(res);
       return void res
          .status(403)
@@ -104,7 +100,7 @@ export async function completeTotpLogin(
          );
    }
 
-   if (!user.isTotpEnabled) {
+   if (!validatedUser.isTotpEnabled) {
       clearTotpChallengeCookie(res);
       return void res
          .status(400)
@@ -118,7 +114,10 @@ export async function completeTotpLogin(
    }
 
    /* BEFORE checkSecondFactor: that call SPENDS the code. A read that failed after it would burn a recovery code and still fail the login. The status is only ever sent once the factor has verified. */
-   const emailChange = await loadEmailChangeStatus(user._id, new Date());
+   const emailChange = await loadEmailChangeStatus(
+      validatedUser._id,
+      new Date()
+   );
 
    /* `actorId: null`: the caller has proven a password but holds no session yet. */
    const context: SecondFactorContext = {
@@ -128,27 +127,29 @@ export async function completeTotpLogin(
    };
 
    /* On failure we deliberately do NOT clear the challenge cookie: a mistyped code should be retryable without re-entering the password. The attempt gate, not the cookie, bounds retries. Pre-session route, hence 401. */
-   const outcome = await checkSecondFactor(user, input, context);
+   const outcome = await checkSecondFactor(validatedUser, input, context);
    if (outcome.status !== 'verified') {
       sendSecondFactorFailure(res, outcome, 401);
       return;
    }
 
-   await issueSession(user, req, res);
+   await issueSession(validatedUser, req, res);
    clearTotpChallengeCookie(res);
 
    const remaining = outcome.remainingRecoveryCodes;
    if (remaining === null) {
       return void res
          .status(200)
-         .json(buildAuthResponse(`Login successful.`, user, emailChange));
+         .json(
+            buildAuthResponse(`Login successful.`, validatedUser, emailChange)
+         );
    }
 
    /* The response goes out FIRST. The email provider's round trip (hundreds of ms, occasionally seconds) is none of the user's business. We still `await` the notification afterwards, so the work stays owned by this request's async chain (no floating promise) and cannot reject. */
    res.status(200).json({
       ...buildAuthResponse(
          `Login successful via recovery code.`,
-         user,
+         validatedUser,
          emailChange
       ),
       remainingRecoveryCodes: remaining,
@@ -159,5 +160,5 @@ export async function completeTotpLogin(
          : {}),
    });
 
-   await notifyRecoveryCodeUsed(user, remaining);
+   await notifyRecoveryCodeUsed(validatedUser, remaining);
 }

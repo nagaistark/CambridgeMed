@@ -1,5 +1,4 @@
 import type { ObjectId } from 'mongodb';
-import { Either, Schema } from 'effect';
 import {
    EmailChangeStatusSourceValidator,
    getEmailChangeCollection,
@@ -15,6 +14,7 @@ import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* The unique `userId` index guarantees at most one document, so this is a single indexed point read. Read-only: safe to call before any commit point. */
 export async function loadEmailChangeStatus(
@@ -31,15 +31,11 @@ export async function loadEmailChangeStatus(
 
    if (changeRaw === null) return { state: 'none' };
 
-   const decoded = Schema.decodeUnknownEither(EmailChangeStatusSourceValidator)(
-      changeRaw
+   const validatedChange = decodeStored(
+      EmailChangeStatusSourceValidator,
+      changeRaw,
+      'email change status'
    );
-   if (Either.isLeft(decoded)) {
-      throw new Error(
-         `Stored email change failed validation while reading its status.`,
-         { cause: decoded.left }
-      );
-   }
 
-   return classifyEmailChange(decoded.right, now);
+   return classifyEmailChange(validatedChange, now);
 }

@@ -20,11 +20,11 @@ import type {
    StrictFindOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import { buildListUsersResponse } from '@utils/buildResponses.ts';
 import type { IObjectIdCursorPagination } from '@utils/effectSchemaReusables.ts';
 import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
 import { takePage } from '@utils/cursorPagination.ts';
+import { decodeStored } from '@/utils/decodeStored.ts';
 
 export async function listUsersController(
    _req: Request,
@@ -57,16 +57,18 @@ export async function listUsersController(
             .toArray();
 
          const { items, hasNextPage } = takePage(safeUsersRaw, limit);
-         const decoded = Schema.decodeUnknownEither(SafeUserArrayValidator)(
-            items
+
+         const validatedSafeItems = decodeStored(
+            SafeUserArrayValidator,
+            items,
+            'user list (safe view)'
          );
-         if (Either.isLeft(decoded)) {
-            throw decoded.left;
-         }
 
          return void res
             .status(200)
-            .json(buildListUsersResponse(decoded.right, hasNextPage, limit));
+            .json(
+               buildListUsersResponse(validatedSafeItems, hasNextPage, limit)
+            );
       }
 
       const publicUsersRaw = await userCollection
@@ -79,16 +81,18 @@ export async function listUsersController(
          .toArray();
 
       const { items, hasNextPage } = takePage(publicUsersRaw, limit);
-      const decoded = Schema.decodeUnknownEither(PublicUserArrayValidator)(
-         items
+
+      const validatedPublicItems = decodeStored(
+         PublicUserArrayValidator,
+         items,
+         'user list (public view)'
       );
-      if (Either.isLeft(decoded)) {
-         throw decoded.left;
-      }
 
       return void res
          .status(200)
-         .json(buildListUsersResponse(decoded.right, hasNextPage, limit));
+         .json(
+            buildListUsersResponse(validatedPublicItems, hasNextPage, limit)
+         );
    } catch (err) {
       next(err);
    }

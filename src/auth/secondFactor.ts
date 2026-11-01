@@ -1,6 +1,5 @@
 import type { Response } from 'express';
 import type { ClientSession, ObjectId } from 'mongodb';
-import { Either, Schema } from 'effect';
 import { verify } from 'otplib';
 import {
    getUserCollection,
@@ -27,6 +26,7 @@ import {
    type RequestContext,
 } from '@services/securityLog.service.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 // ── Types ────────────────────────────────────────────────────────────────────────
 export type SecondFactorInput =
@@ -320,18 +320,15 @@ export async function consumeSecondFactor(
    );
    if (consumedRaw === null) return { status: 'rejected' };
 
-   const decoded = Schema.decodeUnknownEither(UserRecoveryCodesValidator)(
-      consumedRaw
+   const validatedConsumed = decodeStored(
+      UserRecoveryCodesValidator,
+      consumedRaw,
+      'recovery codes after consume'
    );
-   if (Either.isLeft(decoded)) {
-      throw new Error(`Stored recovery codes failed validation.`, {
-         cause: decoded.left,
-      });
-   }
 
    return {
       status: 'consumed',
-      remainingRecoveryCodes: decoded.right.totpRecoveryCodes.length,
+      remainingRecoveryCodes: validatedConsumed.totpRecoveryCodes.length,
    };
 }
 

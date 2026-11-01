@@ -21,10 +21,10 @@ import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import type { ClientSession, ObjectId } from 'mongodb';
 import { EMAIL_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 type ConfirmParams = { token: string };
 type ConfirmOutcome =
@@ -51,25 +51,26 @@ async function runConfirmTransaction(
 
       if (claimedRaw === null) return { status: 'invalid' };
 
-      const decoded = Schema.decodeUnknownEither(
-         EmailChangeDocumentReadValidator
-      )(claimedRaw);
-
-      if (Either.isLeft(decoded)) throw decoded.left;
-
-      const change = decoded.right;
+      const validatedChange = decodeStored(
+         EmailChangeDocumentReadValidator,
+         claimedRaw,
+         'email change (confirm)'
+      );
 
       const applied = await getUserCollection().updateOne(
          {
-            _id: change.userId,
-            email: change.oldEmail,
+            _id: validatedChange.userId,
+            email: validatedChange.oldEmail,
             isActive: true,
             emailChangesUsed: { $lt: EMAIL_CHANGE_CAP },
          } satisfies StrictMongoFilter<IUserDocument>,
          {
-            $set: { email: change.newEmail, updatedAt: now },
+            $set: { email: validatedChange.newEmail, updatedAt: now },
             $push: {
-               previousEmails: { email: change.oldEmail, archivedAt: now },
+               previousEmails: {
+                  email: validatedChange.oldEmail,
+                  archivedAt: now,
+               },
             },
             $inc: { emailChangesUsed: 1 },
          } satisfies StrictUpdate<IUserDocument>,
@@ -88,19 +89,19 @@ async function runConfirmTransaction(
       /* "Nuclear" logout inside the transaction. All sessions must be destroyed so the user re-authenticates against the new address. Placing this inside the transaction guarantees it is rolled back if either of the writes above fails. */
       await getSessionCollection().deleteMany(
          {
-            userId: change.userId,
+            userId: validatedChange.userId,
          } satisfies StrictMongoFilter<ISessionDocument>,
          { session }
       );
 
       await getPasswordResetCollection().deleteMany(
          {
-            userId: change.userId,
+            userId: validatedChange.userId,
          } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
          { session }
       );
 
-      return { status: 'confirmed', userId: change.userId };
+      return { status: 'confirmed', userId: validatedChange.userId };
    });
 }
 

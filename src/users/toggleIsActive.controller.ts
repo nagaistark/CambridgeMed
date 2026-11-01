@@ -23,7 +23,6 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { USER_ID_ROLE_ACTIVE_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import {
@@ -42,6 +41,7 @@ import { allowedRoles, isAllowedRole } from '@ssot/user_roles_constants.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
 import logger from '../logger.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 // ── Transaction outcome ──────────────────────────────────────────────────────────
 /* Every settled result the transaction can produce. 'no_match' means the conditional update matched nothing, so NOTHING was written or swept. The controller then diagnoses why, outside the transaction. */
@@ -203,20 +203,13 @@ export async function toggleIsActiveController(
             );
       }
 
-      const decodedTarget = Schema.decodeUnknownEither(
-         UserIdRoleActiveValidator
-      )(targetRaw);
-      if (Either.isLeft(decodedTarget)) {
-         /* A stored document failing its own schema is a server-side data problem, not a client mistake. A plain Error reaches the catch-all (logged, vague 500), whereas a ParseError would be reported to the caller as a 422. */
-         throw new Error(
-            `Stored user ${id.toHexString()} failed validation during account status change.`,
-            { cause: decodedTarget.left }
-         );
-      }
+      const validatedTarget = decodeStored(
+         UserIdRoleActiveValidator,
+         targetRaw,
+         'account status target'
+      );
 
-      const target = decodedTarget.right;
-
-      if (!isAllowedRole(target.role)) {
+      if (!isAllowedRole(validatedTarget.role)) {
          return void res
             .status(403)
             .json(
@@ -228,7 +221,7 @@ export async function toggleIsActiveController(
             );
       }
 
-      if (target.isActive === isActive) {
+      if (validatedTarget.isActive === isActive) {
          return void res
             .status(400)
             .json(

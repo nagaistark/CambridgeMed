@@ -30,7 +30,6 @@ import { canIssueInviteForRole } from '@ssot/permissions_constants.ts';
 import { myEnv } from '../validateConfig.ts';
 import { type CountDocumentsOptions, ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
-import { Either, Schema } from 'effect';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import type {
@@ -38,6 +37,7 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function createInviteController(
    _req: Request,
@@ -69,14 +69,11 @@ export async function createInviteController(
       }
 
       // ── Validate the fetched document against the schema ───────────────────────
-      const decodedIssuer = Schema.decodeUnknownEither(
-         UserInviteIssuerValidator
-      )(issuerRaw);
-      if (Either.isLeft(decodedIssuer)) {
-         throw decodedIssuer.left;
-      }
-
-      const validatedIssuer = decodedIssuer.right;
+      const validatedIssuer = decodeStored(
+         UserInviteIssuerValidator,
+         issuerRaw,
+         'invite issuer'
+      );
 
       /* DB values, not the JWT: the token can be up to 60s stale. */
       if (!canIssueInviteForRole(validatedIssuer, role)) {
@@ -160,12 +157,11 @@ export async function createInviteController(
          issuedBy: new ObjectId(sub),
       };
 
-      const decodedSafeInvitePayload = Schema.decodeUnknownEither(
-         SafeInviteCreateValidator
-      )(safeInvitePayload);
-      if (Either.isLeft(decodedSafeInvitePayload)) {
-         throw decodedSafeInvitePayload.left;
-      }
+      const validatedSafeInvitePayload = decodeStored(
+         SafeInviteCreateValidator,
+         safeInvitePayload,
+         'safe invite payload'
+      );
 
       const fullInvitePayload: IInviteDocumentCreate = {
          ...safeInvitePayload,
@@ -175,12 +171,11 @@ export async function createInviteController(
          updatedAt: now,
       };
 
-      const decodedFullInvitePayload = Schema.decodeUnknownEither(
-         InviteDocumentCreateValidator
-      )(fullInvitePayload);
-      if (Either.isLeft(decodedFullInvitePayload)) {
-         throw decodedFullInvitePayload.left;
-      }
+      const validatedFullInvitePayload = decodeStored(
+         InviteDocumentCreateValidator,
+         fullInvitePayload,
+         'invite document payload'
+      );
 
       /* Guard #2 is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
       await inviteCollection.deleteMany({
@@ -193,7 +188,7 @@ export async function createInviteController(
       let insertedId: ObjectId;
       try {
          const insertResult = await inviteCollection.insertOne(
-            decodedFullInvitePayload.right
+            validatedFullInvitePayload
          );
          insertedId = insertResult.insertedId;
       } catch (insertErr) {
@@ -250,7 +245,7 @@ export async function createInviteController(
       // ── Respond ────────────────────────────────────────────────────────────────
       return void res
          .status(201)
-         .json(buildCreateInviteResponse(decodedSafeInvitePayload.right));
+         .json(buildCreateInviteResponse(validatedSafeInvitePayload));
    } catch (err) {
       next(err);
    }

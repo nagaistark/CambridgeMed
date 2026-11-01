@@ -12,9 +12,10 @@ import {
 import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
 import type { ISessionDocument } from '@models/Session_v3.model.ts';
 import { ObjectId } from 'mongodb';
-import { Either, Option, Schema } from 'effect';
+import { Option, Schema } from 'effect';
 import { evictExcessSessions } from '@utils/evictExcessSessions.ts';
 import { ipAddress } from '@utils/effectSchemaReusables.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* Creates a Session document, signs both tokens, sets the auth cookies. Shared by the password-only login path, the TOTP verification path and the recovery-code path. */
 export async function issueSession(
@@ -52,16 +53,11 @@ export async function issueSession(
       updatedAt: now,
    };
 
-   const decoded = Schema.decodeUnknownEither(SessionDocumentCreateValidator)(
-      candidate
+   const validatedSession = decodeStored(
+      SessionDocumentCreateValidator,
+      candidate,
+      'new session document'
    );
-   if (Either.isLeft(decoded)) {
-      /* Built entirely server-side, so this is a programmer error: a plain Error (logged, vague 500), not a ParseError (which the pipeline would answer with a 422). */
-      throw new Error(`Freshly built session failed validation.`, {
-         cause: decoded.left,
-      });
-   }
-   const validatedSession = decoded.right;
 
    /* Everything fallible happens BEFORE the write that commits. If signing fails, no orphaned session is left behind. */
    const accessToken = await signAccessToken({

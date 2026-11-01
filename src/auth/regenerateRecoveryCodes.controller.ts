@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
@@ -32,6 +31,7 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* POST /api/auth/totp/recovery-codes/regenerate
    Replaces the WHOLE set: every old code stops working the moment this commits. Same bar as disabling 2FA (password + one current factor), because a fresh set of break-glass credentials is exactly what an attacker with a hijacked session would want. */
@@ -63,19 +63,14 @@ export async function regenerateRecoveryCodesController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(
-         UserTotpManagementValidator
-      )(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(
-            `Stored user failed validation while regenerating recovery codes.`,
-            { cause: decodedUser.left }
-         );
-      }
-      const user = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserTotpManagementValidator,
+         userRaw,
+         'TOTP recovery-code regeneration user'
+      );
 
       const isPasswordValid = await verifyPassword(
-         user.passwordHash,
+         validatedUser.passwordHash,
          currentPassword
       );
       if (!isPasswordValid) {
@@ -90,7 +85,7 @@ export async function regenerateRecoveryCodesController(
             );
       }
 
-      if (!user.isTotpEnabled) {
+      if (!validatedUser.isTotpEnabled) {
          return void res
             .status(400)
             .json(
@@ -117,11 +112,15 @@ export async function regenerateRecoveryCodesController(
 
       const context: SecondFactorContext = {
          purpose: 'regenerate-codes',
-         actorId: user._id,
+         actorId: validatedUser._id,
          ...requestContext(req, res),
       };
 
-      const verification = await verifySecondFactor(user, factor, context);
+      const verification = await verifySecondFactor(
+         validatedUser,
+         factor,
+         context
+      );
       if (verification.status !== 'verified') {
          sendSecondFactorFailure(res, verification, 403);
          return;
@@ -147,7 +146,7 @@ export async function regenerateRecoveryCodesController(
 
          const replaced = await userCollection.updateOne(
             {
-               _id: user._id,
+               _id: validatedUser._id,
                isTotpEnabled: true,
                isActive: true,
             } satisfies StrictMongoFilter<IUserDocument>,
@@ -170,12 +169,12 @@ export async function regenerateRecoveryCodesController(
          }
       });
 
-      await clearSecondFactorAttempts(user._id);
+      await clearSecondFactorAttempts(validatedUser._id);
       recordFactorUsage(verification.claim, context);
       securityLog.record({
          event: 'TOTP_RECOVERY_CODES_REGENERATED',
-         actorId: user._id,
-         targetUserId: user._id,
+         actorId: validatedUser._id,
+         targetUserId: validatedUser._id,
          ...requestContext(req, res),
       });
 

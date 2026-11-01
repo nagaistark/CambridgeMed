@@ -28,7 +28,6 @@ import {
    resolvePermissions,
 } from '@ssot/permissions_constants.ts';
 import { ClientSession, ObjectId } from 'mongodb';
-import { Either, Schema } from 'effect';
 import type {
    StrictFindOneAndUpdateOptions,
    StrictFindOneOptions,
@@ -42,6 +41,7 @@ import {
 } from '@ssot/user_mongodb_query_projection_constants.ts';
 import logger from '../logger.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -119,16 +119,12 @@ async function runRegistrationTransaction(
             throw new TransactionAbortError({ status: 'invalid_token' });
          }
 
-         /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. The driver's generic type (Collection<IInviteDoc>) is a compile-time cast, not a runtime guarantee. */
-         const decodedClaimedInvite = Schema.decodeUnknownEither(
-            SafeInviteReadValidator
-         )(claimedInviteRaw);
-         if (Either.isLeft(decodedClaimedInvite)) {
-            /* A stored invite failing its own document schema means data drift or corruption, not a client mistake — let it surface as a real error rather than silently trusting bad data. */
-            throw decodedClaimedInvite.left;
-         }
-
-         const validatedClaimedInvite = decodedClaimedInvite.right;
+         /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. */
+         const validatedClaimedInvite = decodeStored(
+            SafeInviteReadValidator,
+            claimedInviteRaw,
+            'claimed invite'
+         );
 
          // ── Email confirmation check ────────────────────────────────────────────
          /* We compare the body email against claimedInvite.email (the value locked in at invite creation time) to confirm the registering person is the intended recipient.
@@ -151,20 +147,14 @@ async function runRegistrationTransaction(
             throw new TransactionAbortError({ status: 'invalid_token' });
          }
 
-         const decodedIssuer = Schema.decodeUnknownEither(
-            UserInviteIssuerValidator
-         )(issuerRaw);
-         if (Either.isLeft(decodedIssuer)) {
-            throw new Error(
-               `Issuer ${validatedClaimedInvite.issuedBy.toHexString()} failed schema validation during invite acceptance.`
-            );
-         }
+         const validatedIssuer = decodeStored(
+            UserInviteIssuerValidator,
+            issuerRaw,
+            'invite acceptance: issuer'
+         );
 
          if (
-            !canIssueInviteForRole(
-               decodedIssuer.right,
-               validatedClaimedInvite.role
-            )
+            !canIssueInviteForRole(validatedIssuer, validatedClaimedInvite.role)
          ) {
             logger.warn(
                `Invite accepted after issuer lost authority; refusing.`,
@@ -178,7 +168,7 @@ async function runRegistrationTransaction(
 
          // ── Create the User document ────────────────────────────────────────────
          /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDocument`). */
-         const payload: IUserDocument = {
+         const userPayload: IUserDocument = {
             _id: userId,
             firstName,
             lastName,
@@ -209,15 +199,13 @@ async function runRegistrationTransaction(
             updatedAt: now,
          };
 
-         const decoded = Schema.decodeUnknownEither(UserDocumentValidator)(
-            payload
+         const validatedUserPayload = decodeStored(
+            UserDocumentValidator,
+            userPayload,
+            'new user document'
          );
-         if (Either.isLeft(decoded)) {
-            /* A payload built entirely from server-side logic failing validation means a programmer error, not a client input problem — treat accordingly. */
-            throw decoded.left;
-         }
 
-         await userCollection.insertOne(decoded.right, { session });
+         await userCollection.insertOne(validatedUserPayload, { session });
 
          outcome = { status: 'success' };
          // withTransaction() commits automatically when the callback resolves.
@@ -274,14 +262,13 @@ export async function acceptInviteController(
             );
       }
 
-      const decodedInvite = Schema.decodeUnknownEither(
-         InviteEmailCheckValidator
-      )(inviteRaw);
-      if (Either.isLeft(decodedInvite)) {
-         throw decodedInvite.left;
-      }
+      const validatedInvite = decodeStored(
+         InviteEmailCheckValidator,
+         inviteRaw,
+         'invite email pre-flight'
+      );
 
-      if (decodedInvite.right.email !== email) {
+      if (validatedInvite.email !== email) {
          return void res
             .status(400)
             .json(

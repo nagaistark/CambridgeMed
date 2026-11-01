@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import {
    getSessionCollection,
@@ -34,6 +33,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { takePage } from '@utils/cursorPagination.ts';
 import { buildListSessionsResponse } from '@utils/buildResponses.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function listSessionsController(
    _req: Request,
@@ -72,24 +72,21 @@ export async function listSessionsController(
             .toArray();
 
          const { items, hasNextPage } = takePage(rowsRaw, limit);
-         const decoded = Schema.decodeUnknownEither(
-            SessionAdminViewArrayValidator
-         )(items);
-         if (Either.isLeft(decoded)) {
-            throw new Error(`Stored sessions failed validation in the list.`, {
-               cause: decoded.left,
-            });
-         }
-         const sessions = decoded.right;
+
+         const validatedSessions = decodeStored(
+            SessionAdminViewArrayValidator,
+            items,
+            'session list (admin)'
+         );
 
          // ── Batch-fetch owner names (same pattern as listInvitesController) ───
          const ownersById = new Map<string, IUserIdNameEmail>();
 
-         if (sessions.length > 0) {
+         if (validatedSessions.length > 0) {
             /* Keyed by hex: a Set of ObjectId instances compares identity, not value, and would never deduplicate. */
             const uniqueUserIds = [
                ...new Map(
-                  sessions.map(s => [s.userId.toHexString(), s.userId])
+                  validatedSessions.map(s => [s.userId.toHexString(), s.userId])
                ).values(),
             ];
 
@@ -104,24 +101,19 @@ export async function listSessionsController(
                )
                .toArray();
 
-            const decodedOwners = Schema.decodeUnknownEither(
-               UserIdNameEmailArrayValidator
-            )(ownersRaw);
+            const validatedOwners = decodeStored(
+               UserIdNameEmailArrayValidator,
+               ownersRaw,
+               'session list owners'
+            );
 
-            if (Either.isLeft(decodedOwners)) {
-               throw new Error(
-                  `Stored users failed validation in the session list.`,
-                  { cause: decodedOwners.left }
-               );
-            }
-
-            for (const owner of decodedOwners.right) {
+            for (const owner of validatedOwners) {
                ownersById.set(owner._id.toHexString(), owner);
             }
          }
 
          /* Field-by-field on purpose: if a field is ever added to ISessionAdminView, this stops compiling until it is mapped. Drift is impossible. */
-         const result: ISessionAdminListItem[] = sessions.map(s => ({
+         const result: ISessionAdminListItem[] = validatedSessions.map(s => ({
             _id: s._id,
             userId: s.userId,
             ipAddress: s.ipAddress,
@@ -148,16 +140,14 @@ export async function listSessionsController(
          .toArray();
 
       const { items, hasNextPage } = takePage(rowsRaw, limit);
-      const decoded = Schema.decodeUnknownEither(SessionSelfViewArrayValidator)(
-         items
-      );
-      if (Either.isLeft(decoded)) {
-         throw new Error(`Stored sessions failed validation in the list.`, {
-            cause: decoded.left,
-         });
-      }
 
-      const result: ISessionSelfListItem[] = decoded.right.map(s => ({
+      const validatedItems = decodeStored(
+         SessionSelfViewArrayValidator,
+         items,
+         'session list (self)'
+      );
+
+      const result: ISessionSelfListItem[] = validatedItems.map(s => ({
          _id: s._id,
          ipAddress: s.ipAddress,
          userAgent: s.userAgent,

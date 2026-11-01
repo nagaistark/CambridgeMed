@@ -37,11 +37,11 @@ import {
 } from '@utils/pathFinder_v3.ts';
 import { verifyPassword } from '@utils/hashAndVerify.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
-import { Either, Schema } from 'effect';
 import { USER_EMAIL_CHANGE_INITIATOR_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { classifyEmailChange } from '@ssot/email_change_status_constants.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 const EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE = `This email address is already claimed by a pending change request.`;
 const EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE = `You already have an active email change request. Please complete or cancel it first.`;
@@ -78,15 +78,11 @@ export async function initiateEmailChangeController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(
-         UserEmailChangeInitiatorValidator
-      )(userRaw);
-
-      if (Either.isLeft(decodedUser)) {
-         throw decodedUser.left;
-      }
-
-      const validatedUser = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserEmailChangeInitiatorValidator,
+         userRaw,
+         'email change initiator'
+      );
 
       /* Verify the password immediately after the decode, before every guard. Otherwise Guards 2–5 ("cap reached", "email already exists", "claimed by pending change") become a probing oracle for someone with a stolen session but no password. */
       const isPasswordValid = await verifyPassword(
@@ -263,15 +259,11 @@ export async function initiateEmailChangeController(
          updatedAt: now,
       };
 
-      const decodedEmailChangePayload = Schema.decodeUnknownEither(
-         EmailChangeDocumentCreateValidator
-      )(emailChangePayload);
-
-      if (Either.isLeft(decodedEmailChangePayload)) {
-         throw decodedEmailChangePayload.left;
-      }
-
-      const validatedEmailChangePayload = decodedEmailChangePayload.right;
+      const validatedEmailChangePayload = decodeStored(
+         EmailChangeDocumentCreateValidator,
+         emailChangePayload,
+         'email change payload'
+      );
 
       // ── Map duplicate-key errors at insert ─────────────────────────────────────
       let emailChangeId: ObjectId;

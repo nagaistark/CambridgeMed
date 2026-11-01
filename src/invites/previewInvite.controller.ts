@@ -13,7 +13,7 @@ import type {
    StrictFindOneOptions,
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 // Declare the param shape so `token` is narrowed to `string`:
 type PreviewInviteParams = { token: string };
@@ -50,16 +50,11 @@ export async function previewInviteController(
       }
 
       // ── Validate the fetched safe invite against the schema ────────────────────
-      const decodedSafeInvite = Schema.decodeUnknownEither(
-         InvitePreviewValidator
-      )(inviteRaw);
-
-      if (Either.isLeft(decodedSafeInvite)) {
-         throw decodedSafeInvite.left;
-      }
-
-      // ── Use the validated safe invite from now on ──────────────────────────────
-      const validatedInvitePreview = decodedSafeInvite.right;
+      const validatedInvitePreview = decodeStored(
+         InvitePreviewValidator,
+         inviteRaw,
+         'invite preview'
+      );
 
       // ── Expiry check ───────────────────────────────────────────────────────────
       /* We check expiresAt even if the document exists, because MongoDB's TTL janitor runs on a background thread and may lag by up to a minute. This ensures the response is always logically correct, not just contingent on when the janitor last ran. */

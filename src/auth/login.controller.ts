@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import {
    getUserCollection,
    UserLoginValidator,
@@ -23,6 +22,7 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* A real hash, made once at startup with the CURRENT ARGON2_CONFIG, of a password nobody knows. When no user matches, we still run a full verification against it so "no such user" costs the same as "wrong password". Because it is generated rather than pasted, it cannot drift from the config. */
 const TIMING_DUMMY_HASH: string = await hashPassword(generateRandomToken());
@@ -43,25 +43,22 @@ export async function loginController(
          } satisfies StrictFindOneOptions<IUserLogin>
       );
 
-      let user: IUserLogin | null = null;
+      let validatedUser: IUserLogin | null = null;
       if (userRaw !== null) {
-         const decodedUser =
-            Schema.decodeUnknownEither(UserLoginValidator)(userRaw);
-         if (Either.isLeft(decodedUser)) {
-            throw new Error(`Stored user failed validation during login.`, {
-               cause: decodedUser.left,
-            });
-         }
-         user = decodedUser.right;
+         validatedUser = decodeStored(
+            UserLoginValidator,
+            userRaw,
+            'login user'
+         );
       }
 
       const isPasswordValid = await verifyPassword(
-         user?.passwordHash ?? TIMING_DUMMY_HASH,
+         validatedUser?.passwordHash ?? TIMING_DUMMY_HASH,
          password
       );
 
       // Deliberately vague: same message for "no such user" and "wrong password".
-      if (user === null || !isPasswordValid) {
+      if (validatedUser === null || !isPasswordValid) {
          return void res
             .status(401)
             .json(
@@ -74,7 +71,7 @@ export async function loginController(
       }
 
       /* AFTER the credential check on purpose: revealing "deactivated" is acceptable only to someone who has just proven the password. */
-      if (!user.isActive) {
+      if (!validatedUser.isActive) {
          return void res
             .status(403)
             .json(
@@ -86,7 +83,7 @@ export async function loginController(
             );
       }
 
-      if (user.passwordResetRequired) {
+      if (validatedUser.passwordResetRequired) {
          return void res
             .status(403)
             .json(
@@ -99,9 +96,9 @@ export async function loginController(
       }
 
       // ── TOTP gate (logic unchanged; TOTP is tabled) ────────────────────────────
-      if (user.isTotpEnabled) {
+      if (validatedUser.isTotpEnabled) {
          const challengeToken = await signTotpChallengeToken(
-            user._id.toString()
+            validatedUser._id.toString()
          );
          setTotpChallengeCookie(res, challengeToken);
 
@@ -113,13 +110,18 @@ export async function loginController(
       }
 
       /* Read-only and fallible, so it goes BEFORE issueSession commits a session and sets cookies. Placed after every credential check: unknown emails and the 202 challenge path never reach it. */
-      const emailChange = await loadEmailChangeStatus(user._id, new Date());
+      const emailChange = await loadEmailChangeStatus(
+         validatedUser._id,
+         new Date()
+      );
 
-      await issueSession(user, req, res);
+      await issueSession(validatedUser, req, res);
 
       return void res
          .status(200)
-         .json(buildAuthResponse('Login successful', user, emailChange));
+         .json(
+            buildAuthResponse('Login successful', validatedUser, emailChange)
+         );
    } catch (err) {
       next(err);
    }

@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import {
    getUserCollection,
    type IUserDocument,
@@ -20,6 +19,7 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function changeNameController(
    _req: Request,
@@ -49,13 +49,11 @@ export async function changeNameController(
             );
       }
 
-      const decodedUser =
-         Schema.decodeUnknownEither(UserNamesValidator)(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw decodedUser.left;
-      }
-
-      const validatedUser = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserNamesValidator,
+         userRaw,
+         'user names'
+      );
 
       // ── Cap check ──────────────────────────────────────────────────────────────
       if (validatedUser.nameChangesUsed >= NAME_CHANGE_CAP) {

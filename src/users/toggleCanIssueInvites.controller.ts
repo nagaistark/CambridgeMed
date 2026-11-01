@@ -26,7 +26,6 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import {
    USER_ID_ROLE_PERMISSIONS_PROJECTION,
    USER_INVITE_ISSUER_PROJECTION,
@@ -36,6 +35,7 @@ import {
    type IInviteDocumentRead,
 } from '@models/Invite_v3.model.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function toggleCanIssueInvitesController(
    req: Request,
@@ -76,16 +76,11 @@ export async function toggleCanIssueInvitesController(
             );
       }
 
-      /* We consume `role` and `permissions` below, so the decode stays. */
-      const decodedTargetUser = Schema.decodeUnknownEither(
-         UserIdRolePermissionsValidator
-      )(targetUserRaw);
-
-      if (Either.isLeft(decodedTargetUser)) {
-         throw decodedTargetUser.left;
-      }
-
-      const validatedTargetUser = decodedTargetUser.right;
+      const validatedTargetUser = decodeStored(
+         UserIdRolePermissionsValidator,
+         targetUserRaw,
+         'invite privilege: target user'
+      );
 
       // ── No-op guard ────────────────────────────────────────────────────────────
       const currentlyHas =
@@ -140,14 +135,13 @@ export async function toggleCanIssueInvitesController(
             );
          }
 
-         const decodedCaller = Schema.decodeUnknownEither(
-            UserInviteIssuerValidator
-         )(callerRaw);
-         if (Either.isLeft(decodedCaller)) {
-            throw decodedCaller.left;
-         }
+         const validatedCaller = decodeStored(
+            UserInviteIssuerValidator,
+            callerRaw,
+            'invite privilege: caller'
+         );
 
-         const caller = decodedCaller.right;
+         const caller = validatedCaller;
          if (
             !caller.isActive ||
             (caller.permissions & Permissions.ISSUE_INVITES) === 0

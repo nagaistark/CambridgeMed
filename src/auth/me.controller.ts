@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import {
    getUserCollection,
    SafeUserValidator,
@@ -16,6 +15,7 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function meController(
    _req: Request,
@@ -46,18 +46,15 @@ export async function meController(
             );
       }
 
-      const decodedUser =
-         Schema.decodeUnknownEither(SafeUserValidator)(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(`Stored user failed validation in /me.`, {
-            cause: decodedUser.left,
-         });
-      }
-      const user = decodedUser.right;
+      const validatedUser = decodeStored(
+         SafeUserValidator,
+         userRaw,
+         '/me user'
+      );
 
       return void res
          .status(200)
-         .json(buildMeResponse('Session valid.', user, emailChange));
+         .json(buildMeResponse('Session valid.', validatedUser, emailChange));
    } catch (err) {
       next(err);
    }

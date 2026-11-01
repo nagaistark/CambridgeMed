@@ -24,7 +24,6 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import type { IObjectIdCursorPagination } from '@utils/effectSchemaReusables.ts';
-import { Schema, Either } from 'effect';
 import {
    INVITE_LIST_PROJECTION,
    USER_ID_NAME_PROJECTION,
@@ -32,6 +31,7 @@ import {
 import { LIST_QUERY_MAX_TIME_MS } from '@ssot/pagination_constants.ts';
 import { takePage } from '@utils/cursorPagination.ts';
 import { buildListInvitesResponse } from '@utils/buildResponses.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 type IInviteListItem = IPendingInviteItem | IAcceptedInviteItem;
 
@@ -88,16 +88,11 @@ export async function listInvitesController(
       }
 
       // ── Validate the fetched array of invites ──────────────────────────────────
-      const decodedInvites = Schema.decodeUnknownEither(
-         InviteListReadArrayValidator
-      )(pageRows);
-
-      if (Either.isLeft(decodedInvites)) {
-         throw decodedInvites.left;
-      }
-
-      // ── Use the validated array of invites from now on ─────────────────────────
-      const validatedInvites = decodedInvites.right;
+      const validatedInvites = decodeStored(
+         InviteListReadArrayValidator,
+         pageRows,
+         'invite list'
+      );
 
       // ── Batch-fetch accepted invitees ──────────────────────────────────────────
       /* We collect all relevant `_id`s and fetch matching users in one query. We then build an in-memory map for O(1) lookup during response assembly. */
@@ -119,14 +114,13 @@ export async function listInvitesController(
             )
             .toArray();
 
-         const decodedAcceptedUsers = Schema.decodeUnknownEither(
-            UserIdNameArrayValidator
-         )(acceptedUsersRaw);
-         if (Either.isLeft(decodedAcceptedUsers)) {
-            throw decodedAcceptedUsers.left;
-         }
+         const validatedAcceptedUsers = decodeStored(
+            UserIdNameArrayValidator,
+            acceptedUsersRaw,
+            'invite list: accepted invitees'
+         );
 
-         for (const user of decodedAcceptedUsers.right) {
+         for (const user of validatedAcceptedUsers) {
             acceptedUsersMap.set(user._id.toHexString(), user);
          }
       }
@@ -156,15 +150,11 @@ export async function listInvitesController(
             )
             .toArray();
 
-         const decodedIssuers = Schema.decodeUnknownEither(
-            UserIdNameArrayValidator
-         )(issuersRaw);
-
-         if (Either.isLeft(decodedIssuers)) {
-            throw decodedIssuers.left;
-         }
-
-         const validatedIssuers = decodedIssuers.right;
+         const validatedIssuers = decodeStored(
+            UserIdNameArrayValidator,
+            issuersRaw,
+            'invite list: issuers'
+         );
 
          for (const issuer of validatedIssuers) {
             issuerMap.set(issuer._id.toHexString(), issuer);

@@ -21,9 +21,9 @@ import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import type { ClientSession, ObjectId } from 'mongodb';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 type CancelParams = { token: string };
 type CancelOutcome =
@@ -47,30 +47,30 @@ async function runCancelTransaction(
       );
       if (deletedRaw === null) return { status: 'invalid' };
 
-      const decoded = Schema.decodeUnknownEither(
-         EmailChangeDocumentReadValidator
-      )(deletedRaw);
-      if (Either.isLeft(decoded)) throw decoded.left;
-      const change = decoded.right;
+      const validatedChange = decodeStored(
+         EmailChangeDocumentReadValidator,
+         deletedRaw,
+         'email change (cancel)'
+      );
 
-      if (change.confirmedAt === null)
-         return { status: 'cancelled', userId: change.userId };
+      if (validatedChange.confirmedAt === null)
+         return { status: 'cancelled', userId: validatedChange.userId };
 
       const archived: IUserDocument['previousEmails'][number] = {
-         email: change.oldEmail,
-         archivedAt: change.confirmedAt,
+         email: validatedChange.oldEmail,
+         archivedAt: validatedChange.confirmedAt,
       };
 
       const reverted = await getUserCollection().updateOne(
          {
-            _id: change.userId,
-            email: change.newEmail,
+            _id: validatedChange.userId,
+            email: validatedChange.newEmail,
             emailChangesUsed: { $gt: 0 },
             previousEmails: { $elemMatch: archived },
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: {
-               email: change.oldEmail,
+               email: validatedChange.oldEmail,
                passwordResetRequired: true,
                updatedAt: now,
             },
@@ -91,7 +91,7 @@ async function runCancelTransaction(
 
       await getSessionCollection().deleteMany(
          {
-            userId: change.userId,
+            userId: validatedChange.userId,
          } satisfies StrictMongoFilter<ISessionDocument>,
          { session }
       );
@@ -99,12 +99,12 @@ async function runCancelTransaction(
       /* The email binding already kills any reset link mailed to the attacker's address. Deleting the documents too also resets the forgot-password cooldown clock, so the owner's first request after a revert can never be swallowed by a request the attacker made seconds earlier. */
       await getPasswordResetCollection().deleteMany(
          {
-            userId: change.userId,
+            userId: validatedChange.userId,
          } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
          { session }
       );
 
-      return { status: 'reverted', userId: change.userId };
+      return { status: 'reverted', userId: validatedChange.userId };
    });
 }
 

@@ -33,10 +33,10 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import { Either, Schema } from 'effect';
 import logger from '../logger.ts';
 import { USER_ID_PASSWORDHASH_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function changePasswordController(
    req: Request,
@@ -68,14 +68,11 @@ export async function changePasswordController(
       }
 
       // ── Step 1: Validate the fetched document against the schema ───────────────
-      const decodedUser = Schema.decodeUnknownEither(
-         UserIdPasswordHashValidator
-      )(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw decodedUser.left;
-      }
-
-      const validatedUser = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserIdPasswordHashValidator,
+         userRaw,
+         'user password hash'
+      );
 
       // ── Step 2: verify the current password ────────────────────────────────────
       const isCurrentValid = await verifyPassword(

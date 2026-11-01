@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import { generateSecret, generateURI } from 'otplib';
 import QRCode from 'qrcode';
 import { ObjectId } from 'mongodb';
@@ -25,6 +24,7 @@ import type {
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function enrollTotpController(
    req: Request,
@@ -52,20 +52,15 @@ export async function enrollTotpController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(
-         UserTotpManagementValidator
-      )(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(
-            `Stored user failed validation during TOTP enrollment.`,
-            { cause: decodedUser.left }
-         );
-      }
-      const user = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserTotpManagementValidator,
+         userRaw,
+         'TOTP enroll user'
+      );
 
       /* Step-up: a hijacked session alone must not be able to plant an authenticator. Checked before every other guard so they cannot become a probing oracle. */
       const isPasswordValid = await verifyPassword(
-         user.passwordHash,
+         validatedUser.passwordHash,
          currentPassword
       );
       if (!isPasswordValid) {
@@ -80,7 +75,7 @@ export async function enrollTotpController(
             );
       }
 
-      if (user.isTotpEnabled) {
+      if (validatedUser.isTotpEnabled) {
          return void res
             .status(409)
             .json(
@@ -99,7 +94,7 @@ export async function enrollTotpController(
 
       const stored = await userCollection.updateOne(
          {
-            _id: user._id,
+            _id: validatedUser._id,
             isTotpEnabled: false,
          } satisfies StrictMongoFilter<IUserDocument>,
          {
@@ -121,15 +116,15 @@ export async function enrollTotpController(
 
       securityLog.record({
          event: 'TOTP_ENROLLMENT_STARTED',
-         actorId: user._id,
-         targetUserId: user._id,
+         actorId: validatedUser._id,
+         targetUserId: validatedUser._id,
          ...requestContext(req, res),
       });
 
       const otpauthUri = generateURI({
          secret: rawSecret,
          issuer: TOTP_ISSUER,
-         label: user.email,
+         label: validatedUser.email,
       });
       const qrCodeDataUrl = await QRCode.toDataURL(otpauthUri);
 

@@ -32,8 +32,8 @@ import type {
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 /* The one and only body this endpoint ever sends. Defined once so no code path can drift from it. */
 const GENERIC_RESPONSE_MESSAGE =
@@ -55,13 +55,11 @@ async function issuePasswordReset(
 
    if (userRaw === null) return;
 
-   const decodedUser = Schema.decodeUnknownEither(
-      UserPasswordResetTargetValidator
-   )(userRaw);
-   if (Either.isLeft(decodedUser)) {
-      throw decodedUser.left;
-   }
-   const validatedUser = decodedUser.right;
+   const validatedUser = decodeStored(
+      UserPasswordResetTargetValidator,
+      userRaw,
+      'password reset target user'
+   );
 
    // ── Build and validate the would-be document ───────────────────────────────────
    /* One `now` for every timestamp, so createdAt, updatedAt and expiresAt are consistent by construction. The `email` stored here is what binds the token to this address. */
@@ -80,13 +78,11 @@ async function issuePasswordReset(
       updatedAt: now,
    };
 
-   const decodedCandidate = Schema.decodeUnknownEither(
-      PasswordResetDocumentCreateValidator
-   )(candidate);
-   if (Either.isLeft(decodedCandidate)) {
-      throw decodedCandidate.left;
-   }
-   const validatedCandidate = decodedCandidate.right;
+   const validatedCandidate = decodeStored(
+      PasswordResetDocumentCreateValidator,
+      candidate,
+      'password reset payload'
+   );
 
    // ── Atomic "replace, but not too often" ────────────────────────────────────────
    /* The filter only matches an existing document that is OLDER than the cooldown. Three cases, all decided inside MongoDB with no read-then-write gap:

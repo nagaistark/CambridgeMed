@@ -1,6 +1,5 @@
 import type { Request, NextFunction } from 'express';
 import type { ClientSession, ObjectId } from 'mongodb';
-import { Either, Schema } from 'effect';
 import {
    getUserCollection,
    UserSecondFactorValidator,
@@ -51,6 +50,7 @@ import {
 } from './secondFactor.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 type ResetPasswordParams = { token: string };
 
@@ -92,13 +92,11 @@ async function runResetTransaction(
    );
    if (claimedRaw === null) return { status: 'invalid' };
 
-   const decodedClaim = Schema.decodeUnknownEither(
-      PasswordResetDocumentReadValidator
-   )(claimedRaw);
-   if (Either.isLeft(decodedClaim)) {
-      throw decodedClaim.left;
-   }
-   const validatedClaim = decodedClaim.right;
+   const validatedClaim = decodeStored(
+      PasswordResetDocumentReadValidator,
+      claimedRaw,
+      'password reset claim'
+   );
 
    /* Defensive: the factor we verified must belong to the account this token resets. Tokens are unique, so this "cannot happen"; if it ever does, abort (plain Error: logged, vague 500, nothing consumed). */
    if (claim !== null && !claim.userId.equals(validatedClaim.userId)) {
@@ -188,19 +186,16 @@ export async function resetPasswordController(
             );
       }
 
-      const decodedRedeem = Schema.decodeUnknownEither(
-         PasswordResetRedeemCheckValidator
-      )(redeemRaw);
-      if (Either.isLeft(decodedRedeem)) {
-         throw new Error(`Stored password reset failed validation.`, {
-            cause: decodedRedeem.left,
-         });
-      }
+      const validatedRedeem = decodeStored(
+         PasswordResetRedeemCheckValidator,
+         redeemRaw,
+         'password reset redeem check'
+      );
 
       // ── Step 2: second-factor step-up (phase 1: verify only) ───────────────────
       const userRaw = await getUserCollection().findOne<IUserSecondFactor>(
          {
-            _id: decodedRedeem.right.userId,
+            _id: validatedRedeem.userId,
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_SECOND_FACTOR_PROJECTION,
@@ -215,16 +210,11 @@ export async function resetPasswordController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(UserSecondFactorValidator)(
-         userRaw
+      const validatedUser = decodeStored(
+         UserSecondFactorValidator,
+         userRaw,
+         'password reset second factor'
       );
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(
-            `Stored user failed validation during password reset.`,
-            { cause: decodedUser.left }
-         );
-      }
-      const user = decodedUser.right;
 
       let claim: FactorClaim | null = null;
       const context: SecondFactorContext = {
@@ -233,7 +223,7 @@ export async function resetPasswordController(
          ...requestContext(req, res),
       };
 
-      if (user.isTotpEnabled) {
+      if (validatedUser.isTotpEnabled) {
          const factor = toSecondFactorInput({ totpCode, recoveryCode });
 
          if (factor === null) {
@@ -249,7 +239,11 @@ export async function resetPasswordController(
                );
          }
 
-         const verification = await verifySecondFactor(user, factor, context);
+         const verification = await verifySecondFactor(
+            validatedUser,
+            factor,
+            context
+         );
          if (verification.status !== 'verified') {
             sendSecondFactorFailure(res, verification, 401); // pre-session route
             return;
@@ -266,7 +260,7 @@ export async function resetPasswordController(
             tokenHash,
             passwordHash,
             claim,
-            isTotpEnabled: user.isTotpEnabled,
+            isTotpEnabled: validatedUser.isTotpEnabled,
          })
       );
 
@@ -294,7 +288,7 @@ export async function resetPasswordController(
       }
 
       if (claim !== null) {
-         await clearSecondFactorAttempts(user._id);
+         await clearSecondFactorAttempts(validatedUser._id);
          recordFactorUsage(claim, context);
       }
 

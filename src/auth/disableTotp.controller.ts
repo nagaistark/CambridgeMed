@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
@@ -31,6 +30,7 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function disableTotpController(
    req: Request,
@@ -59,21 +59,16 @@ export async function disableTotpController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(
-         UserTotpManagementValidator
-      )(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(
-            `Stored user failed validation while disabling TOTP.`,
-            { cause: decodedUser.left }
-         );
-      }
-      const user = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserTotpManagementValidator,
+         userRaw,
+         'TOTP disable user'
+      );
 
       // ── Factor 1: the password ─────────────────────────────────────────────────
       /* The session is valid (requireLiveSession), so a wrong password is a 403 INVALID_CREDENTIALS, never a 401. */
       const isPasswordValid = await verifyPassword(
-         user.passwordHash,
+         validatedUser.passwordHash,
          currentPassword
       );
       if (!isPasswordValid) {
@@ -88,7 +83,7 @@ export async function disableTotpController(
             );
       }
 
-      if (!user.isTotpEnabled) {
+      if (!validatedUser.isTotpEnabled) {
          return void res
             .status(400)
             .json(
@@ -117,11 +112,15 @@ export async function disableTotpController(
 
       const context: SecondFactorContext = {
          purpose: 'disable',
-         actorId: user._id,
+         actorId: validatedUser._id,
          ...requestContext(req, res),
       };
 
-      const verification = await verifySecondFactor(user, factor, context);
+      const verification = await verifySecondFactor(
+         validatedUser,
+         factor,
+         context
+      );
       if (verification.status !== 'verified') {
          sendSecondFactorFailure(res, verification, 403);
          return;
@@ -144,7 +143,7 @@ export async function disableTotpController(
 
          const disabled = await userCollection.updateOne(
             {
-               _id: user._id,
+               _id: validatedUser._id,
                isTotpEnabled: true,
                isActive: true,
             } satisfies StrictMongoFilter<IUserDocument>,
@@ -171,7 +170,7 @@ export async function disableTotpController(
             );
          }
 
-         await revokeOtherSessions(user._id, new ObjectId(sessionId), {
+         await revokeOtherSessions(validatedUser._id, new ObjectId(sessionId), {
             session,
          });
       });
@@ -180,8 +179,8 @@ export async function disableTotpController(
       recordFactorUsage(verification.claim, context);
       securityLog.record({
          event: 'TOTP_DISABLED',
-         actorId: user._id,
-         targetUserId: user._id,
+         actorId: validatedUser._id,
+         targetUserId: validatedUser._id,
          ...requestContext(req, res),
       });
 

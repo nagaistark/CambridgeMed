@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
@@ -25,6 +24,7 @@ import type {
 import { sanitizeError } from '../mongoDBConnect.ts';
 import logger from '../logger.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function confirmTotpEnrollmentController(
    req: Request,
@@ -52,18 +52,13 @@ export async function confirmTotpEnrollmentController(
             );
       }
 
-      const decodedUser = Schema.decodeUnknownEither(
-         UserTotpManagementValidator
-      )(userRaw);
-      if (Either.isLeft(decodedUser)) {
-         throw new Error(
-            `Stored user failed validation during TOTP confirmation.`,
-            { cause: decodedUser.left }
-         );
-      }
-      const user = decodedUser.right;
+      const validatedUser = decodeStored(
+         UserTotpManagementValidator,
+         userRaw,
+         'TOTP confirm user'
+      );
 
-      if (user.isTotpEnabled) {
+      if (validatedUser.isTotpEnabled) {
          return void res
             .status(409)
             .json(
@@ -75,7 +70,7 @@ export async function confirmTotpEnrollmentController(
             );
       }
 
-      if (user.totpPendingSecret === null) {
+      if (validatedUser.totpPendingSecret === null) {
          return void res
             .status(400)
             .json(
@@ -89,9 +84,9 @@ export async function confirmTotpEnrollmentController(
 
       // ── Verify against the PENDING secret ──────────────────────────────────────
       const check = await verifyTotpCode({
-         encryptedSecret: user.totpPendingSecret,
+         encryptedSecret: validatedUser.totpPendingSecret,
          code,
-         lastUsedStep: user.totpLastUsedStep,
+         lastUsedStep: validatedUser.totpLastUsedStep,
       });
 
       if (!check.valid) {
@@ -114,16 +109,16 @@ export async function confirmTotpEnrollmentController(
       /* The filter pins every fact the decision rested on: still disabled, the SAME pending secret we verified against, and a step strictly newer than the last used (replay protection). If any of them moved, nothing is written. */
       const enabled = await userCollection.updateOne(
          {
-            _id: user._id,
+            _id: validatedUser._id,
             isTotpEnabled: false,
             isActive: true,
-            totpPendingSecret: user.totpPendingSecret,
+            totpPendingSecret: validatedUser.totpPendingSecret,
             totpLastUsedStep: { $lt: check.timeStep },
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: {
                isTotpEnabled: true,
-               totpSecret: user.totpPendingSecret,
+               totpSecret: validatedUser.totpPendingSecret,
                totpPendingSecret: null,
                totpRecoveryCodes: hashedCodes,
                totpLastUsedStep: check.timeStep,
@@ -146,7 +141,7 @@ export async function confirmTotpEnrollmentController(
 
       /* Sessions created before 2FA existed are pre-2FA keys. Best effort on purpose: enabling is an UPGRADE, so a failure here must not hide the recovery codes (shown only once), but it must not pass silently either. */
       try {
-         await revokeOtherSessions(user._id, new ObjectId(sessionId));
+         await revokeOtherSessions(validatedUser._id, new ObjectId(sessionId));
       } catch (revokeErr) {
          logger.error(
             `Failed to revoke other sessions after TOTP enrollment: ${sanitizeError(revokeErr).message}`,
@@ -156,8 +151,8 @@ export async function confirmTotpEnrollmentController(
 
       securityLog.record({
          event: 'TOTP_ENABLED',
-         actorId: user._id,
-         targetUserId: user._id,
+         actorId: validatedUser._id,
+         targetUserId: validatedUser._id,
          ...requestContext(req, res),
       });
 
