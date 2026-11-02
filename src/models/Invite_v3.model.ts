@@ -221,11 +221,7 @@ export type IInviteEmailCheck = Schema.Schema.Type<
 >;
 
 /* Minimal shape for previews in previewInviteController. */
-const InvitePreviewSchema = InviteDocumentReadStruct.pick(
-   'role',
-   'expiresAt',
-   'usedAt'
-);
+const InvitePreviewSchema = InviteDocumentReadStruct.pick('role', 'expiresAt');
 export type IInvitePreview = Schema.Schema.Type<typeof InvitePreviewSchema>;
 
 // ===== Validators against which we validate the documents ========================
@@ -292,5 +288,5 @@ export type ICreateInviteResponse = {
 
 export type IPreviewInviteResponse = {
    success: true;
-   inv: Omit<IInvitePreview, 'usedAt'>;
+   inv: IInvitePreview;
 };

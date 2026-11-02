@@ -18,6 +18,9 @@ import { decodeStored } from '@utils/decodeStored.ts';
 // Declare the param shape so `token` is narrowed to `string`:
 type PreviewInviteParams = { token: string };
 
+const INVALID_LINK_MESSAGE =
+   `This invite link is invalid or has expired.` as const;
+
 export async function previewInviteController(
    req: Request<PreviewInviteParams>,
    res: Response,
@@ -30,22 +33,21 @@ export async function previewInviteController(
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);
       const inviteRaw = await getInviteCollection().findOne<IInvitePreview>(
-         { tokenHash } satisfies StrictMongoFilter<IInviteDocumentRead>,
+         {
+            tokenHash,
+            usedAt: null,
+            expiresAt: { $gt: new Date() },
+         } satisfies StrictMongoFilter<IInviteDocumentRead>,
          {
             projection: INVITE_PREVIEW_PROJECTION,
          } satisfies StrictFindOneOptions<IInvitePreview>
       );
 
-      // ── Existence check ────────────────────────────────────────────────────────
-      if (!inviteRaw) {
+      if (inviteRaw === null) {
          return void res
             .status(404)
             .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This invite link is invalid.`,
-                  requestId
-               )
+               createErrorResponse('NOT_FOUND', INVALID_LINK_MESSAGE, requestId)
             );
       }
 
@@ -56,40 +58,10 @@ export async function previewInviteController(
          'invite preview'
       );
 
-      // ── Expiry check ───────────────────────────────────────────────────────────
-      /* We check expiresAt even if the document exists, because MongoDB's TTL janitor runs on a background thread and may lag by up to a minute. This ensures the response is always logically correct, not just contingent on when the janitor last ran. */
-      if (validatedInvitePreview.expiresAt <= new Date()) {
-         return void res
-            .status(404)
-            .json(
-               createErrorResponse(
-                  'NOT_FOUND',
-                  `This invite link has expired.`,
-                  requestId
-               )
-            );
-      }
-
-      // ── Already-accepted check ─────────────────────────────────────────────────
-      if (validatedInvitePreview.usedAt !== null) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  `This invite has already been accepted.`,
-                  requestId
-               )
-            );
-      }
-
       // ── Return the safe preview ────────────────────────────────────────────────
-      return void res.status(200).json(
-         buildPreviewInviteResponse({
-            role: validatedInvitePreview.role,
-            expiresAt: validatedInvitePreview.expiresAt,
-         })
-      );
+      return void res
+         .status(200)
+         .json(buildPreviewInviteResponse(validatedInvitePreview));
    } catch (err) {
       next(err);
    }

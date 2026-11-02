@@ -2,6 +2,7 @@ import type { ISessionDocument } from '@models/Session_v3.model.ts';
 import type {
    ICreateInviteResponse,
    IInviteDocumentRead,
+   IInvitePreview,
    IPreviewInviteResponse,
    ISafeInviteCreate,
 } from '@models/Invite_v3.model.ts';
@@ -73,7 +74,7 @@ export function buildMeResponse(
 
 // ── Invite responses ─────────────────────────────────────────────────────────────
 export function buildPreviewInviteResponse(
-   inv: IPreviewInviteResponse['inv']
+   inv: IInvitePreview
 ): IPreviewInviteResponse {
    return { success: true, inv };
 }

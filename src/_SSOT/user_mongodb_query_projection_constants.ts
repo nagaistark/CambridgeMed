@@ -255,7 +255,6 @@ export const INVITE_EMAIL_CHECK_PROJECTION: Record<keyof IInviteEmailCheck, 1> =
 export const INVITE_PREVIEW_PROJECTION: Record<keyof IInvitePreview, 1> = {
    role: 1,
    expiresAt: 1,
-   usedAt: 1,
 };
 
 // ── Sessions projections ─────────────────────────────────────────────────────────
