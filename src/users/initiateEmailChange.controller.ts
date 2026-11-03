@@ -28,7 +28,7 @@ import {
    EMAIL_CHANGE_CONFIRM_EXPIRY_MS,
 } from '@ssot/user_change_constants.ts';
 import { myEnv } from '../validateConfig.ts';
-import { type CountDocumentsOptions, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
 import {
@@ -42,8 +42,10 @@ import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { classifyEmailChange } from '@ssot/email_change_status_constants.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { findEmailClaim } from '@services/emailClaim.service.ts';
 
-const EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE = `This email address is already claimed by a pending change request.`;
+const EMAIL_UNAVAILABLE_MESSAGE =
+   `This email address is not available.` as const;
 const EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE = `You already have an active email change request. Please complete or cancel it first.`;
 const EMAIL_CHANGE_COOLDOWN_MESSAGE = `Your email address was changed recently. For your security, further changes are paused for a few days. You can revert the change using the cancellation link sent to your previous address.`;
 
@@ -84,7 +86,7 @@ export async function initiateEmailChangeController(
          'email change initiator'
       );
 
-      /* Verify the password immediately after the decode, before every guard. Otherwise Guards 2–5 ("cap reached", "email already exists", "claimed by pending change") become a probing oracle for someone with a stolen session but no password. */
+      /* Verify the password immediately after the decode, before every guard. Otherwise Guards 2–4 ("cap reached", "address unavailable", "active change request") become a probing oracle for someone with a stolen session but no password. */
       const isPasswordValid = await verifyPassword(
          validatedUser.passwordHash,
          currentPassword
@@ -141,52 +143,9 @@ export async function initiateEmailChangeController(
             );
       }
 
-      // ── Guard 3: new email must not belong to an existing user ─────────────────
-      /* Again, `.countDocuments` functions as `.exists()` here. */
-      const emailTaken =
-         (await userCollection.countDocuments(
-            { email: newEmail } satisfies StrictMongoFilter<IUserDocument>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
-
-      if (emailTaken) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  `An account with this email address already exists.`,
-                  requestId
-               )
-            );
-      }
-
       const now = new Date();
 
-      // ── Guard 4: new email must not be claimed by another pending change ───────
-      /* Between the moment a change is initiated and the moment the confirmation link is clicked, the newEmail is not yet stored on any User document. We close that gap here. Only unconfirmed, non-cancelled, non-expired changes are "active". */
-      const emailClaimedByPendingChange =
-         (await emailChangeCollection.countDocuments(
-            {
-               newEmail,
-               confirmedAt: null,
-               confirmExpiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
-      if (emailClaimedByPendingChange) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE,
-                  requestId
-               )
-            );
-      }
-
-      // ── Guard 5: no concurrent active change for this user ─────────────────────
+      // ── Guard 3: no concurrent active change for this user ─────────────────────
       await emailChangeCollection.deleteMany({
          userId: new ObjectId(sub),
          $or: [
@@ -225,6 +184,20 @@ export async function initiateEmailChangeController(
                createErrorResponse(
                   'CONFLICT',
                   EMAIL_CHANGE_REQUEST_ALREADY_ACTIVE_MESSAGE,
+                  requestId
+               )
+            );
+      }
+
+      // ── Guard 4: collision check ───────────────────────────────────────────────
+      /* Deliberately one message for every kind of claim. The caller can be any staff member, and distinct messages would let them probe for deactivated accounts and for other people's pending invites. */
+      if ((await findEmailClaim(newEmail, now)) !== null) {
+         return void res
+            .status(409)
+            .json(
+               createErrorResponse(
+                  'CONFLICT',
+                  EMAIL_UNAVAILABLE_MESSAGE,
                   requestId
                )
             );
@@ -279,7 +252,7 @@ export async function initiateEmailChangeController(
                .json(
                   createErrorResponse(
                      'CONFLICT',
-                     EMAIL_ALREADY_CLAIMED_CONFLICT_MESSAGE,
+                     EMAIL_UNAVAILABLE_MESSAGE,
                      requestId
                   )
                );

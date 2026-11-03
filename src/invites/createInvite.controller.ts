@@ -28,7 +28,7 @@ import {
 import { USER_INVITE_ISSUER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { canIssueInviteForRole } from '@ssot/permissions_constants.ts';
 import { myEnv } from '../validateConfig.ts';
-import { type CountDocumentsOptions, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import { buildCreateInviteResponse } from '@utils/buildResponses.ts';
 import logger from '../logger.ts';
 import { sanitizeError } from '../mongoDBConnect.ts';
@@ -38,6 +38,17 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import {
+   findEmailClaim,
+   type EmailClaim,
+} from '@services/emailClaim.service.ts';
+
+const INVITE_CLAIM_MESSAGES: Record<EmailClaim, string> = {
+   user: `A user with this email address already exists.`,
+   invite: `A pending invite for this email address already exists.`,
+   pending_email_change: `This email address is reserved by a pending email change.`,
+   revertable_email_change: `This email address was just released by an email change and is reserved until that change can no longer be reverted.`,
+};
 
 export async function createInviteController(
    _req: Request,
@@ -92,43 +103,15 @@ export async function createInviteController(
             );
       }
 
-      // ── Guard #1: email must not belong to an existing user ────────────────────
-      /* We limit `.countDocuments()` to 1 so that it stops at the first match. */
-      const existingUser =
-         (await userCollection.countDocuments(
-            { email } satisfies StrictMongoFilter<IUserDocument>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
-      if (existingUser) {
+      // ── Guard #1: nobody can already hold this address ─────────────────────────
+      const claim = await findEmailClaim(email, new Date());
+      if (claim !== null) {
          return void res
             .status(409)
             .json(
                createErrorResponse(
                   'CONFLICT',
-                  `A user with this email address already exists.`,
-                  requestId
-               )
-            );
-      }
-
-      // ── Guard #2: no pending invite may already exist for this email ───────────
-      /* countDocuments functions as `.exists()`. "Pending" = not yet accepted (usedAt is null) AND not yet expired. We filter by expiresAt explicitly because the TTL janitor runs on a background schedule and may not have cleaned up stale documents yet. */
-      const existingInvite =
-         (await inviteCollection.countDocuments(
-            {
-               email,
-               usedAt: null,
-               expiresAt: { $gt: new Date() },
-            } satisfies StrictMongoFilter<IInviteDocumentRead>,
-            { limit: 1 } satisfies CountDocumentsOptions
-         )) > 0;
-      if (existingInvite) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  `A pending invite for this email address already exists.`,
+                  INVITE_CLAIM_MESSAGES[claim],
                   requestId
                )
             );
@@ -177,7 +160,7 @@ export async function createInviteController(
          'invite document payload'
       );
 
-      /* Guard #2 is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
+      /* The claim check is clock-based, but the partial unique index is not. Reap "expired-but-unswept" invites for this email, or they block the insert below. */
       await inviteCollection.deleteMany({
          email,
          usedAt: null,

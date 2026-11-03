@@ -42,6 +42,7 @@ import {
 import logger from '../logger.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 
 type AcceptInviteParams = { token: string };
 
@@ -296,7 +297,7 @@ export async function acceptInviteController(
       // ── Step 5: Run the transaction ────────────────────────────────────────────
       const session = authConnection.startSession();
 
-      /* The try/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
+      /* The try/catch/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
       let outcome: TransactionOutcome;
       try {
          outcome = await runRegistrationTransaction(session, {
@@ -306,6 +307,19 @@ export async function acceptInviteController(
             email,
             tokenHash,
          });
+      } catch (err) {
+         if (isDuplicateKeyOnField(err, 'email')) {
+            return void res
+               .status(409)
+               .json(
+                  createErrorResponse(
+                     'CONFLICT',
+                     `An account with this email address already exists.`,
+                     requestId
+                  )
+               );
+         }
+         throw err;
       } finally {
          await session.endSession();
       }

@@ -25,6 +25,7 @@ import type { ClientSession, ObjectId } from 'mongodb';
 import { EMAIL_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 
 type ConfirmParams = { token: string };
 type ConfirmOutcome =
@@ -152,6 +153,19 @@ export async function confirmEmailChangeController(
             success: true,
             message: `Email address updated successfully. Please log in again.`,
          });
+      } catch (err) {
+         if (isDuplicateKeyOnField(err, 'email')) {
+            return void res
+               .status(409)
+               .json(
+                  createErrorResponse(
+                     'CONFLICT',
+                     `This email address is no longer available. Use the cancellation link sent to your previous address, or wait for this request to expire, then try again with a different address.`,
+                     requestId
+                  )
+               );
+         }
+         throw err;
       } finally {
          await session.endSession();
       }

@@ -24,6 +24,8 @@ import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
 import type { ClientSession, ObjectId } from 'mongodb';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
+import logger from '../logger.ts';
 
 type CancelParams = { token: string };
 type CancelOutcome =
@@ -169,6 +171,23 @@ export async function cancelEmailChangeController(
             success: true,
             message: `Email change reverted successfully. Your previous address has been restored. Please log in again.`,
          });
+      } catch (err) {
+         if (isDuplicateKeyOnField(err, 'email')) {
+            logger.warn(
+               `Email change revert blocked: previous address is now in use.`,
+               { requestId }
+            );
+            return void res
+               .status(409)
+               .json(
+                  createErrorResponse(
+                     'CONFLICT',
+                     `Your previous address is now used by another account, so this change cannot be reverted automatically. Please contact an administrator.`,
+                     requestId
+                  )
+               );
+         }
+         throw err;
       } finally {
          await session.endSession();
       }
