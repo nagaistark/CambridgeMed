@@ -70,18 +70,20 @@ function makeRateLimiter(
 /* Each is instantiated once at module load and reused across all requests to its corresponding route. express-rate-limit stores state in memory by default (suitable for a single-process deployment on Render). If we later move to a multi-process setup, DON'T FORGET TO SWAP IN A REDIS STORE. */
 export const passwordChangeRateLimiter = makeRateLimiter(
    PASSWORD_CHANGE_WINDOW_MS,
-   PASSWORD_CHANGE_MAX_REQUESTS
+   PASSWORD_CHANGE_MAX_REQUESTS,
+   { keyGenerator: keyByUserOrIp }
 );
 
 export const nameChangeRateLimiter = makeRateLimiter(
    NAME_CHANGE_WINDOW_MS,
-   NAME_CHANGE_MAX_REQUESTS
+   NAME_CHANGE_MAX_REQUESTS,
+   { keyGenerator: keyByUserOrIp, skipFailedRequests: true }
 );
 
 export const emailChangeInitiateRateLimiter = makeRateLimiter(
    EMAIL_CHANGE_INITIATE_WINDOW_MS,
    EMAIL_CHANGE_INITIATE_MAX_REQUESTS,
-   { skipFailedRequests: true }
+   { keyGenerator: keyByUserOrIp, skipFailedRequests: true }
 );
 
 /* Shared by both the confirm and cancel token routes (they face the same brute-force enumeration threat and warrant the same ceiling). */
@@ -114,7 +116,8 @@ export const invitePreviewRateLimiter = makeRateLimiter(
 /* Per-user admin toggle endpoints */
 export const userAdminToggleRateLimiter = makeRateLimiter(
    USER_ADMIN_TOGGLE_WINDOW_MS,
-   USER_ADMIN_TOGGLE_MAX_REQUESTS
+   USER_ADMIN_TOGGLE_MAX_REQUESTS,
+   { keyGenerator: keyByUserOrIp }
 );
 
 /* Guards POST /api/invites. Must be mounted AFTER `authenticate` so `res.locals.authenticatedUser` exists.
