@@ -139,14 +139,21 @@ const httpUrl = Schema.transformOrFail(
    {
       strict: true,
       decode: (str, _options, ast) => {
-         try {
-            new URL(str);
-            return ParseResult.succeed(str);
-         } catch {
+         if (!URL.canParse(str)) {
             return ParseResult.fail(
                new ParseResult.Type(ast, str, `The URL is badly formatted.`)
             );
          }
+         const { protocol, origin } = new URL(str);
+         return protocol === 'https:' || protocol === 'http:'
+            ? ParseResult.succeed(origin)
+            : ParseResult.fail(
+                 new ParseResult.Type(
+                    ast,
+                    str,
+                    `The URL must use http or https.`
+                 )
+              );
       },
       encode: str => ParseResult.succeed(str),
    }
