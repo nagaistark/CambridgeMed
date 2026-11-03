@@ -61,8 +61,8 @@ meRouter.patch(
 meRouter.post(
    '/email',
    requireLiveSession,
-   passwordChangeRateLimiter,
-   emailChangeInitiateRateLimiter, // <-- With { skipFailedRequests: true }, failed requests do not consume the quota.
+   passwordChangeRateLimiter, // <-- typos count against a larger counter.
+   emailChangeInitiateRateLimiter, // <-- `skipFailedRequests: true` ignores typos.
    validateBody(InitiateEmailChangeSchema),
    initiateEmailChangeController
 );
@@ -103,6 +103,7 @@ userAdminRouter.get(
 userAdminRouter.patch(
    '/:id/can-issue-invites',
    requirePermissions('ISSUE_INVITES'),
+   requireLiveSession,
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),
    validateBody(SetCanIssueInvitesSchema),
@@ -111,6 +112,7 @@ userAdminRouter.patch(
 userAdminRouter.patch(
    '/:id/is-active',
    requirePermissions('MANAGE_USERS'),
+   requireLiveSession,
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),
    validateBody(SetIsActiveSchema),

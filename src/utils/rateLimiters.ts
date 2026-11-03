@@ -66,6 +66,13 @@ function makeRateLimiter(
    });
 }
 
+/* Per person, not per IP. The IP fallback goes through ipKeyGenerator so an IPv6 user can't dodge the limit by cycling addresses inside their /64. Single definition of the per-person key. Every authenticated limiter must use this. */
+function keyByUserOrIp(req: Request, res: Response): string {
+   return (
+      res.locals.authenticatedUser?.sub ?? ipKeyGenerator(req.ip ?? 'unknown')
+   );
+}
+
 // ── Per-route limiter instances ──────────────────────────────────────────────────
 /* Each is instantiated once at module load and reused across all requests to its corresponding route. express-rate-limit stores state in memory by default (suitable for a single-process deployment on Render). If we later move to a multi-process setup, DON'T FORGET TO SWAP IN A REDIS STORE. */
 export const passwordChangeRateLimiter = makeRateLimiter(
@@ -130,10 +137,7 @@ export const inviteCreateRateLimiter = makeRateLimiter(
    {
       /* Only requests that actually sent an email consume budget. */
       skipFailedRequests: true,
-      /* Count per person, not per IP. The IP fallback goes through ipKeyGenerator so an IPv6 user can't dodge the limit by rotating addresses within their /64. */
-      keyGenerator: (req, res) =>
-         res.locals.authenticatedUser?.sub ??
-         ipKeyGenerator(req.ip ?? 'unknown'),
+      keyGenerator: keyByUserOrIp,
    }
 );
 
@@ -173,18 +177,9 @@ export const totpManagementRateLimiter = makeRateLimiter(
    TOTP_MANAGEMENT_MAX_FAILED_REQUESTS,
    {
       skipSuccessfulRequests: true,
-      keyGenerator: (req, res) =>
-         res.locals.authenticatedUser?.sub ??
-         ipKeyGenerator(req.ip ?? 'unknown'),
+      keyGenerator: keyByUserOrIp,
    }
 );
-
-/* Per person, not per IP. The IP fallback goes through ipKeyGenerator so an IPv6 user can't dodge the limit by cycling addresses inside their /64. This is the third copy of this logic (invite create, TOTP management); worth pointing those two at it as well. */
-function keyByUserOrIp(req: Request, res: Response): string {
-   return (
-      res.locals.authenticatedUser?.sub ?? ipKeyGenerator(req.ip ?? 'unknown')
-   );
-}
 
 export const sessionKillRateLimiter = makeRateLimiter(
    SESSION_KILL_WINDOW_MS,
