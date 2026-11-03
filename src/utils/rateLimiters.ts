@@ -40,16 +40,16 @@ import {
 import { Schema } from 'effect';
 import { LoginSchema } from '@auth/login.schema.ts';
 
-/* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-7'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
+/* Factory that produces a configured rate limiter. All limiters share the same response shape (canonical ApiErrorResponse) so the client sees consistent error structure regardless of which limiter fired. `standardHeaders: 'draft-8'` emits the RateLimit-* headers defined in the IETF draft — useful for the frontend to know how long to wait before retrying. `legacyHeaders: false` suppresses the older X-RateLimit-* headers to avoid sending redundant information. */
 function makeRateLimiter(
    windowMs: number,
-   max: number,
+   limit: number,
    overrides: Partial<Options> = {}
 ): RateLimitRequestHandler {
    return rateLimit({
       windowMs,
-      max,
-      standardHeaders: 'draft-7',
+      limit,
+      standardHeaders: 'draft-8',
       legacyHeaders: false,
       handler: (_req: Request, res: Response) => {
          return void res
