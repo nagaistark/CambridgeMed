@@ -1,9 +1,10 @@
 import winston from 'winston';
 import util from 'util';
+import { myEnv } from './validateConfig.ts';
 
 /* 1. Create a barebones Winston logger. We strip out splat() and all the other metadata formatters because we don't need them anymore. */
 const winstonLogger = winston.createLogger({
-   level: process.env.NODE_ENV === 'production' ? 'http' : 'debug',
+   level: myEnv.environment === 'production' ? 'http' : 'debug',
    format: winston.format.combine(
       winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
       winston.format.colorize(),

@@ -92,7 +92,7 @@ morgan.token(
 const morganFormat: morgan.FormatFn<Request, Response> = (tokens, req, res) =>
    [
       res.locals.requestId,
-      process.env.NODE_ENV === 'production' ? req.ip : undefined,
+      myEnv.environment === 'production' ? req.ip : undefined,
       req.method,
       tokens['safe-url'](req, res),
       tokens.status(req, res),
