@@ -23,17 +23,17 @@ export async function issueSession(
    req: Request,
    res: Response
 ): Promise<void> {
+   const now = new Date();
+
    const {
       accessTokenMaxAgeMS,
       refreshTokenMaxAgeMS,
       accessTokenExpirationTimestampMS,
       refreshTokenExpirationTimestampMS,
-   } = getMaxAgeTokens();
+   } = getMaxAgeTokens(now);
 
    const { raw: rawRefreshToken, hash: refreshTokenHash } =
       generateRefreshToken();
-
-   const now = new Date();
 
    /* Best-effort metadata: a malformed value becomes null, it never fails a login that already succeeded. */
    const ipOrNull = (raw: string | undefined): string | null =>

@@ -56,6 +56,8 @@ export async function createInviteController(
    next: NextFunction
 ): Promise<void> {
    try {
+      const now = new Date(); // the single starting gun for this request
+
       const requestId = res.locals.requestId;
       const { sub } = res.locals.authenticatedUser;
       const { email, role, canIssueInvites } = res.locals.validatedBody;
@@ -104,7 +106,7 @@ export async function createInviteController(
       }
 
       // ── Guard #1: nobody can already hold this address ─────────────────────────
-      const claim = await findEmailClaim(email, new Date());
+      const claim = await findEmailClaim(email, now);
       if (claim !== null) {
          return void res
             .status(409)
@@ -124,12 +126,10 @@ export async function createInviteController(
 
       // ── Calculate expiry (next Monday 00:00 Toronto time) ──────────────────────
       /* We reuse the same Monday-reset logic as refresh tokens. `refreshTokenExpirationTimestampMS` is the Unix timestamp (ms) of the next reset boundary. */
-      const { refreshTokenExpirationTimestampMS } = getMaxAgeTokens();
+      const { refreshTokenExpirationTimestampMS } = getMaxAgeTokens(now);
       const expiresAt = new Date(refreshTokenExpirationTimestampMS);
 
       // ── Persist the invite ─────────────────────────────────────────────────────
-      const now = new Date();
-
       const safeInvitePayload: ISafeInviteCreate = {
          _id: new ObjectId(),
          email,

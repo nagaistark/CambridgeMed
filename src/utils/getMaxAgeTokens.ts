@@ -2,27 +2,32 @@ import { DateTime } from 'luxon';
 import { JWT_ACCESS_TOKEN_EXPIRY_MS } from '@ssot/access_refresh_tokens_constants.ts';
 import { RESET_WEEKDAY } from '@ssot/date_time_constants.ts';
 
-export function getMaxAgeTokens(): {
+export function getMaxAgeTokens(now: Date): {
    accessTokenMaxAgeMS: number;
    refreshTokenMaxAgeMS: number;
    accessTokenExpirationTimestampMS: number;
    refreshTokenExpirationTimestampMS: number;
 } {
-   /* The Single Source of Truth for "now" (in Toronto, but it really doesn't matter because we derive Epoch timestamp from it) represented by a Luxon DateTime object within the scope of the function. */
-   const now = DateTime.now();
+   /* fromJSDate places the instant in Settings.defaultZone (America/Toronto), so the "next Monday 00:00" boundary is still computed in clinic time, exactly as before. */
+   const nowInClinicZone = DateTime.fromJSDate(now);
+
+   /* An invalid Date would make `weekday` NaN and poison every number below. Failing loudly beats minting tokens that expire at NaN. */
+   if (!nowInClinicZone.isValid) {
+      throw new RangeError(`getMaxAgeTokens received an invalid Date.`);
+   }
 
    /* Luxon-based weekdays represented by a number: 1 — Monday, 7 — Sunday. */
    const daysUntilNextRefreshTokenResetWeekday =
-      (RESET_WEEKDAY + 7 - now.weekday) % 7 || 7;
+      (RESET_WEEKDAY + 7 - nowInClinicZone.weekday) % 7 || 7;
 
    /* Refresh Token Reset Weekday - a Luxon DateTime object pointing at the very beginning of the next Reset Weekday. */
-   const nextRefreshTokenResetWeekday = now
+   const nextRefreshTokenResetWeekday = nowInClinicZone
       .plus({ days: daysUntilNextRefreshTokenResetWeekday })
       .startOf('day');
 
    /* refreshTokenMaxAge — The maximum duration (in milliseconds) that the overall user SESSION can last before requiring a hard re-authentication. Due to Refresh Token Rotation, an individual refresh token's actual lifespan is short-lived (invalidated upon its first use/rotation). This value represents the absolute hard stop or "ceiling" for the rotated token chain, aligning with our weekly reset policy */
    const refreshTokenMaxAgeMS = nextRefreshTokenResetWeekday
-      .diff(now)
+      .diff(nowInClinicZone)
       .as('milliseconds');
 
    /* accessTokenMaxAge — Normally, the `JWT_ACCESS_TOKEN_EXPIRY_MS` constant's value, but theoretically can be a less if, for example, issued on Sunday at 23:59:01 */
@@ -31,18 +36,10 @@ export function getMaxAgeTokens(): {
       refreshTokenMaxAgeMS
    );
 
-   /* refreshTokenExpirationTime — a point in time (Epoch) when refresh token (or SESSION) naturally expires. */
-   const refreshTokenExpirationTimestampMS =
-      now.toMillis() + refreshTokenMaxAgeMS;
-
-   /* accessTokenExpirationTime — a point in time (Epoch) when access token naturally expires. */
-   const accessTokenExpirationTimestampMS =
-      now.toMillis() + accessTokenMaxAgeMS;
-
    return {
       accessTokenMaxAgeMS,
       refreshTokenMaxAgeMS,
-      accessTokenExpirationTimestampMS,
-      refreshTokenExpirationTimestampMS,
+      accessTokenExpirationTimestampMS: now.getTime() + accessTokenMaxAgeMS, //  accessTokenExpirationTime — a point in time (Epoch) when access token naturally expires.
+      refreshTokenExpirationTimestampMS: now.getTime() + refreshTokenMaxAgeMS, // refreshTokenExpirationTime — a point in time (Epoch) when refresh token (or SESSION) naturally expires.
    };
 }

@@ -211,7 +211,7 @@ export async function refreshController(
          accessTokenMaxAgeMS,
          refreshTokenMaxAgeMS,
          accessTokenExpirationTimestampMS,
-      } = getMaxAgeTokens();
+      } = getMaxAgeTokens(now);
 
       const { raw: newRawToken, hash: newTokenHash } = generateRefreshToken();
 
