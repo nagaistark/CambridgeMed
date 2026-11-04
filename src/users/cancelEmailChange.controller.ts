@@ -63,6 +63,7 @@ async function runCancelTransaction(
          archivedAt: validatedChange.confirmedAt,
       };
 
+      // Cancel-after-confirm resets the password, deletes pending password resets and strip 2FA. Why strip 2FA? During the 72-hour revert window, an attacker who confirmed the change can reset the password through the new mailbox, log in, and enroll their own authenticator. When the real owner then clicks the cancel link, our revert restores the email and forces a password reset. If `isTotpEnabled` is `true` with the attacker’s secret, the owner's reset will demand a code they cannot produce.
       const reverted = await getUserCollection().updateOne(
          {
             _id: validatedChange.userId,
@@ -74,6 +75,15 @@ async function runCancelTransaction(
             $set: {
                email: validatedChange.oldEmail,
                passwordResetRequired: true,
+
+               /* The revert is "re-key the lock": anything enrolled while the change stood is untrusted. */
+               isTotpEnabled: false,
+               totpSecret: null,
+               totpPendingSecret: null,
+               totpRecoveryCodes: [],
+               totpAttempts: 0,
+               totpAttemptsWindowStartedAt: null,
+
                updatedAt: now,
             },
             $pull: { previousEmails: archived },
@@ -166,10 +176,16 @@ export async function cancelEmailChangeController(
             targetUserId: result.userId,
             ...requestContext(req, res),
          });
+         securityLog.record({
+            event: 'TOTP_RESET_BY_EMAIL_REVERT',
+            actorId: null,
+            targetUserId: result.userId,
+            ...requestContext(req, res),
+         });
 
          return void res.status(200).json({
             success: true,
-            message: `Email change reverted successfully. Your previous address has been restored. Please log in again.`,
+            message: `Email change reverted successfully. Your previous address has been restored. For your security, two-factor authentication was reset: use "Forgot password" to choose a new password, then enable two-factor authentication again from your security settings.`,
          });
       } catch (err) {
          if (isDuplicateKeyOnField(err, 'email')) {
