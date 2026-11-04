@@ -86,7 +86,9 @@ export const nameString = Schema.transform(
    }
 );
 
-export const passwordString = baseString.pipe(
+export const passwordString = Schema.String.annotations({
+   message: () => `Password must be a string.`,
+}).pipe(
    Schema.filter((str: string) => str.length >= 8, {
       message: () => `Password must be at least 8 characters.`,
    }),

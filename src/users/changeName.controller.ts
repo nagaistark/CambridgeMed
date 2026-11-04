@@ -96,6 +96,7 @@ export async function changeNameController(
          {
             _id: validatedUser._id,
             nameChangesUsed: validatedUser.nameChangesUsed,
+            isActive: true,
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: {
