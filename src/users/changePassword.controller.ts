@@ -110,7 +110,9 @@ export async function changePasswordController(
          await session.withTransaction(async () => {
             const updateResult = await userCollection.updateOne(
                {
-                  _id: new ObjectId(sub),
+                  _id: validatedUser._id,
+                  passwordHash: validatedUser.passwordHash,
+                  isActive: true,
                } satisfies StrictMongoFilter<IUserDocument>,
                {
                   $set: {
@@ -126,20 +128,20 @@ export async function changePasswordController(
                   'CONCURRENCY_ERROR',
                   409,
                   'CONFLICT',
-                  `User ${sub} not found...`
+                  `Your account was modified by another request. Please try again.`
                );
             }
 
             const deleteResult = await getSessionCollection().deleteMany(
                {
-                  userId: new ObjectId(sub),
+                  userId: validatedUser._id,
                } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
 
             await getPasswordResetCollection().deleteMany(
                {
-                  userId: new ObjectId(sub),
+                  userId: validatedUser._id,
                } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
                { session }
             );
@@ -147,7 +149,7 @@ export async function changePasswordController(
             /* Unconfirmed only: a confirmed change's cancel link is the owner's recovery handle. */
             await getEmailChangeCollection().deleteMany(
                {
-                  userId: new ObjectId(sub),
+                  userId: validatedUser._id,
                   confirmedAt: null,
                } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
                { session }
