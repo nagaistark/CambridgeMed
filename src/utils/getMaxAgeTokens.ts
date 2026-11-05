@@ -6,7 +6,7 @@ export function getMaxAgeTokens(now: Date): {
    accessTokenMaxAgeMS: number;
    refreshTokenMaxAgeMS: number;
    accessTokenExpirationTimestampMS: number;
-   refreshTokenExpirationTimestampMS: number;
+   nextWeeklyResetTimestampMS: number; // <-- the moment both refresh token and invite expire
 } {
    /* fromJSDate places the instant in Settings.defaultZone (America/Toronto), so the "next Monday 00:00" boundary is still computed in clinic time, exactly as before. */
    const nowInClinicZone = DateTime.fromJSDate(now);
@@ -40,6 +40,6 @@ export function getMaxAgeTokens(now: Date): {
       accessTokenMaxAgeMS,
       refreshTokenMaxAgeMS,
       accessTokenExpirationTimestampMS: now.getTime() + accessTokenMaxAgeMS, //  accessTokenExpirationTime — a point in time (Epoch) when access token naturally expires.
-      refreshTokenExpirationTimestampMS: now.getTime() + refreshTokenMaxAgeMS, // refreshTokenExpirationTime — a point in time (Epoch) when refresh token (or SESSION) naturally expires.
+      nextWeeklyResetTimestampMS: now.getTime() + refreshTokenMaxAgeMS, // refreshTokenExpirationTime — a point in time (Epoch) when refresh token (or SESSION) naturally expires.
    };
 }

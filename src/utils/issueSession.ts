@@ -29,7 +29,7 @@ export async function issueSession(
       accessTokenMaxAgeMS,
       refreshTokenMaxAgeMS,
       accessTokenExpirationTimestampMS,
-      refreshTokenExpirationTimestampMS,
+      nextWeeklyResetTimestampMS,
    } = getMaxAgeTokens(now);
 
    const { raw: rawRefreshToken, hash: refreshTokenHash } =
@@ -45,7 +45,7 @@ export async function issueSession(
       currentTokenHash: refreshTokenHash,
       previousTokenHash: null,
       rotatedAt: now,
-      expiresAt: new Date(refreshTokenExpirationTimestampMS),
+      expiresAt: new Date(nextWeeklyResetTimestampMS),
       ipAddress: ipOrNull(req.ip),
       /* `||` on purpose: an empty header must become null too. trim() because slicing can leave trailing whitespace, which the schema rejects. */
       userAgent: req.headers['user-agent']?.slice(0, 512).trim() || null,

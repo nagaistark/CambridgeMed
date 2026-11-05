@@ -125,9 +125,9 @@ export async function createInviteController(
       const tokenHash = generateStandardHash(raw);
 
       // ── Calculate expiry (next Monday 00:00 Toronto time) ──────────────────────
-      /* We reuse the same Monday-reset logic as refresh tokens. `refreshTokenExpirationTimestampMS` is the Unix timestamp (ms) of the next reset boundary. */
-      const { refreshTokenExpirationTimestampMS } = getMaxAgeTokens(now);
-      const expiresAt = new Date(refreshTokenExpirationTimestampMS);
+      /* We reuse the same Monday-reset logic as refresh tokens. `nextWeeklyResetTimestampMS` is the Unix timestamp (ms) of the next reset boundary. */
+      const { nextWeeklyResetTimestampMS } = getMaxAgeTokens(now);
+      const expiresAt = new Date(nextWeeklyResetTimestampMS);
 
       // ── Persist the invite ─────────────────────────────────────────────────────
       const safeInvitePayload: ISafeInviteCreate = {
