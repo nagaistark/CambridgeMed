@@ -30,9 +30,9 @@ import {
    TotpEnrollSchema,
    RegenerateRecoveryCodesSchema,
 } from '@auth/totp.schemas.ts';
-import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 import { regenerateRecoveryCodesController } from './regenerateRecoveryCodes.controller.ts';
+import { requireValidRawTokenBody } from '@middleware/requireValidRawTokenBody.ts';
 
 const authRouter = Router();
 
@@ -57,9 +57,9 @@ authRouter.post(
 );
 
 authRouter.post(
-   '/reset-password/:token',
+   '/reset-password',
    resetPasswordRateLimiter,
-   requireValidRawToken('This link is invalid or has expired.'),
+   requireValidRawTokenBody('This link is invalid or has expired.'),
    validateBody(ResetPasswordSchema),
    resetPasswordController
 );

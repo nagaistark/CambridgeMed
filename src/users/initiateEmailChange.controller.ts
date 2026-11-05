@@ -273,8 +273,8 @@ export async function initiateEmailChangeController(
 
       // ── Send bilateral emails — with rollback on failure ───────────────────────
       /* An EmailChange record whose emails were never delivered is worse than no record: it silently blocks re-initiation and leaves the user with no actionable links. Rolling back removes that risk. Note that if the first email succeeds and the second fails, the first cannot be "unsent" — but deleting the record makes both raw tokens permanently inert, which is the critical safety property. */
-      const confirmUrl = `${myEnv.appBaseUrl}/email-change/confirm/${rawConfirmToken}`;
-      const cancelUrl = `${myEnv.appBaseUrl}/email-change/cancel/${rawCancelToken}`;
+      const confirmUrl = `${myEnv.appBaseUrl}/email-change/confirm#token=${rawConfirmToken}`;
+      const cancelUrl = `${myEnv.appBaseUrl}/email-change/cancel#token=${rawCancelToken}`;
 
       try {
          await sendEmailChangeEmails({

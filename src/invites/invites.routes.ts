@@ -3,7 +3,6 @@ import { authenticate } from '@middleware/authenticate.ts';
 import { requirePermissions } from '@middleware/requirePermission.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import { InviteInputSchema } from '@models/Invite_v3.model.ts';
-import { UserInputSchema } from '@models/User_v3.model.ts';
 import { createInviteController } from '@invites/createInvite.controller.ts';
 import { revokeInviteController } from '@invites/revokeInvite.controller.ts';
 import { previewInviteController } from '@invites/previewInvite.controller.ts';
@@ -15,13 +14,14 @@ import {
    MongoIdParamsSchema,
    ObjectIdCursorPaginationSchema,
 } from '@utils/effectSchemaReusables.ts';
-import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import {
    inviteAcceptRateLimiter,
    inviteCreateFailureRateLimiter,
    inviteCreateRateLimiter,
    invitePreviewRateLimiter,
 } from '@utils/rateLimiters.ts';
+import { requireValidRawTokenBody } from '@middleware/requireValidRawTokenBody.ts';
+import { AcceptInviteSchema } from '@invites/acceptInvite.schema.ts';
 
 const inviteRouter = Router();
 
@@ -53,20 +53,20 @@ inviteRouter.get(
    listInvitesController
 );
 
-// Public: the invitee has no session yet — authenticate must not appear here.
-inviteRouter.get(
-   '/:token/preview',
+// Public: the invitee has no session. The token travels in the body, never the path.
+inviteRouter.post(
+   '/preview',
    invitePreviewRateLimiter,
-   requireValidRawToken('This invite link is invalid or has expired.'),
+   requireValidRawTokenBody('This invite link is invalid or has expired.'),
    previewInviteController
 );
 
-// Public: the registering user has no session. validateBody runs the full UserInputSchema (firstName, lastName, email, password). The raw token arrives as a path parameter, not in the body.
+// Public: the registering user has no session. The token is checked first (collapsed 404), then the full body is validated strictly.
 inviteRouter.post(
-   '/:token/accept',
+   '/accept',
    inviteAcceptRateLimiter,
-   requireValidRawToken('This invite link is invalid or has expired.'),
-   validateBody(UserInputSchema),
+   requireValidRawTokenBody('This invite link is invalid or has expired.'),
+   validateBody(AcceptInviteSchema),
    acceptInviteController
 );
 

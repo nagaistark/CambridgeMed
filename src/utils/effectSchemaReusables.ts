@@ -1,6 +1,6 @@
 import '@ssot/date_time_constants.ts';
 import { argon2Regex } from '@ssot/argon2_config_constants.ts';
-import { HEX64_REGEX } from '@ssot/node_crypto_constants.ts';
+import { HEX64_REGEX, HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
 import { ParseResult, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
@@ -398,6 +398,13 @@ export const ipAddress = baseString.pipe(
       message: () => `Invalid IP Address format (ipAddress).`,
    })
 );
+
+export const rawTokenString = Schema.String.pipe(
+   Schema.pattern(HEX96_REGEX, { message: () => `Invalid token format.` })
+);
+
+export const RawTokenBodySchema = Schema.Struct({ token: rawTokenString });
+export type RawTokenBody = Schema.Schema.Type<typeof RawTokenBodySchema>;
 
 // ===== TOTP-RELATED CHECKS =======================================================
 export const totpSecretCheck = customTrim.pipe(

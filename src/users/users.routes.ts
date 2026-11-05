@@ -3,7 +3,6 @@ import { authenticate } from '@middleware/authenticate.ts';
 import { validateBody } from '@middleware/validateBody.ts';
 import { validateParams } from '@middleware/validateParams.ts';
 import { validateQuery } from '@middleware/validateQuery.ts';
-import { requireValidRawToken } from '@middleware/requireValidRawToken.ts';
 import { requirePermissions } from '@middleware/requirePermission.ts';
 import {
    emailChangeInitiateRateLimiter,
@@ -36,6 +35,7 @@ import { toggleIsActiveController } from './toggleIsActive.controller.ts';
 import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 import { resetUserTotpController } from '@auth/resetUserTotp.controller.ts';
 import { AdminResetTotpSchema } from '@auth/totp.schemas.ts';
+import { requireValidRawTokenBody } from '@middleware/requireValidRawTokenBody.ts';
 
 const usersRouter = Router();
 
@@ -61,7 +61,7 @@ meRouter.patch(
 meRouter.post(
    '/email',
    requireLiveSession,
-   passwordChangeRateLimiter, // <-- typos count against a larger counter.
+   passwordChangeRateLimiter, // <-- typos count against a larger (no matter which) counter.
    emailChangeInitiateRateLimiter, // <-- `skipFailedRequests: true` ignores typos.
    validateBody(InitiateEmailChangeSchema),
    initiateEmailChangeController
@@ -70,17 +70,21 @@ meRouter.post(
 // ── 2. EMAIL TOKEN SUB-ROUTER (/email/*) ─────────────────────────────────────────
 const emailRouter = Router();
 
-emailRouter.get(
-   '/confirm/:token',
+emailRouter.post(
+   '/confirm',
    emailTokenRateLimiter,
-   requireValidRawToken('This confirmation link is invalid or has expired.'),
+   requireValidRawTokenBody(
+      'This confirmation link is invalid or has expired.'
+   ),
    confirmEmailChangeController
 );
 
-emailRouter.get(
-   '/cancel/:token',
+emailRouter.post(
+   '/cancel',
    emailTokenRateLimiter,
-   requireValidRawToken('This cancellation link is invalid or has expired.'),
+   requireValidRawTokenBody(
+      'This cancellation link is invalid or has expired.'
+   ),
    cancelEmailChangeController
 );
 

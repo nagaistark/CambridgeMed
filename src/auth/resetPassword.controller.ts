@@ -52,8 +52,6 @@ import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 
-type ResetPasswordParams = { token: string };
-
 const INVALID_LINK_MESSAGE = `This link is invalid or has expired.` as const;
 
 // ── Transaction outcome ──────────────────────────────────────────────────────────
@@ -154,14 +152,14 @@ async function runResetTransaction(
 
 // ── Controller ───────────────────────────────────────────────────────────────────
 export async function resetPasswordController(
-   req: Request<ResetPasswordParams>,
+   req: Request,
    res: ResponseWithValidatedBody<ResetPasswordBody>,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { token } = req.params; // Shape already enforced by requireValidRawToken on the route.
-      const { newPassword, totpCode, recoveryCode } = res.locals.validatedBody;
+      const { token, newPassword, totpCode, recoveryCode } =
+         res.locals.validatedBody;
 
       const tokenHash = generateStandardHash(token);
 

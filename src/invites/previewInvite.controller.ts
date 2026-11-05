@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import {
    getInviteCollection,
    type IInviteDocumentRead,
@@ -14,21 +14,20 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
-
-// Declare the param shape so `token` is narrowed to `string`:
-type PreviewInviteParams = { token: string };
+import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import type { RawTokenBody } from '@utils/effectSchemaReusables.ts';
 
 const INVALID_LINK_MESSAGE =
    `This invite link is invalid or has expired.` as const;
 
 export async function previewInviteController(
-   req: Request<PreviewInviteParams>,
-   res: Response,
+   _req: Request,
+   res: ResponseWithValidatedBody<RawTokenBody>,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { token } = req.params;
+      const { token } = res.locals.validatedBody;
 
       // ── Hash and look up ───────────────────────────────────────────────────────
       const tokenHash = generateStandardHash(token);

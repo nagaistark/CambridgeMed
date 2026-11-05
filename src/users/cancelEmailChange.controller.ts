@@ -1,4 +1,4 @@
-import type { Request, Response, NextFunction } from 'express';
+import type { Request, NextFunction } from 'express';
 import {
    getUserCollection,
    type IUserDocument,
@@ -26,8 +26,9 @@ import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import logger from '../logger.ts';
+import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
+import type { RawTokenBody } from '@utils/effectSchemaReusables.ts';
 
-type CancelParams = { token: string };
 type CancelOutcome =
    | { status: 'invalid' }
    | { status: 'cancelled'; userId: ObjectId }
@@ -121,14 +122,13 @@ async function runCancelTransaction(
 }
 
 export async function cancelEmailChangeController(
-   req: Request<CancelParams>,
-   res: Response,
+   req: Request,
+   res: ResponseWithValidatedBody<RawTokenBody>,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { token } = req.params;
-
+      const { token } = res.locals.validatedBody;
       const tokenHash = generateStandardHash(token);
 
       const authConnection = DatabaseManager.getInstance().auth.client;

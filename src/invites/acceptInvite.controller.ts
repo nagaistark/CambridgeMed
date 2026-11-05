@@ -4,7 +4,6 @@ import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    getUserCollection,
    type IUserDocument,
-   type IUserInput,
    type IUserInviteIssuer,
    UserDocumentValidator,
    UserInviteIssuerValidator,
@@ -43,8 +42,7 @@ import logger from '../logger.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
-
-type AcceptInviteParams = { token: string };
+import type { AcceptInviteBody } from '@invites/acceptInvite.schema.ts';
 
 const EMAIL_MISMATCH_MESSAGE =
    `The email address you entered does not match the one this invite was sent to.` as const;
@@ -225,14 +223,14 @@ async function runRegistrationTransaction(
 
 // ── Controller ───────────────────────────────────────────────────────────────────
 export async function acceptInviteController(
-   req: Request<AcceptInviteParams>,
-   res: ResponseWithValidatedBody<IUserInput>,
+   _req: Request,
+   res: ResponseWithValidatedBody<AcceptInviteBody>,
    next: NextFunction
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { token } = req.params;
-      const { email, firstName, lastName, password } = res.locals.validatedBody;
+      const { token, email, firstName, lastName, password } =
+         res.locals.validatedBody;
 
       // ── Step 1: Derive the token hash ──────────────────────────────────────────
       const tokenHash = generateStandardHash(token);

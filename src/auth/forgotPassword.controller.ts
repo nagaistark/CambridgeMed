@@ -131,7 +131,7 @@ async function issuePasswordReset(
 
    // ── Email delivery with rollback ───────────────────────────────────────────────
    /* A reset document whose email never left the building is dead weight that also blocks the next request for the cooldown. The rollback is scoped to OUR token hash, so it can never delete a newer document written by a concurrent request. */
-   const resetUrl = `${myEnv.appBaseUrl}/reset-password/${rawToken}`;
+   const resetUrl = `${myEnv.appBaseUrl}/reset-password#token=${rawToken}`;
 
    try {
       await sendPasswordResetEmail({
