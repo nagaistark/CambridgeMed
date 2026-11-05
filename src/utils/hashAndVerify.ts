@@ -12,3 +12,17 @@ export async function verifyPassword(
    if (!hash || !password || !hash.startsWith('$argon2')) return false;
    return await argon2.verify(hash, password, { secret: ARGON2_CONFIG.secret });
 }
+
+/* True when the parameters embedded in `hash` differ from the current config. Only the four comparable parameters are passed, so the pepper never enters this call. The library throws on a malformed digest; such a hash cannot be upgraded anyway, so we answer "no". */
+export function needsRehash(hash: string): boolean {
+   try {
+      return argon2.needsRehash(hash, {
+         memoryCost: ARGON2_CONFIG.memoryCost,
+         timeCost: ARGON2_CONFIG.timeCost,
+         parallelism: ARGON2_CONFIG.parallelism,
+         version: ARGON2_CONFIG.version,
+      });
+   } catch {
+      return false;
+   }
+}

@@ -23,6 +23,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { upgradePasswordHashIfStale } from '@auth/upgradePasswordHash.ts';
 
 /* A real hash, made once at startup with the CURRENT ARGON2_CONFIG, of a password nobody knows. When no user matches, we still run a full verification against it so "no such user" costs the same as "wrong password". Because it is generated rather than pasted, it cannot drift from the config. */
 const TIMING_DUMMY_HASH: string = await hashPassword(generateRandomToken());
@@ -94,6 +95,9 @@ export async function loginController(
                )
             );
       }
+
+      /* The password is proven correct here, for BOTH the password-only path and the TOTP path (the 202 branch below never sees the plaintext again). Only a valid password can trigger the extra Argon2 run, so this adds no amplification for attackers. */
+      await upgradePasswordHashIfStale(validatedUser, password, requestId);
 
       // ── TOTP gate (logic unchanged; TOTP is tabled) ────────────────────────────
       if (validatedUser.isTotpEnabled) {

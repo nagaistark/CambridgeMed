@@ -236,7 +236,7 @@ const TotpEncryptionConfigSchema = Schema.Struct({
 
 const commaSeparatedOrigins = Schema.transform(
    nonEmptyReasonablyLongString,
-   Schema.Array(Schema.String),
+   Schema.Array(httpUrl),
    {
       strict: true,
       decode: (str: string) =>
