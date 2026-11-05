@@ -1,15 +1,15 @@
 import { UserDocumentStruct } from '@models/User_v3.model.ts';
 import {
-   baseString,
    clinicStaffEmail,
    nameString,
+   passwordInputString,
    passwordString,
 } from '@utils/effectSchemaReusables.ts';
 import { Schema } from 'effect';
 
 /* The schema handles SYNTACTIC checks (Is it a string? Is it non-empty? Do the fields satisfy pure relational logic like A != B?). The SEMANTIC check (does A actually match the stored hash in the database for the user making the request?) is performed by the controller down the middleware chain. */
 export const ChangePasswordSchema = Schema.Struct({
-   currentPassword: baseString,
+   currentPassword: passwordInputString,
    newPassword: passwordString,
 }).pipe(
    Schema.filter(
@@ -50,7 +50,7 @@ export type ChangeNameBody = Schema.Schema.Type<typeof ChangeNameSchema>;
 /* Email change should require the current password. Identical pipeline to the registration email field: format validation, length cap, and a lowercase transform. The equality check against the user's current email (new !== old) is enforced in the controller, not here, because the schema has no access to the authenticated user's record. */
 export const InitiateEmailChangeSchema = Schema.Struct({
    newEmail: clinicStaffEmail,
-   currentPassword: passwordString,
+   currentPassword: passwordInputString,
 });
 
 export type InitiateEmailChangeBody = Schema.Schema.Type<

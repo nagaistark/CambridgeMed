@@ -1,5 +1,5 @@
 import {
-   baseString,
+   passwordInputString,
    recoveryCodeString,
    totpCodeString,
 } from '@utils/effectSchemaReusables.ts';
@@ -14,7 +14,9 @@ export const RecoveryCodeSchema = Schema.Struct({ code: recoveryCodeString });
 export type RecoveryCodeBody = Schema.Schema.Type<typeof RecoveryCodeSchema>;
 
 /* Starting an enrollment is a security-relevant change, so it needs the password. No complexity rules: we verify an existing hash. */
-export const TotpEnrollSchema = Schema.Struct({ currentPassword: baseString });
+export const TotpEnrollSchema = Schema.Struct({
+   currentPassword: passwordInputString,
+});
 export type TotpEnrollBody = Schema.Schema.Type<typeof TotpEnrollSchema>;
 
 // ── Re-authentication payloads (password + a second factor) ─────────────────────
@@ -43,7 +45,7 @@ const hasAtMostOneFactor = ({
 
 /* Disabling 2FA and regenerating recovery codes need the password AND exactly one second factor. */
 const ReauthWithOneFactorSchema = Schema.Struct({
-   currentPassword: baseString,
+   currentPassword: passwordInputString,
    ...secondFactorFields,
 }).pipe(
    Schema.filter(hasExactlyOneFactor, {
@@ -61,7 +63,7 @@ export type RegenerateRecoveryCodesBody = Schema.Schema.Type<
 
 /* The admin's OWN re-authentication. Whether a second factor is required depends on whether THAT admin has 2FA enabled, which the schema cannot know; the controller enforces "required when enabled". Hence at most one here. */
 export const AdminResetTotpSchema = Schema.Struct({
-   currentPassword: baseString,
+   currentPassword: passwordInputString,
    ...secondFactorFields,
 }).pipe(
    Schema.filter(hasAtMostOneFactor, {

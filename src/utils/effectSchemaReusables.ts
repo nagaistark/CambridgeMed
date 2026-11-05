@@ -4,7 +4,7 @@ import { HEX64_REGEX, HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
 import { ParseResult, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
-import { MIN_LEGAL_AGE } from '@ssot/policy_constants.ts';
+import { MIN_LEGAL_AGE, PASSWORD_MAX_LENGTH } from '@ssot/policy_constants.ts';
 import {
    recoveryCodeRegex,
    TOTP_DIGITS,
@@ -86,10 +86,19 @@ export const nameString = Schema.transform(
    }
 );
 
-export const passwordString = Schema.String.annotations({
+/* For VERIFYING an existing password: no trim, no complexity rules, same ceiling as creation. */
+export const passwordInputString = Schema.String.annotations({
    message: () => `Password must be a string.`,
 }).pipe(
-   Schema.filter((str: string) => str.length >= 8, {
+   Schema.minLength(1, { message: () => `Password is required.` }),
+   Schema.maxLength(PASSWORD_MAX_LENGTH, {
+      message: () => `Password is too long.`,
+   })
+);
+
+/* For CREATING a password: the same atom plus the complexity rules. */
+export const passwordString = passwordInputString.pipe(
+   Schema.minLength(8, {
       message: () => `Password must be at least 8 characters.`,
    }),
    Schema.pattern(/[A-Z]/, {

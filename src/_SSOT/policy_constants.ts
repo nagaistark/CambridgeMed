@@ -57,3 +57,4 @@ export const suffixes = [
    'MBA',
 ] as const;
 export const availableLanguages = ['English', 'Français'] as const;
+export const PASSWORD_MAX_LENGTH = 128 as const;
