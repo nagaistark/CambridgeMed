@@ -24,7 +24,7 @@ import { buildListUsersResponse } from '@utils/buildResponses.ts';
 import type { IObjectIdCursorPagination } from '@utils/effectSchemaReusables.ts';
 import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
 import { takePage } from '@utils/cursorPagination.ts';
-import { decodeStored } from '@/utils/decodeStored.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function listUsersController(
    _req: Request,

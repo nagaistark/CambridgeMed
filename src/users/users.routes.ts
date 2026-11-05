@@ -53,6 +53,7 @@ meRouter.patch(
 
 meRouter.patch(
    '/name',
+   requireLiveSession,
    nameChangeRateLimiter,
    validateBody(ChangeNameSchema),
    changeNameController

@@ -23,7 +23,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { buildGetUserResponse } from '@utils/buildResponses.ts';
 import { buildUserVisibilityFilter } from '@utils/userVisibility.ts';
-import { decodeStored } from '@/utils/decodeStored.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
 
 export async function getUserController(
    _req: Request,

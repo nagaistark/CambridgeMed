@@ -18,11 +18,3 @@ export const HEX96_REGEX = /^[a-f0-9]{96}$/;
 
 // Validates a stored hash (64 chars)
 export const HEX64_REGEX = /^[a-f0-9]{64}$/;
-
-export const hexHashValidator = {
-   validator: (str: string) => {
-      if (str === null) return true;
-      return HEX64_REGEX.test(str);
-   },
-   message: `Must be a 64-character hex string (SHA-256 digest).`,
-};

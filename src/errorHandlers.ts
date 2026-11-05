@@ -3,6 +3,7 @@ import { ParseResult, Runtime, Cause } from 'effect';
 import { MongoError, MongoNetworkError, MongoServerError } from 'mongodb';
 import { errors as joseErrors } from 'jose';
 import logger from './logger.ts';
+import { myEnv } from './validateConfig.ts';
 
 // ===== Every possible machine-readable error code (so far) =======================
 const ALL_ERROR_CODES = [
@@ -393,7 +394,7 @@ export function handleHttpError(
    // http-errors
    if (isHttpCreatedError(err)) {
       const message =
-         err.expose || process.env.NODE_ENV !== 'production'
+         err.expose || myEnv.environment !== 'production'
             ? err.message
             : 'An unexpected server error occurred.';
 
@@ -412,7 +413,7 @@ export function handleHttpError(
    if (isStatusOnlyError(err)) {
       const isClientError = err.status >= 400 && err.status < 500;
       const message =
-         isClientError || process.env.NODE_ENV !== 'production'
+         isClientError || myEnv.environment !== 'production'
             ? err.message
             : 'An unexpected server error occurred.';
 
@@ -431,7 +432,7 @@ export function handleHttpError(
    if (isStatusCodeOnlyError(err)) {
       const isClientError = err.statusCode >= 400 && err.statusCode < 500;
       const message =
-         isClientError || process.env.NODE_ENV !== 'production'
+         isClientError || myEnv.environment !== 'production'
             ? err.message
             : 'An unexpected server error occurred.';
 
@@ -567,7 +568,7 @@ export function handleCatchAll(
    const status = operational ? 503 : 500;
    const code = operational ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_ERROR';
    const message =
-      process.env.NODE_ENV === 'production'
+      myEnv.environment === 'production'
          ? operational
             ? 'The service is temporarily unavailable. Please try again shortly.'
             : 'An unexpected error occurred. Please contact support if this persists.'
