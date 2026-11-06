@@ -133,7 +133,10 @@ export function getSessionCollection(): Collection<ISessionDocument> {
 
 export const sessionIndexes = [
    { key: { currentTokenHash: 1 }, unique: true },
-   { key: { previousTokenHash: 1 }, sparse: true },
+   {
+      key: { previousTokenHash: 1 },
+      partialFilterExpression: { previousTokenHash: { $type: 'string' } },
+   },
 
    // Needed for the "nuclear" option: deleteMany({ userId }).
    { key: { userId: 1, _id: -1 } },
