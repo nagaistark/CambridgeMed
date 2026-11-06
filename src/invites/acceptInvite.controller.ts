@@ -1,6 +1,4 @@
 import type { Request, NextFunction } from 'express';
-
-import { DatabaseManager } from '../mongoDBConnect.ts';
 import {
    getUserCollection,
    type IUserDocument,
@@ -16,7 +14,6 @@ import {
    type IInviteDocumentRead,
    InviteEmailCheckValidator,
 } from '@models/Invite_v3.model.ts';
-
 import { hashPassword } from '@utils/hashAndVerify.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
@@ -26,7 +23,7 @@ import {
    Permissions,
    resolvePermissions,
 } from '@ssot/permissions_constants.ts';
-import { ClientSession, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import type {
    StrictFindOneAndUpdateOptions,
    StrictFindOneOptions,
@@ -43,6 +40,7 @@ import type { ExpandType } from '@utils/helperTypes.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import type { AcceptInviteBody } from '@invites/acceptInvite.schema.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 
 const EMAIL_MISMATCH_MESSAGE =
    `The email address you entered does not match the one this invite was sent to.` as const;
@@ -74,151 +72,146 @@ type RegistrationParams = ExpandType<
 >;
 
 async function runRegistrationTransaction(
-   session: ClientSession,
    params: RegistrationParams
 ): Promise<TransactionOutcome> {
    const { tokenHash, email, firstName, lastName, passwordHash } = params;
-   let outcome: TransactionOutcome = { status: 'invalid_token' };
 
    try {
-      await session.withTransaction(async () => {
-         const inviteCollection = getInviteCollection();
-         const userCollection = getUserCollection();
-         const now = new Date();
-         const userId = new ObjectId();
+      return await withAuthTransaction(
+         async (session): Promise<TransactionOutcome> => {
+            const inviteCollection = getInviteCollection();
+            const userCollection = getUserCollection();
+            const now = new Date();
+            const userId = new ObjectId();
 
-         // ── Atomic claim ────────────────────────────────────────────────────────
-         /* The filter's three conditions must ALL be true simultaneously:
+            // ── Atomic claim ────────────────────────────────────────────────────────
+            /* The filter's three conditions must ALL be true simultaneously:
             - tokenHash matches → correct invite
             - usedAt is null    → not yet accepted
             - expiresAt > now   → not expired, regardless of TTL janitor lag
    
          If withTransaction() retries this callback after a transient error, it will have already rolled back the previous attempt's writes, leaving usedAt null and ready to be claimed cleanly on the retry. */
-         const claimedInviteRaw = await inviteCollection.findOneAndUpdate(
-            {
-               tokenHash,
-               usedAt: null,
-               expiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<IInviteDocumentRead>,
-            {
-               $set: {
-                  usedAt: now,
-                  acceptedBy: userId,
-                  updatedAt: now,
-               },
-            } satisfies StrictUpdate<IInviteDocumentRead>,
-            {
-               projection: SAFE_INVITE_PROJECTION,
-               returnDocument: 'after',
-               session,
-            } satisfies StrictFindOneAndUpdateOptions<ISafeInviteRead>
-         );
+            const claimedInviteRaw = await inviteCollection.findOneAndUpdate(
+               {
+                  tokenHash,
+                  usedAt: null,
+                  expiresAt: { $gt: now },
+               } satisfies StrictMongoFilter<IInviteDocumentRead>,
+               {
+                  $set: {
+                     usedAt: now,
+                     acceptedBy: userId,
+                     updatedAt: now,
+                  },
+               } satisfies StrictUpdate<IInviteDocumentRead>,
+               {
+                  projection: SAFE_INVITE_PROJECTION,
+                  returnDocument: 'after',
+                  session,
+               } satisfies StrictFindOneAndUpdateOptions<ISafeInviteRead>
+            );
 
-         if (!claimedInviteRaw) {
-            throw new TransactionAbortError({ status: 'invalid_token' });
-         }
+            if (!claimedInviteRaw) {
+               throw new TransactionAbortError({ status: 'invalid_token' });
+            }
 
-         /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. */
-         const validatedClaimedInvite = decodeStored(
-            SafeInviteReadValidator,
-            claimedInviteRaw,
-            'claimed invite'
-         );
+            /* Re-verify the shape of what MongoDB handed back before trusting any of its fields to build the new User document. */
+            const validatedClaimedInvite = decodeStored(
+               SafeInviteReadValidator,
+               claimedInviteRaw,
+               'claimed invite'
+            );
 
-         // ── Email confirmation check ────────────────────────────────────────────
-         /* We compare the body email against claimedInvite.email (the value locked in at invite creation time) to confirm the registering person is the intended recipient.
+            // ── Email confirmation check ────────────────────────────────────────────
+            /* We compare the body email against claimedInvite.email (the value locked in at invite creation time) to confirm the registering person is the intended recipient.
    
          If mismatch, set the outcome BEFORE returning. withTransaction() aborts, rolling back the findOneAndUpdate above and leaving usedAt as null. The invite is fully unclaimed and reusable. */
-         if (validatedClaimedInvite.email !== email) {
-            throw new TransactionAbortError({ status: 'email_mismatch' });
-         }
+            if (validatedClaimedInvite.email !== email) {
+               throw new TransactionAbortError({ status: 'email_mismatch' });
+            }
 
-         const issuerRaw = await userCollection.findOne<IUserInviteIssuer>(
-            {
-               _id: validatedClaimedInvite.issuedBy,
-            } satisfies StrictMongoFilter<IUserDocument>,
-            {
-               projection: USER_INVITE_ISSUER_PROJECTION,
-               session,
-            } satisfies StrictFindOneOptions<IUserInviteIssuer>
-         );
-         if (!issuerRaw) {
-            throw new TransactionAbortError({ status: 'invalid_token' });
-         }
-
-         const validatedIssuer = decodeStored(
-            UserInviteIssuerValidator,
-            issuerRaw,
-            'invite acceptance: issuer'
-         );
-
-         if (
-            !canIssueInviteForRole(validatedIssuer, validatedClaimedInvite.role)
-         ) {
-            logger.warn(
-               `Invite accepted after issuer lost authority; refusing.`,
+            const issuerRaw = await userCollection.findOne<IUserInviteIssuer>(
                {
-                  inviteId: validatedClaimedInvite._id,
-                  issuerId: validatedClaimedInvite.issuedBy,
-               }
+                  _id: validatedClaimedInvite.issuedBy,
+               } satisfies StrictMongoFilter<IUserDocument>,
+               {
+                  projection: USER_INVITE_ISSUER_PROJECTION,
+                  session,
+               } satisfies StrictFindOneOptions<IUserInviteIssuer>
             );
-            throw new TransactionAbortError({ status: 'invalid_token' });
+            if (!issuerRaw) {
+               throw new TransactionAbortError({ status: 'invalid_token' });
+            }
+
+            const validatedIssuer = decodeStored(
+               UserInviteIssuerValidator,
+               issuerRaw,
+               'invite acceptance: issuer'
+            );
+
+            if (
+               !canIssueInviteForRole(
+                  validatedIssuer,
+                  validatedClaimedInvite.role
+               )
+            ) {
+               logger.warn(
+                  `Invite accepted after issuer lost authority; refusing.`,
+                  {
+                     inviteId: validatedClaimedInvite._id,
+                     issuerId: validatedClaimedInvite.issuedBy,
+                  }
+               );
+               throw new TransactionAbortError({ status: 'invalid_token' });
+            }
+
+            // ── Create the User document ────────────────────────────────────────────
+            /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDocument`). */
+            const userPayload: IUserDocument = {
+               _id: userId,
+               firstName,
+               lastName,
+               email: validatedClaimedInvite.email,
+               passwordHash,
+               role: validatedClaimedInvite.role,
+               permissions: resolvePermissions(
+                  validatedClaimedInvite.role,
+                  validatedClaimedInvite.canIssueInvites
+                     ? Permissions.ISSUE_INVITES
+                     : 0
+               ),
+               previousNames: [],
+               previousEmails: [],
+               nameChangesUsed: 0,
+               emailChangesUsed: 0,
+               isTotpEnabled: false,
+               totpSecret: null,
+               totpPendingSecret: null,
+               totpRecoveryCodes: [],
+               totpLastUsedStep: 0,
+               totpAttempts: 0,
+               totpAttemptsWindowStartedAt: null,
+               invitedBy: validatedClaimedInvite.issuedBy,
+               isActive: true,
+               passwordResetRequired: false,
+               createdAt: now,
+               updatedAt: now,
+            };
+
+            const validatedUserPayload = decodeStored(
+               UserDocumentValidator,
+               userPayload,
+               'new user document'
+            );
+
+            await userCollection.insertOne(validatedUserPayload, { session });
+            return { status: 'success' };
          }
-
-         // ── Create the User document ────────────────────────────────────────────
-         /* The email we persist is claimedInvite.email, not the "body" email. The body email has served its purpose in the confirmation check and is now discarded. role and invitedBy come from the invite document and are not negotiable by the registering user. `canIssueInvites` gets transformed into `permissions`. We also prepare the payload in advance to let TypeScript catch a potential mismatch early (constrained by `IUserDocument`). */
-         const userPayload: IUserDocument = {
-            _id: userId,
-            firstName,
-            lastName,
-            email: validatedClaimedInvite.email,
-            passwordHash,
-            role: validatedClaimedInvite.role,
-            permissions: resolvePermissions(
-               validatedClaimedInvite.role,
-               validatedClaimedInvite.canIssueInvites
-                  ? Permissions.ISSUE_INVITES
-                  : 0
-            ),
-            previousNames: [],
-            previousEmails: [],
-            nameChangesUsed: 0,
-            emailChangesUsed: 0,
-            isTotpEnabled: false,
-            totpSecret: null,
-            totpPendingSecret: null,
-            totpRecoveryCodes: [],
-            totpLastUsedStep: 0,
-            totpAttempts: 0,
-            totpAttemptsWindowStartedAt: null,
-            invitedBy: validatedClaimedInvite.issuedBy,
-            isActive: true,
-            passwordResetRequired: false,
-            createdAt: now,
-            updatedAt: now,
-         };
-
-         const validatedUserPayload = decodeStored(
-            UserDocumentValidator,
-            userPayload,
-            'new user document'
-         );
-
-         await userCollection.insertOne(validatedUserPayload, { session });
-
-         outcome = { status: 'success' };
-         // withTransaction() commits automatically when the callback resolves.
-      });
+      );
    } catch (err) {
-      if (err instanceof TransactionAbortError) {
-         /* This is a deliberate, expected abort. Set the outcome and let the function return normally — this is not an error condition from the controller's perspective. */
-         outcome = err.outcome;
-      } else {
-         throw err;
-      }
+      if (err instanceof TransactionAbortError) return err.outcome;
+      throw err;
    }
-
-   return outcome;
 }
 
 // ── Controller ───────────────────────────────────────────────────────────────────
@@ -283,22 +276,10 @@ export async function acceptInviteController(
       /* Keeping a MongoDB transaction open while Argon2 churns for 100–300ms would hold server-side resources unnecessarily. */
       const passwordHash = await hashPassword(password);
 
-      // ── Step 4: Acquire the native client and start a session (synchronous!) ───
-      /* The server bootstrap guarantees this is never null, and any unexpected throw here is caught by the outer try/catch. */
-      const authConnection = DatabaseManager.getInstance().auth.client;
-      if (!authConnection) {
-         throw new Error(
-            `Auth database connection unavailable during invite acceptance.`
-         );
-      }
-
-      // ── Step 5: Run the transaction ────────────────────────────────────────────
-      const session = authConnection.startSession();
-
-      /* The try/catch/finally here guarantees that session.endSession() always runs, regardless of whether the transaction committed, aborted, or threw unexpectedly. */
+      // ── Step 4: Transaction ────────────────────────────────────────────────────
       let outcome: TransactionOutcome;
       try {
-         outcome = await runRegistrationTransaction(session, {
+         outcome = await runRegistrationTransaction({
             firstName,
             lastName,
             passwordHash,
@@ -318,11 +299,9 @@ export async function acceptInviteController(
                );
          }
          throw err;
-      } finally {
-         await session.endSession();
       }
 
-      // ── Step 6: Send the HTTP response ─────────────────────────────────────────
+      // ── Step 5: Send the HTTP response ─────────────────────────────────────────
       if (outcome.status === 'invalid_token') {
          return void res
             .status(404)

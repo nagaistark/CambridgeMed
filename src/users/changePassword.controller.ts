@@ -21,7 +21,6 @@ import {
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
-import { DatabaseManager } from '../mongoDBConnect.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -37,6 +36,7 @@ import logger from '../logger.ts';
 import { USER_ID_PASSWORDHASH_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 
 export async function changePasswordController(
    req: Request,
@@ -98,71 +98,61 @@ export async function changePasswordController(
 
       // ── Step 4: atomic update + session destruction ────────────────────────────
       /* Transaction because the two writes must succeed OR fail as a unit. */
-      const authConnection = DatabaseManager.getInstance().auth.client;
-      if (!authConnection) {
-         throw new Error(
-            `Auth database connection unavailable during password change.`
+      const sessionsRevoked = await withAuthTransaction(async session => {
+         const updateResult = await userCollection.updateOne(
+            {
+               _id: validatedUser._id,
+               passwordHash: validatedUser.passwordHash,
+               isActive: true,
+            } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               $set: {
+                  passwordHash: newPasswordHash,
+                  updatedAt: new Date(),
+               },
+            } satisfies StrictUpdate<IUserDocument>,
+            { session }
          );
-      }
 
-      const session = authConnection.startSession();
-      try {
-         await session.withTransaction(async () => {
-            const updateResult = await userCollection.updateOne(
-               {
-                  _id: validatedUser._id,
-                  passwordHash: validatedUser.passwordHash,
-                  isActive: true,
-               } satisfies StrictMongoFilter<IUserDocument>,
-               {
-                  $set: {
-                     passwordHash: newPasswordHash,
-                     updatedAt: new Date(),
-                  },
-               } satisfies StrictUpdate<IUserDocument>,
-               { session }
+         if (updateResult.matchedCount === 0) {
+            throw makeAppError(
+               'CONCURRENCY_ERROR',
+               409,
+               'CONFLICT',
+               `Your account was modified by another request. Please try again.`
             );
+         }
 
-            if (updateResult.matchedCount === 0) {
-               throw makeAppError(
-                  'CONCURRENCY_ERROR',
-                  409,
-                  'CONFLICT',
-                  `Your account was modified by another request. Please try again.`
-               );
-            }
+         const deleteResult = await getSessionCollection().deleteMany(
+            {
+               userId: validatedUser._id,
+            } satisfies StrictMongoFilter<ISessionDocument>,
+            { session }
+         );
 
-            const deleteResult = await getSessionCollection().deleteMany(
-               {
-                  userId: validatedUser._id,
-               } satisfies StrictMongoFilter<ISessionDocument>,
-               { session }
-            );
+         await getPasswordResetCollection().deleteMany(
+            {
+               userId: validatedUser._id,
+            } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
+            { session }
+         );
 
-            await getPasswordResetCollection().deleteMany(
-               {
-                  userId: validatedUser._id,
-               } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
-               { session }
-            );
+         /* Unconfirmed only: a confirmed change's cancel link is the owner's recovery handle. */
+         await getEmailChangeCollection().deleteMany(
+            {
+               userId: validatedUser._id,
+               confirmedAt: null,
+            } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
+            { session }
+         );
 
-            /* Unconfirmed only: a confirmed change's cancel link is the owner's recovery handle. */
-            await getEmailChangeCollection().deleteMany(
-               {
-                  userId: validatedUser._id,
-                  confirmedAt: null,
-               } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
-               { session }
-            );
+         return deleteResult.deletedCount;
+      });
 
-            logger.info(
-               `Password changed and ${deleteResult.deletedCount} session(s) invalidated.`,
-               { userId: sub, requestId }
-            );
-         });
-      } finally {
-         await session.endSession();
-      }
+      logger.info(
+         `Password changed and ${sessionsRevoked} session(s) invalidated.`,
+         { userId: sub, requestId }
+      );
 
       securityLog.record({
          event: 'PASSWORD_CHANGED',

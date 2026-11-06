@@ -18,27 +18,24 @@ import {
 } from '@models/PasswordReset_v3.model.ts';
 import { clearAuthCookies } from '@utils/tokenUtils.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
-import { DatabaseManager } from '../mongoDBConnect.ts';
 import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
-import type { ClientSession, ObjectId } from 'mongodb';
+import type { ObjectId } from 'mongodb';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import logger from '../logger.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { RawTokenBody } from '@utils/effectSchemaReusables.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 
 type CancelOutcome =
    | { status: 'invalid' }
    | { status: 'cancelled'; userId: ObjectId }
    | { status: 'reverted'; userId: ObjectId };
 
-async function runCancelTransaction(
-   session: ClientSession,
-   tokenHash: string
-): Promise<CancelOutcome> {
-   return session.withTransaction(async (): Promise<CancelOutcome> => {
+async function runCancelTransaction(tokenHash: string): Promise<CancelOutcome> {
+   return withAuthTransaction(async (session): Promise<CancelOutcome> => {
       const now = new Date();
 
       const deletedRaw = await getEmailChangeCollection().findOneAndDelete(
@@ -131,17 +128,8 @@ export async function cancelEmailChangeController(
       const { token } = res.locals.validatedBody;
       const tokenHash = generateStandardHash(token);
 
-      const authConnection = DatabaseManager.getInstance().auth.client;
-      if (!authConnection) {
-         throw new Error(
-            `Auth database connection unavailable during email change reversion.`
-         );
-      }
-
-      const session = authConnection.startSession();
-
       try {
-         const result = await runCancelTransaction(session, tokenHash);
+         const result = await runCancelTransaction(tokenHash);
 
          if (result.status === 'invalid') {
             return void res
@@ -204,8 +192,6 @@ export async function cancelEmailChangeController(
                );
          }
          throw err;
-      } finally {
-         await session.endSession();
       }
    } catch (err) {
       next(err);

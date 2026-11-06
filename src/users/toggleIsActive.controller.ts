@@ -16,7 +16,7 @@ import type {
    ResponseWithValidatedParams,
 } from '@utils/customTypedResponses.ts';
 import type { SetIsActiveBody } from '@users/User_v3.schemas.ts';
-import { ClientSession, ObjectId } from 'mongodb';
+import { ObjectId } from 'mongodb';
 import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import type {
    StrictFindOneOptions,
@@ -42,6 +42,7 @@ import type { ExpandType } from '@utils/helperTypes.ts';
 import logger from '../logger.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 
 // ── Transaction outcome ──────────────────────────────────────────────────────────
 /* Every settled result the transaction can produce. 'no_match' means the conditional update matched nothing, so NOTHING was written or swept. The controller then diagnoses why, outside the transaction. */
@@ -59,11 +60,11 @@ type ToggleParams = ExpandType<
    { readonly id: ObjectId } & Pick<IUserDocument, 'isActive'>
 >;
 
-async function runToggleTransaction(
-   session: ClientSession,
-   { id, isActive }: ToggleParams
-): Promise<ToggleOutcome> {
-   return session.withTransaction(async (): Promise<ToggleOutcome> => {
+function runToggleTransaction({
+   id,
+   isActive,
+}: ToggleParams): Promise<ToggleOutcome> {
+   return withAuthTransaction(async (session): Promise<ToggleOutcome> => {
       // ── Atomic compare-and-swap ──────────────────────────────────────────────
       /* The filter IS the decision: "this user exists AND holds an assignable role AND is currently in the OPPOSITE state". Check and act are one indivisible step, so there is no window between "I looked" and "I wrote". The allow-list (`$in: allowedRoles`) keeps the superadmin untouchable. */
       const flipped = await getUserCollection().updateOne(
@@ -154,14 +155,7 @@ export async function toggleIsActiveController(
       }
 
       // ── The write (authoritative) ──────────────────────────────────────────────
-      const session = authConnection.startSession();
-      let outcome: ToggleOutcome;
-
-      try {
-         outcome = await runToggleTransaction(session, { id, isActive });
-      } finally {
-         await session.endSession();
-      }
+      const outcome = await runToggleTransaction({ id, isActive });
 
       if (outcome.status === 'applied') {
          const log = isActive ? logger.info : logger.warn;

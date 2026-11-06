@@ -8,7 +8,6 @@ import {
    UserInviteIssuerValidator,
 } from '@models/User_v3.model.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
-import { DatabaseManager } from '../mongoDBConnect.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -36,6 +35,7 @@ import {
 } from '@models/Invite_v3.model.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 
 export async function toggleCanIssueInvitesController(
    req: Request,
@@ -159,56 +159,44 @@ export async function toggleCanIssueInvitesController(
       }
 
       // ── Compare-and-swap write ─────────────────────────────────────────────────
-      const authConnection = DatabaseManager.getInstance().auth.client;
-      if (!authConnection) {
-         throw new Error(
-            `Auth database connection unavailable during invite-privilege change.`
+      await withAuthTransaction(async session => {
+         /* The filter says "only if the document still looks the way I decided on, and I'm still allowed to touch it". */
+         const updateResult = await userCollection.updateOne(
+            {
+               $and: [
+                  {
+                     _id: validatedTargetUser._id,
+                     permissions: validatedTargetUser.permissions,
+                  },
+                  scopeClause,
+               ],
+            } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               $set: { permissions: newPermissions, updatedAt: new Date() },
+            } satisfies StrictUpdate<IUserDocument>,
+            { session }
          );
-      }
 
-      const session = authConnection.startSession();
-      try {
-         await session.withTransaction(async () => {
-            /* The filter says "only if the document still looks the way I decided on, and I'm still allowed to touch it". */
-            const updateResult = await userCollection.updateOne(
+         if (updateResult.matchedCount === 0) {
+            throw makeAppError(
+               'CONCURRENCY_ERROR',
+               409,
+               'CONFLICT',
+               `This user's permissions were changed by another request. Please retry.`
+            );
+         }
+
+         /* Revocation voids every pending invite the user issued. Accepted invites are deliberately left alone: those people are real users now. */
+         if (!canIssueInvites) {
+            await getInviteCollection().deleteMany(
                {
-                  $and: [
-                     {
-                        _id: validatedTargetUser._id,
-                        permissions: validatedTargetUser.permissions,
-                     },
-                     scopeClause,
-                  ],
-               } satisfies StrictMongoFilter<IUserDocument>,
-               {
-                  $set: { permissions: newPermissions, updatedAt: new Date() },
-               } satisfies StrictUpdate<IUserDocument>,
+                  issuedBy: validatedTargetUser._id,
+                  usedAt: null,
+               } satisfies StrictMongoFilter<IInviteDocumentRead>,
                { session }
             );
-
-            if (updateResult.matchedCount === 0) {
-               throw makeAppError(
-                  'CONCURRENCY_ERROR',
-                  409,
-                  'CONFLICT',
-                  `This user's permissions were changed by another request. Please retry.`
-               );
-            }
-
-            /* Revocation voids every pending invite the user issued. Accepted invites are deliberately left alone: those people are real users now. */
-            if (!canIssueInvites) {
-               await getInviteCollection().deleteMany(
-                  {
-                     issuedBy: validatedTargetUser._id,
-                     usedAt: null,
-                  } satisfies StrictMongoFilter<IInviteDocumentRead>,
-                  { session }
-               );
-            }
-         });
-      } finally {
-         await session.endSession();
-      }
+         }
+      });
 
       securityLog.record({
          event: canIssueInvites
