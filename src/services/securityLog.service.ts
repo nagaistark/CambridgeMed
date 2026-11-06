@@ -13,6 +13,7 @@ import {
    type SecondFactorPurpose,
    type SecurityEventType,
 } from '@ssot/security_event_constants.ts';
+import { ipOrNull } from '@utils/effectSchemaReusables.ts';
 
 export type RequestContext = {
    readonly requestId: string;
@@ -24,7 +25,7 @@ export function requestContext(
    req: { readonly ip: string | undefined },
    res: { readonly locals: { readonly requestId: string } }
 ): RequestContext {
-   return { requestId: res.locals.requestId, ipAddress: req.ip ?? null };
+   return { requestId: res.locals.requestId, ipAddress: ipOrNull(req.ip) };
 }
 
 export type SecurityEventInput = RequestContext & {

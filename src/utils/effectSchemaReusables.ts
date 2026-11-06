@@ -1,7 +1,7 @@
 import '@ssot/date_time_constants.ts';
 import { argon2Regex } from '@ssot/argon2_config_constants.ts';
 import { HEX64_REGEX, HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
-import { ParseResult, Schema } from 'effect';
+import { Option, ParseResult, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import { DateTime } from 'luxon';
 import { MIN_LEGAL_AGE, PASSWORD_MAX_LENGTH } from '@ssot/policy_constants.ts';
@@ -178,6 +178,10 @@ const normalizedString = Schema.transform(
       encode: (email: string) => email,
    }
 );
+
+/* Best-effort metadata: a malformed or missing value becomes null, it never fails the operation that is merely recording it. */
+export const ipOrNull = (raw: unknown): string | null =>
+   Option.getOrNull(Schema.decodeUnknownOption(ipAddress)(raw));
 
 // ===== OBJECTID ==================================================================
 export const objectIdInstance = Schema.instanceOf(ObjectId, {
