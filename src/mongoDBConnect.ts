@@ -226,6 +226,7 @@ export class DatabaseService {
          logger.error(
             `[${this.#name}] FATAL: Connection not restored within grace period. Triggering shutdown.`
          );
+         process.exitCode = 1;
          process.emit('SIGTERM');
       }, this.#gracePeriodMS);
    }
@@ -434,7 +435,7 @@ export const handleGracefulShutdown = async (
       clearTimeout(forceQuit);
       logger.info(`Graceful shutdown complete.`);
 
-      process.exit(hasErrorDuringShutdown ? 1 : 0);
+      process.exit(hasErrorDuringShutdown ? 1 : (process.exitCode ?? 0));
    } catch (error) {
       /* Outer catch only triggers if database cleanup itself throws. */
       logger.error(`Error during shutdown: ${sanitizeError(error).message}`);
