@@ -195,20 +195,31 @@ app.use('/api/patients', patientRouter);
 
 // ===== 404 & GLOBAL ERROR HANDLING (Must be last!) ===============================
 /* Tier 1. API routes that don't exist → proper JSON 404 */
-app.use('/api/*splat', (req: Request, res: Response) => {
-   const requestId = res.locals['requestId'];
-   res.status(404).json(
-      createErrorResponse(
-         'NOT_FOUND',
-         `API route ${req.originalUrl.replace(FALLBACK_HEX_SECRET_PATTERN, '[REDACTED]')} not found.`,
-         requestId
-      )
-   );
+app.use('/api', (_req: Request, res: Response) => {
+   return void res
+      .status(404)
+      .json(
+         createErrorResponse(
+            'NOT_FOUND',
+            `API route not found.`,
+            res.locals.requestId
+         )
+      );
 });
 
-/* Tier 2. Everything else (GET only) → serve React's index.html */
-app.get('/{*splat}', (_req: Request, res: Response) => {
+const FILE_EXTENSION_PATTERN = /\.[a-z0-9]+$/i;
+
+app.get('/{*splat}', (req: Request, res: Response, next: NextFunction) => {
+   if (FILE_EXTENSION_PATTERN.test(req.path)) return next(); // real 404 for missing assets
    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.use((_req: Request, res: Response) => {
+   return void res
+      .status(404)
+      .json(
+         createErrorResponse('NOT_FOUND', `Not found.`, res.locals.requestId)
+      );
 });
 
 // ── Error handlers (order is critical → most specific first, catch-all last) ──
