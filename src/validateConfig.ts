@@ -4,6 +4,7 @@ import { Buffer } from 'node:buffer';
 import { Schema, ParseResult, Either, Redacted } from 'effect';
 import { TOTP_KEY_ID_PATTERN, totpKeyIdRegex } from '@ssot/totp_constants.ts';
 import {
+   clinicStaffEmail,
    customTrim,
    positiveIntegerStringToNumber,
 } from '@utils/effectSchemaReusables.ts';
@@ -32,7 +33,12 @@ const portNumber = positiveIntegerStringToNumber.pipe(
 
 // ===== SECRETS (wrapped in Redacted) =============================================
 const mongoConnectionUriPattern =
-   /^mongodb(\+srv)?:\/\/(?:[^:@]+:[^:@]+@)?[^/]+(?:\/[^?]*)?(?:\?.*)?$/;
+   /^mongodb(?:\+srv)?:\/\/[^:@/\s]+:[^:@/\s]+@[^/?\s]+\/[^/?\s]+(?:\?.*)?$/;
+
+const targetOf = (uri: Redacted.Redacted<string>): string | undefined =>
+   /^mongodb(?:\+srv)?:\/\/[^@/]+@([^/]+\/[^/?]+)/.exec(
+      Redacted.value(uri)
+   )?.[1];
 
 const mongoConnectionUri = nonEmptyReasonablyLongString.pipe(
    Schema.pattern(mongoConnectionUriPattern, {
@@ -77,17 +83,14 @@ const resendApiKey = nonEmptyReasonablyLongString.pipe(
 );
 const redactedResendApiKey = Schema.Redacted(resendApiKey);
 
-/* A conservative, dependency-free email check. */
-const emailAddress = nonEmptyReasonablyLongString.pipe(
-   Schema.pattern(
-      /^(?!\.)(?!.*\.\.)([A-Za-z0-9_'+-.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9-]*\.)+[A-Za-z]{2,}$/,
-      { message: () => `Email is badly formatted.` }
-   )
-);
-
 /* 32 bytes (256 bits) is a reasonable minimum for a pepper that strengthens every password hash in the system — matches the rigor already applied to totpEncryptionKey below. */
 const argon2SecretBuffer = Schema.transform(
-   nonEmptyReasonablyLongString,
+   Schema.String.pipe(
+      Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
+      Schema.maxLength(512, {
+         message: () => `Variable exceeds the maximum allowed length (512).`,
+      })
+   ),
    Schema.instanceOf(Buffer),
    {
       strict: true,
@@ -242,6 +245,15 @@ const DatabaseConfigSchema = Schema.Struct({
          message: () =>
             `GRACE_PERIOD_MS should be at least three times HEARTBEAT_FREQUENCY_MS.`,
       }
+   ),
+   Schema.filter(
+      ({ appUri, authUri, auditUri }) =>
+         new Set([targetOf(appUri), targetOf(authUri), targetOf(auditUri)])
+            .size === 3,
+      {
+         message: () =>
+            `DB_APP_URI, DB_AUTH_URI and DB_AUDIT_URI must target three different host/database pairs.`,
+      }
    )
 );
 
@@ -261,12 +273,27 @@ const ConfigSchema = Schema.Struct({
    }),
    resend: Schema.Struct({
       apiKey: redactedResendApiKey,
-      from: emailAddress,
+      from: clinicStaffEmail,
    }),
    argon2Secret: redactedArgon2Secret,
    appBaseUrl: httpUrl,
    totpEncryption: TotpEncryptionConfigSchema,
-});
+}).pipe(
+   Schema.filter(
+      ({ environment, appBaseUrl, cors }) =>
+         environment !== 'production' ||
+         [appBaseUrl, ...cors.origins].every(origin =>
+            origin.startsWith('https://')
+         ),
+      {
+         message: () =>
+            `In production, APP_BASE_URL and every CORS origin must use https.`,
+      }
+   ),
+   Schema.filter(({ appBaseUrl, cors }) => cors.origins.includes(appBaseUrl), {
+      message: () => `APP_BASE_URL must be one of CORS_ORIGINS.`,
+   })
+);
 
 export type Env = Schema.Schema.Type<typeof ConfigSchema>;
 
