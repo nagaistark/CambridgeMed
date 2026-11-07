@@ -1,9 +1,19 @@
 import type { Request, Response, NextFunction } from 'express';
 import { ParseResult, Runtime, Cause } from 'effect';
-import { MongoError, MongoNetworkError, MongoServerError } from 'mongodb';
+import {
+   MongoError,
+   MongoNetworkError,
+   MongoNotConnectedError,
+   MongoServerError,
+   MongoServerSelectionError,
+   MongoTopologyClosedError,
+} from 'mongodb';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import { errors as joseErrors } from 'jose';
 import logger from './logger.ts';
 import { myEnv } from './validateConfig.ts';
+
+const exposeDetails = myEnv.environment === 'development';
 
 // ===== Every possible machine-readable error code (so far) =======================
 const ALL_ERROR_CODES = [
@@ -13,6 +23,8 @@ const ALL_ERROR_CODES = [
    'NOT_FOUND', // Route or database document does not exist
    'METHOD_NOT_ALLOWED', // Valid route, but wrong HTTP verb
    'CONFLICT', // Uniqueness violation (e.g. duplicate email) — MongoDB 11000
+   'PAYLOAD_TOO_LARGE', // Body exceeded the parser limit (413)
+   'UNSUPPORTED_MEDIA_TYPE', // Unsupported charset/encoding (415)
    // ── Auth errors (401/403) ────────────────────────────────────────────
    'UNAUTHORIZED', // No credentials provided — "I don't know who you are"
    'FORBIDDEN', // Valid credentials, insufficient permissions — "No means no"
@@ -100,11 +112,16 @@ export type HttpErrorLike =
 
 // ===== Type guards for Http-related errors =======================================
 /* Body parser error: has `status` AND `type`, but not `expose`. We check `type` as a string but wait until the handler to compare it to 'entity.parse.failed' — the guard's job is existence and type, not value. */
+function isErrorStatus(status: number): boolean {
+   return Number.isInteger(status) && status >= 400 && status <= 599;
+}
+
 function isBodyParserError(err: unknown): err is BodyParserError {
    return (
       err instanceof Error &&
       'status' in err &&
       typeof err.status === 'number' &&
+      isErrorStatus(err.status) &&
       'type' in err &&
       typeof err.type === 'string'
    );
@@ -116,6 +133,7 @@ function isHttpCreatedError(err: unknown): err is HttpCreatedError {
       err instanceof Error &&
       'status' in err &&
       typeof err.status === 'number' &&
+      isErrorStatus(err.status) &&
       'statusCode' in err &&
       typeof err.statusCode === 'number' &&
       'expose' in err &&
@@ -126,7 +144,10 @@ function isHttpCreatedError(err: unknown): err is HttpCreatedError {
 /* Generic status-only: has `status` as a number, but nothing else specific. */
 function isStatusOnlyError(err: unknown): err is StatusOnlyError {
    return (
-      err instanceof Error && 'status' in err && typeof err.status === 'number'
+      err instanceof Error &&
+      'status' in err &&
+      typeof err.status === 'number' &&
+      isErrorStatus(err.status)
    );
 }
 
@@ -135,7 +156,8 @@ function isStatusCodeOnlyError(err: unknown): err is StatusCodeOnlyError {
    return (
       err instanceof Error &&
       'statusCode' in err &&
-      typeof err.statusCode === 'number'
+      typeof err.statusCode === 'number' &&
+      isErrorStatus(err.statusCode)
    );
 }
 
@@ -149,29 +171,33 @@ const statusToErrorCode = (status: number, type?: string): ErrorCode => {
    if (status === 405) return 'METHOD_NOT_ALLOWED';
    if (status === 409) return 'CONFLICT';
    if (status === 429) return 'RATE_LIMITED';
-   // Anything in the 5XX range that made it here is an unexpected server failure.
+   if (status === 413) return 'PAYLOAD_TOO_LARGE';
+   if (status === 415) return 'UNSUPPORTED_MEDIA_TYPE';
+   if (status === 422) return 'VALIDATION_ERROR';
+   if (status === 503) return 'SERVICE_UNAVAILABLE';
    return 'INTERNAL_ERROR';
 };
 
 // ===== OPERATIONAL ERRORS VS PROGRAMMER ERRORS ===================================
 /* A best-effort heuristic for distinguishing operational errors from programmer errors. We recognise known Node.js operational error classes by name, since they don't share a common base class we can use instanceof with. This list covers the most common cases — it is intentionally conservative. When in doubt, we treat an error as a programmer error (the safer assumption, because it triggers more aggressive logging and a 500 rather than a 503). */
-const OPERATIONAL_ERROR_NAMES = new Set([
-   'ErrnoException', // Node.js filesystem and OS-level errors
-   'ECONNREFUSED', // Connection refused by remote host
-   'ECONNRESET', // Connection reset mid-transfer
-   'ETIMEDOUT', // Operation timed out
-   'ENOTFOUND', // DNS lookup failure
+const OPERATIONAL_ERROR_CODES: ReadonlySet<string> = new Set([
+   'ECONNREFUSED',
+   'ECONNRESET',
+   'ETIMEDOUT',
+   'ENOTFOUND',
+   'EAI_AGAIN',
+   'EPIPE',
 ]);
 
 function isOperationalError(err: unknown): boolean {
    if (!(err instanceof Error)) return false;
-
-   /* Check the error's name property against our known operational error names. We also check err.code for ErrnoException variants, because Node's filesystem errors often carry the POSIX code ('ENOENT', 'EACCES', etc.) as `err.code` rather than as `err.name`. The `in` check narrows `err.code` to `unknown` without a cast — same pattern as `isAppError` above. */
    const code = 'code' in err ? err.code : undefined;
-   return (
-      OPERATIONAL_ERROR_NAMES.has(err.name) ||
-      (typeof code === 'string' && OPERATIONAL_ERROR_NAMES.has(code))
-   );
+   return typeof code === 'string' && OPERATIONAL_ERROR_CODES.has(code);
+}
+
+function logServerFault(label: string, err: unknown, requestId: string): void {
+   const { message, stack } = sanitizeError(err);
+   logger.error(`${label} requestId=${requestId} | ${message}\n${stack ?? ''}`);
 }
 
 // ===== "SPECIALISTS" in the pipeline. Each only touches the errors it recognizes =
@@ -197,7 +223,7 @@ export function handleParseError(
    );
 
    return void res
-      .status(422)
+      .status(400)
       .json(
          createErrorResponse(
             'VALIDATION_ERROR',
@@ -252,6 +278,8 @@ export function handleEffectFailure(
       const squashed = Cause.squash(cause);
 
       if (isAppError(squashed)) {
+         if (squashed.status >= 500)
+            logServerFault('Application error', squashed, requestId);
          return void res
             .status(squashed.status)
             .json(
@@ -265,6 +293,8 @@ export function handleEffectFailure(
 
    /* Case 2: a tagged error thrown directly, no Effect runtime involved at all. */
    if (isAppError(err)) {
+      if (err.status >= 500)
+         logServerFault('Application error', err, requestId);
       return void res
          .status(err.status)
          .json(createErrorResponse(err.code, err.message, requestId));
@@ -275,6 +305,18 @@ export function handleEffectFailure(
 }
 
 // ===== The MongoDB specialist/handler ============================================
+const MAX_TIME_MS_EXPIRED = 50 as const;
+
+function isMongoUnavailable(err: unknown): boolean {
+   return (
+      err instanceof MongoNetworkError || // includes MongoNetworkTimeoutError
+      err instanceof MongoServerSelectionError ||
+      err instanceof MongoTopologyClosedError ||
+      err instanceof MongoNotConnectedError ||
+      (err instanceof MongoServerError && err.code === MAX_TIME_MS_EXPIRED)
+   );
+}
+
 export function handleMongoDbError(
    err: unknown,
    _req: Request,
@@ -287,7 +329,8 @@ export function handleMongoDbError(
 
    // ── MongoNetworkError ─────────────────────────────────────────────────────────
    /* This is a driver-level error: the connection to the database was lost mid-request. It has nothing to do with the client's data — it's a pure infrastructure failure. 503 tells the client "try again later."*/
-   if (err instanceof MongoNetworkError) {
+   if (isMongoUnavailable(err)) {
+      logServerFault('MongoDB unavailable', err, requestId);
       return void res
          .status(503)
          .json(
@@ -315,6 +358,7 @@ export function handleMongoDbError(
 
    // Broad catch-all for any other driver-level error we didn't anticipate.
    if (err instanceof MongoError) {
+      logServerFault('MongoDB error', err, requestId);
       return void res
          .status(500)
          .json(
@@ -375,17 +419,17 @@ export function handleHttpError(
 
    // Most specific first: body parser error
    if (isBodyParserError(err)) {
-      const code =
-         err.type === 'entity.parse.failed'
-            ? 'INVALID_JSON'
-            : 'VALIDATION_ERROR';
+      const message =
+         err.status === 413
+            ? `The request body is too large.`
+            : `The request body could not be parsed.`;
 
       return void res
          .status(err.status)
          .json(
             createErrorResponse(
-               code,
-               'The request body could not be parsed.',
+               statusToErrorCode(err.status, err.type),
+               message,
                requestId
             )
          );
@@ -394,9 +438,11 @@ export function handleHttpError(
    // http-errors
    if (isHttpCreatedError(err)) {
       const message =
-         err.expose || myEnv.environment !== 'production'
+         err.expose || exposeDetails
             ? err.message
             : 'An unexpected server error occurred.';
+
+      if (err.status >= 500) logServerFault('HTTP error', err, requestId);
 
       return void res
          .status(err.status)
@@ -413,9 +459,11 @@ export function handleHttpError(
    if (isStatusOnlyError(err)) {
       const isClientError = err.status >= 400 && err.status < 500;
       const message =
-         isClientError || myEnv.environment !== 'production'
+         isClientError || exposeDetails
             ? err.message
             : 'An unexpected server error occurred.';
+
+      if (err.status >= 500) logServerFault('HTTP error', err, requestId);
 
       return void res
          .status(err.status)
@@ -432,9 +480,11 @@ export function handleHttpError(
    if (isStatusCodeOnlyError(err)) {
       const isClientError = err.statusCode >= 400 && err.statusCode < 500;
       const message =
-         isClientError || myEnv.environment !== 'production'
+         isClientError || exposeDetails
             ? err.message
             : 'An unexpected server error occurred.';
+
+      if (err.statusCode >= 500) logServerFault('HTTP error', err, requestId);
 
       return void res
          .status(err.statusCode)
@@ -567,12 +617,11 @@ export function handleCatchAll(
    /* Operational errors signal a transient infrastructure failure → 503. Programmer errors signal a code bug → 500. In both cases, the message sent to the client is deliberately vague in production. The requestId is the client's handle for reporting the issue back to you — you can then grep your logs for it to find the full details. In development, we expose the real message to speed up debugging. */
    const status = operational ? 503 : 500;
    const code = operational ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_ERROR';
-   const message =
-      myEnv.environment === 'production'
-         ? operational
-            ? 'The service is temporarily unavailable. Please try again shortly.'
-            : 'An unexpected error occurred. Please contact support if this persists.'
-         : error.message; // In development: the real message, unfiltered.
+   const message = exposeDetails
+      ? error.message
+      : operational
+        ? 'The service is temporarily unavailable. Please try again shortly.'
+        : 'An unexpected error occurred. Please contact support if this persists.';
 
    return void res
       .status(status)

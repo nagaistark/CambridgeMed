@@ -1,7 +1,6 @@
 import { Either, ParseResult, Schema } from 'effect';
 
-/* A failure here is OUR fault (data drift or a bug), never the client's, so it
-   must reach handleCatchAll (500) rather than handleParseError (422). */
+/* A failure here is OUR fault (data drift or a bug), never the client's, so it must reach handleCatchAll (500) rather than handleParseError (400). */
 export class StoredDataError extends Error {
    readonly invalidPaths: readonly string[];
 
