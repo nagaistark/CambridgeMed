@@ -37,12 +37,7 @@ import {
    createErrorResponse,
 } from './errorHandlers.ts';
 
-import { DateTime } from 'luxon';
-import {
-   FALLBACK_HEX_SECRET_PATTERN,
-   SENSITIVE_URL_PARAM_NAMES,
-} from '@ssot/logging_constants.ts';
-import { escapeRegex } from '@utils/escapeRegex.ts';
+import { FALLBACK_HEX_SECRET_PATTERN } from '@ssot/logging_constants.ts';
 import { requireTrustedOrigin } from '@middleware/requireTrustedOrigin.ts';
 import {
    GLOBAL_API_MAX_REQUESTS,
@@ -70,24 +65,9 @@ app.use((_req: Request, res: Response, next: NextFunction) => {
 
 /* B. Morgan config. Registering the token once, before the Morgan middleware */
 morgan.token('safe-url', (req: Request): string => {
-   let url = req.originalUrl;
-
-   /* Layer 1 — precise: redact by known route-param identity. */
-   for (const paramName of SENSITIVE_URL_PARAM_NAMES) {
-      const value = req.params[paramName];
-      if (typeof value === 'string' && value.length > 0) {
-         url = url.replace(new RegExp(escapeRegex(value), 'g'), '[REDACTED]');
-      }
-   }
-
-   /* Layer 2 — safety net: anything token-shaped that layer 1 missed (unmatched routes, future token types nobody registered above). */
-   return url.replace(FALLBACK_HEX_SECRET_PATTERN, '[REDACTED]');
+   const [pathOnly = ''] = req.originalUrl.split('?');
+   return pathOnly.replace(FALLBACK_HEX_SECRET_PATTERN, '[REDACTED]');
 });
-
-morgan.token(
-   'request-id',
-   (_req: Request, res: Response): string => res.locals.requestId
-);
 
 const morganFormat: morgan.FormatFn<Request, Response> = (tokens, req, res) =>
    [
@@ -204,12 +184,6 @@ app.get('/health', limiter, (_req: Request, res: Response) => {
          clinic: clinicReady,
       },
    });
-});
-// Simple route example. No reason.
-app.get(/^\/$|\/index(.html)?$/, (_req: Request, res: Response) => {
-   const now = DateTime.now();
-   logger.debug(`${now.toString()} — ${now.zoneName}`);
-   res.send('<h1>Welcome to CambridgeMed, Ontario!</h1>');
 });
 
 // To the future me! Auth domain should be mounted BEFORE the catch-all 404 handlers
