@@ -3,7 +3,6 @@ import { env } from 'node:process';
 import { Buffer } from 'node:buffer';
 import { Schema, ParseResult, Either, Redacted } from 'effect';
 import { TOTP_KEY_ID_PATTERN, totpKeyIdRegex } from '@ssot/totp_constants.ts';
-import logger from './logger.ts';
 
 // ===== BASIC LEAF SCHEMAS ========================================================
 /* Same pattern already used in effectSchemaReusables.ts's `customTrim` — kept identical here on purpose so this file reads the same way as the rest of the codebase. */
@@ -350,13 +349,13 @@ function formatConfigErrors(error: ParseResult.ParseError): string {
 
 function validateConfig(): Env {
    const result = Schema.decodeUnknownEither(ConfigSchema)(rawConfig, {
-      onExcessProperty: 'error', // the Effect equivalent of Valibot's strictObject
-      errors: 'all', // report every problem in one pass, not just the first
+      onExcessProperty: 'error',
+      errors: 'all',
    });
 
    if (Either.isLeft(result)) {
-      logger.error(
-         `Configuration validation failed. The server cannot start until these are fixed:\n${formatConfigErrors(result.left)}`
+      process.stderr.write(
+         `Configuration validation failed. The server cannot start until these are fixed:\n${formatConfigErrors(result.left)}\n`
       );
       return process.exit(1);
    }
