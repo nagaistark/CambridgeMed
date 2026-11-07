@@ -13,7 +13,7 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { Either, Schema } from 'effect';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
 
 /* Enforces MAX_SESSIONS_PER_USER AFTER the new session has been inserted. Of the user's OTHER sessions, the newest (MAX - 1) survive and the rest are deleted, so the new session can never evict itself. Concurrent logins each trim after their own insert, so the count converges to the cap.

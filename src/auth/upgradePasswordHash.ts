@@ -7,7 +7,7 @@ import {
 import { hashPassword, needsRehash } from '@utils/hashAndVerify.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import type { StrictMongoFilter, StrictUpdate } from '@utils/pathFinder_v3.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
 
 /* Call ONLY right after `verifyPassword` succeeded: the plaintext is proven correct, and this is the single moment it can be re-hashed.

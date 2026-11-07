@@ -21,7 +21,7 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';

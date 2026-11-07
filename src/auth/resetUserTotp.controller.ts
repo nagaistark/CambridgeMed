@@ -33,7 +33,7 @@ import {
 } from '@auth/secondFactor.ts';
 import { sendTotpResetByAdminEmail } from '@users/totpResetByAdmin.email.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';

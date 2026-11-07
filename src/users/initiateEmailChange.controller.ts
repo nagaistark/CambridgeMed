@@ -30,7 +30,7 @@ import {
 import { myEnv } from '../validateConfig.ts';
 import { ObjectId } from 'mongodb';
 import logger from '../logger.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import {
    type StrictFindOneOptions,
    type StrictMongoFilter,

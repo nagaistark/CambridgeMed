@@ -1,7 +1,7 @@
 import { Either, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
 import logger from '../logger.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import {
    getSecurityEventCollection,
    SecurityEventValidator,

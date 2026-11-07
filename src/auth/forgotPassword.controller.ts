@@ -31,7 +31,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import logger from '../logger.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import { ObjectId } from 'mongodb';
 import { decodeStored } from '@utils/decodeStored.ts';
 

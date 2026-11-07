@@ -3,34 +3,7 @@ import logger from './logger.ts';
 import { MongoClient, type MongoClientOptions, Db } from 'mongodb';
 import { Server } from 'node:http';
 import { Redacted } from 'effect';
-
-export function sanitizeError(input: unknown): {
-   message: string;
-   stack?: string;
-} {
-   const sanitizeString = (str: string) =>
-      str.replace(/\/\/.*:.*@/g, '//****:****@');
-
-   if (typeof input === 'string') {
-      return { message: sanitizeString(input) };
-   }
-
-   if (input instanceof Error) {
-      return {
-         message: sanitizeString(input.message || 'Unknown Error'),
-         stack: input.stack ? sanitizeString(input.stack) : undefined,
-      };
-   }
-
-   /* TS 4.9+: `'message' in input` narrows to `{ message: unknown }`, making the `as` assertion unnecessary. */
-   if (input !== null && typeof input === 'object' && 'message' in input) {
-      if (typeof input.message === 'string') {
-         return { message: sanitizeString(input.message) };
-      }
-   }
-
-   return { message: 'Unknown Error' };
-}
+import { sanitizeError } from '@utils/sanitizeError.ts';
 
 export class DatabaseService {
    #client: MongoClient | null = null;

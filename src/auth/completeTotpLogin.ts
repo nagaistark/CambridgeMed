@@ -25,7 +25,7 @@ import type {
    StrictMongoFilter,
 } from '@utils/pathFinder_v3.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import { sanitizeError } from '../mongoDBConnect.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';

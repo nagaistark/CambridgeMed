@@ -3,13 +3,10 @@ import app from './app.ts';
 import { Server } from 'node:http';
 import { myEnv } from './validateConfig.ts';
 import { validateJwtKeys } from '@utils/jwtUtils.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from './logger.ts';
 
-import {
-   DatabaseManager,
-   handleGracefulShutdown,
-   sanitizeError,
-} from './mongoDBConnect.ts';
+import { DatabaseManager, handleGracefulShutdown } from './mongoDBConnect.ts';
 import { initializeDatabaseIndexes } from './initializeDatabaseIndexes.ts';
 
 // ===== GLOBAL PROCESS LISTENERS (Must be first!) =================================
