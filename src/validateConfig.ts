@@ -3,28 +3,20 @@ import { env } from 'node:process';
 import { Buffer } from 'node:buffer';
 import { Schema, ParseResult, Either, Redacted } from 'effect';
 import { TOTP_KEY_ID_PATTERN, totpKeyIdRegex } from '@ssot/totp_constants.ts';
+import {
+   customTrim,
+   positiveIntegerStringToNumber,
+} from '@utils/effectSchemaReusables.ts';
 
 // ===== BASIC LEAF SCHEMAS ========================================================
-/* Same pattern already used in effectSchemaReusables.ts's `customTrim` — kept identical here on purpose so this file reads the same way as the rest of the codebase. */
-const trimmedString = Schema.transform(
-   Schema.String.annotations({
-      message: () => `Must be a string.`,
-   }),
-   Schema.String.pipe(Schema.trimmed()),
-   {
-      decode: (str: string) => str.trim(),
-      encode: (str: string) => str,
-   }
-);
-
-const nonEmptyReasonablyLongString = trimmedString.pipe(
+const nonEmptyReasonablyLongString = customTrim.pipe(
    Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
    Schema.maxLength(512, {
       message: () => `Variable exceeds the maximum allowed length (512).`,
    })
 );
 
-/* Deliberately NOT built on `trimmedString`. A PEM key's format is anchored on a literal trailing '\n' after '-----END ... KEY-----' — trimming it would silently strip the very character the shape-check below requires. */
+/* Deliberately not trimmed! A PEM key's format is anchored on a literal trailing '\n' after '-----END ... KEY-----' — trimming it would silently strip the very character the shape-check below requires. */
 const boundedString = Schema.String.pipe(
    Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
    Schema.maxLength(4096, {
@@ -32,29 +24,7 @@ const boundedString = Schema.String.pipe(
    })
 );
 
-/* String -> positive integer, in one bidirectional codec instead of a chain of independent checks. `digits`-only pattern first (so `Number("  ")` or `Number("")` never sneaks a NaN through), then the transform, then a safe-integer filter on the *decoded* side — mirrors the original digits() -> transform(Number) -> number() -> check() pipeline but as a single declared shape instead of four. */
-const positiveIntegerString = Schema.transform(
-   nonEmptyReasonablyLongString.pipe(
-      Schema.pattern(/^[0-9]+$/, {
-         message: () => `Must contain only digits.`,
-      })
-   ),
-   Schema.Number.pipe(
-      Schema.int(),
-      Schema.positive({ message: () => `Must be a positive integer.` })
-   ),
-   {
-      strict: true,
-      decode: (str: string) => Number(str),
-      encode: (num: number) => String(num),
-   }
-).pipe(
-   Schema.filter((num: number) => Number.isSafeInteger(num), {
-      message: () => `Value exceeds the safely representable integer range.`,
-   })
-);
-
-const portNumber = positiveIntegerString.pipe(
+const portNumber = positiveIntegerStringToNumber.pipe(
    Schema.filter((port: number) => port <= 65535, {
       message: () => `Port must be between 1 and 65535.`,
    })
@@ -256,13 +226,13 @@ const DatabaseConfigSchema = Schema.Struct({
    appUri: redactedMongoConnectionUri,
    authUri: redactedMongoConnectionUri,
    auditUri: redactedMongoConnectionUri,
-   maxPoolSize: positiveIntegerString,
-   serverSelectionTimeoutMS: positiveIntegerString,
-   socketTimeoutMS: positiveIntegerString,
-   heartbeatFrequencyMS: positiveIntegerString,
-   maxRetries: positiveIntegerString,
-   baseDelay: positiveIntegerString,
-   gracePeriodMS: positiveIntegerString,
+   maxPoolSize: positiveIntegerStringToNumber,
+   serverSelectionTimeoutMS: positiveIntegerStringToNumber,
+   socketTimeoutMS: positiveIntegerStringToNumber,
+   heartbeatFrequencyMS: positiveIntegerStringToNumber,
+   maxRetries: positiveIntegerStringToNumber,
+   baseDelay: positiveIntegerStringToNumber,
+   gracePeriodMS: positiveIntegerStringToNumber,
 }).pipe(
    /* This is the "two dials that must stay in proportion" check — the grace period is meaningless as a safety margin unless it's a multiple of how often we're even allowed to notice a problem (heartbeatFrequencyMS). Effect Schema's Struct-level filter is the direct equivalent of Valibot's forward(check(...), [...]) — same cross-field logic, no separate helper. */
    Schema.filter(

@@ -11,6 +11,3 @@ export const ARGON2_CONFIG: HashOptions & { type: 2 } = {
    hashLength: 32,
    secret: Redacted.value(myEnv.argon2Secret),
 };
-
-export const argon2Regex =
-   /^\$argon2id\$v=19\$m=\d{1,9},p=\d{1,3},t=\d{1,3}\$[A-Za-z0-9+/]{22}\$[A-Za-z0-9+/]{43}$/;

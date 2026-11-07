@@ -1,5 +1,5 @@
 import '@ssot/date_time_constants.ts';
-import { argon2Regex } from '@ssot/argon2_config_constants.ts';
+import { argon2Regex } from '@ssot/argon2_format_constants.ts';
 import { HEX64_REGEX, HEX96_REGEX } from '@ssot/node_crypto_constants.ts';
 import { Option, ParseResult, Schema } from 'effect';
 import { ObjectId } from 'mongodb';
