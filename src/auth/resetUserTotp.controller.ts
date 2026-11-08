@@ -56,6 +56,7 @@ import type {
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
 
 /* A failed notification must never undo a completed reset, but must not vanish silently. Cannot reject. */
 async function notifyOwner(target: IUserPasswordResetTarget): Promise<void> {
@@ -278,7 +279,7 @@ export async function resetUserTotpController(
       });
 
       /* Response first; the mail round trip is not the admin's problem. */
-      await notifyOwner(target);
+      trackBackgroundTask(notifyOwner(target));
    } catch (err) {
       next(err);
    }

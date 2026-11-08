@@ -43,6 +43,7 @@ import {
    GLOBAL_API_MAX_REQUESTS,
    GLOBAL_API_WINDOW_MS,
 } from '@ssot/rate_limit_constants.ts';
+import { isShuttingDown } from './shutdown.ts';
 
 // ===== APP INITIALIZATION & CONFIG ===============================================
 const app: Express = express();
@@ -95,7 +96,12 @@ const corsOptions: cors.CorsOptions = {
    origin: [...myEnv.cors.origins], // spread: `cors` wants a mutable array
    methods: ['GET', 'POST', 'PATCH', 'DELETE'],
    allowedHeaders: ['Content-Type'],
-   exposedHeaders: ['X-Request-Id'],
+   exposedHeaders: [
+      'X-Request-Id',
+      'RateLimit',
+      'RateLimit-Policy',
+      'Retry-After',
+   ],
    credentials: true,
    maxAge: 600,
    optionsSuccessStatus: 204,
@@ -122,13 +128,18 @@ app.use(
    })
 );
 
-// E. Never cache API responses (tokens, PHI-adjacent data).
-app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
-   res.setHeader('Cache-Control', 'no-store');
+// D2. Permissions-Policy matters on HTML documents, so it must not be scoped to /api only.
+app.use((_req: Request, res: Response, next: NextFunction) => {
    res.setHeader(
       'Permissions-Policy',
       'camera=(), microphone=(), geolocation=()'
    );
+   next();
+});
+
+// E. Never cache API responses (tokens, PHI-adjacent data).
+app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
+   res.setHeader('Cache-Control', 'no-store');
    next();
 });
 
@@ -171,18 +182,16 @@ app.use(cookieParser());
 
 // ===== ROUTES ====================================================================
 app.get('/health', limiter, (_req: Request, res: Response) => {
-   const dbManager = DatabaseManager.getInstance();
-   const authReady = dbManager.auth.isConnected;
-   const clinicReady = dbManager.clinic.isConnected;
-   const healthy = authReady && clinicReady;
+   const databases = DatabaseManager.getInstance();
+   const healthy =
+      !isShuttingDown() &&
+      databases.auth.isConnected &&
+      databases.clinic.isConnected &&
+      databases.audit.isConnected;
 
+   /* Public endpoint: status only. No uptime, no per-database breakdown. */
    res.status(healthy ? 200 : 503).json({
       status: healthy ? 'healthy' : 'degraded',
-      uptime: process.uptime(),
-      databases: {
-         auth: authReady,
-         clinic: clinicReady,
-      },
    });
 });
 

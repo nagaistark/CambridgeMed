@@ -1,9 +1,11 @@
 import { myEnv } from './validateConfig.ts';
 import logger from './logger.ts';
 import { MongoClient, type MongoClientOptions, Db } from 'mongodb';
-import { Server } from 'node:http';
 import { Redacted } from 'effect';
 import { sanitizeError } from '@utils/sanitizeError.ts';
+
+const MAX_BACKOFF_MS = 30_000 as const;
+const APP_NAME = 'cambridgemed-api' as const;
 
 export class DatabaseService {
    #client: MongoClient | null = null;
@@ -66,8 +68,14 @@ export class DatabaseService {
                maxPoolSize: myEnv.database.maxPoolSize,
                serverSelectionTimeoutMS:
                   myEnv.database.serverSelectionTimeoutMS,
+               connectTimeoutMS: myEnv.database.serverSelectionTimeoutMS,
                socketTimeoutMS: myEnv.database.socketTimeoutMS,
                heartbeatFrequencyMS: myEnv.database.heartbeatFrequencyMS,
+               waitQueueTimeoutMS: myEnv.database.waitQueueTimeoutMS,
+               retryWrites: true,
+               writeConcern: { w: 'majority' },
+               appName: APP_NAME,
+               serverApi: { version: '1', deprecationErrors: true },
             };
 
             this.#client = new MongoClient(Redacted.value(this.#uri), options);
@@ -119,7 +127,15 @@ export class DatabaseService {
                );
             }
 
-            const delayMs = this.#baseDelay * Math.pow(2, attempt);
+            /* "Equal jitter": half deterministic, half random, capped. */
+            const ceilingMs = Math.min(
+               this.#baseDelay * 2 ** attempt,
+               MAX_BACKOFF_MS
+            );
+            const delayMs = Math.round(
+               ceilingMs / 2 + Math.random() * (ceilingMs / 2)
+            );
+
             logger.warn(
                `[${this.#name}] Connection failed. Retrying in ${delayMs / 1000}s... (Attempt ${attempt}/${this.#maxRetries})`
             );
@@ -272,8 +288,13 @@ export class DatabaseManager {
    }
 
    public initialize(): Promise<void> {
-      /* Reset so cleanup() works correctly if this instance is ever reused. Must come before anything else. */
-      this.#isCleanedUp = false;
+      if (this.#isCleanedUp) {
+         return Promise.reject(
+            new Error(
+               `DatabaseManager is single-use: it was already cleaned up.`
+            )
+         );
+      }
 
       if (this.#isInitialized) {
          logger.info('DatabaseManager already initialized. Skipping...');
@@ -308,7 +329,7 @@ export class DatabaseManager {
                `Initialization failed: ${sanitizeError(error).message}`
             );
          } finally {
-            /* Always clear the lock. On success, #isInitialized guards future calls. On failure, clearing this allows a retry if desired. */
+            /* Always clear the lock. On success, #isInitialized guards future calls. On failure the manager has cleaned itself up and cannot be re-initialized. */
             this.#initializingPromise = null;
          }
       })();
@@ -354,64 +375,3 @@ export class DatabaseManager {
       });
    }
 }
-
-/* Graceful shutdown
-   Module-level sentinel prevents duplicate handling. */
-let isShutdownCalled = false;
-
-/*
-   Used in server.ts via:
-   process.once('SIGINT',  () => handleGracefulShutdown(server, 'SIGINT'));
-   process.once('SIGTERM', () => handleGracefulShutdown(server, 'SIGTERM'));
-*/
-export const handleGracefulShutdown = async (
-   server: Server,
-   signal: 'SIGINT' | 'SIGTERM'
-) => {
-   if (isShutdownCalled) {
-      logger.warn(`Shutdown already in progress. Ignoring duplicate signal.`);
-      return;
-   }
-   isShutdownCalled = true;
-
-   logger.info(`[${signal}] Initiating graceful exit...`);
-
-   /* Force-kill if graceful logic hangs. */
-   const forceQuit = setTimeout(() => {
-      logger.error(`Shutdown timed out. Forcing exit...`);
-      server.closeAllConnections();
-      process.exit(1);
-   }, 10000).unref();
-
-   let hasErrorDuringShutdown = false;
-
-   try {
-      /* Step 1: Close the HTTP server first. We deliberately don't re-throw here so that a server error doesn't skip database cleanup. */
-      try {
-         await new Promise<void>((resolve, reject) => {
-            server.close(err => (err ? reject(err) : resolve()));
-            server.closeIdleConnections();
-         });
-         logger.info(`HTTP server closed.`);
-      } catch (serverError) {
-         hasErrorDuringShutdown = true;
-         logger.error(
-            `Error closing HTTP server: ${sanitizeError(serverError).message}`
-         );
-      }
-
-      /* Step 2: Close database connections. */
-      const dbManager = DatabaseManager.getInstance();
-      await dbManager.cleanup();
-      logger.info(`Database connections closed.`);
-
-      clearTimeout(forceQuit);
-      logger.info(`Graceful shutdown complete.`);
-
-      process.exit(hasErrorDuringShutdown ? 1 : (process.exitCode ?? 0));
-   } catch (error) {
-      /* Outer catch only triggers if database cleanup itself throws. */
-      logger.error(`Error during shutdown: ${sanitizeError(error).message}`);
-      process.exit(1);
-   }
-};

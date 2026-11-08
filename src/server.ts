@@ -3,10 +3,11 @@ import app from './app.ts';
 import { Server } from 'node:http';
 import { myEnv } from './validateConfig.ts';
 import { validateJwtKeys } from '@utils/jwtUtils.ts';
-import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from './logger.ts';
 
-import { DatabaseManager, handleGracefulShutdown } from './mongoDBConnect.ts';
+import { DatabaseManager } from './mongoDBConnect.ts';
+import { handleGracefulShutdown } from './shutdown.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
 import { initializeDatabaseIndexes } from './initializeDatabaseIndexes.ts';
 
 // ===== GLOBAL PROCESS LISTENERS (Must be first!) =================================
@@ -38,7 +39,7 @@ const host: string = myEnv.server.host;
    Step 2 — Database: network I/O, slow, pointless if Step 1 failed
    Step 3 — Database: ensuring indexes
    Step 4 — HTTP server: no point listening for requests until Steps 1 & 2 pass */
-let server!: Server;
+let server: Server | undefined;
 
 const startServer = async (): Promise<void> => {
    try {
@@ -57,21 +58,27 @@ const startServer = async (): Promise<void> => {
       await initializeDatabaseIndexes();
 
       // Step 4: Starting the HTTP server
-      server = await new Promise<Server>((resolve, reject) => {
+      const listening = await new Promise<Server>((resolve, reject) => {
          const s = app.listen(port, host, () => resolve(s));
          s.once('error', reject);
       });
+      server = listening;
 
-      // Set immediately after listen, before any connection arrive
-      server.keepAliveTimeout = 80_000; // Must exceed Render's timeout value
-      server.headersTimeout = 81_000; // Must exceed keepAliveTimeout
-      server.requestTimeout = 30_000; // Kills the socket if the full incoming request (headers + body) isn't received within 30s. Our defence against against Slowloris-style attacks.
-      server.timeout = 0; // Disabling the legacy socket inactivity timer...
+      /* Set immediately after listen, before any connections arrive. */
+      listening.keepAliveTimeout = 80_000; // Must exceed Render's timeout value
+      listening.headersTimeout = 81_000; // Must exceed keepAliveTimeout
+      listening.requestTimeout = 30_000; // Slowloris defence
+      listening.timeout = 0; // Disabling the legacy socket inactivity timer...
+
+      /* After a successful listen, `once('error', reject)` is a dead end. Post-listen errors need a real listener. */
+      listening.on('error', error => {
+         logger.error(`HTTP server error: ${sanitizeError(error).message}`);
+      });
 
       logger.info(`Server running at http://${host}:${port}`);
       logger.info(`Keep-alive timeout: ${server.keepAliveTimeout}ms`);
    } catch (error) {
-      // All three steps funnel into single `catch` block.
+      // All four steps funnel into single `catch` block.
       const sanitized = sanitizeError(error);
       logger.error(`Fatal startup error: ${sanitized.stack}`);
 

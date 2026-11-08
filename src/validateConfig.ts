@@ -8,6 +8,7 @@ import {
    customTrim,
    positiveIntegerStringToNumber,
 } from '@utils/effectSchemaReusables.ts';
+import { LIST_QUERY_MAX_TIME_MS } from '@ssot/pagination_constants.ts';
 
 // ===== BASIC LEAF SCHEMAS ========================================================
 const nonEmptyReasonablyLongString = customTrim.pipe(
@@ -17,13 +18,19 @@ const nonEmptyReasonablyLongString = customTrim.pipe(
    })
 );
 
-/* Deliberately not trimmed! A PEM key's format is anchored on a literal trailing '\n' after '-----END ... KEY-----' — trimming it would silently strip the very character the shape-check below requires. */
 const boundedString = Schema.String.pipe(
    Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
    Schema.maxLength(4096, {
       message: () => `Variable exceeds the maximum allowed length.`,
    })
 );
+
+const boundedIntegerString = (min: number, max: number) =>
+   positiveIntegerStringToNumber.pipe(
+      Schema.between(min, max, {
+         message: () => `Must be between ${min} and ${max}.`,
+      })
+   );
 
 const portNumber = positiveIntegerStringToNumber.pipe(
    Schema.filter((port: number) => port <= 65535, {
@@ -50,7 +57,13 @@ const mongoConnectionUri = nonEmptyReasonablyLongString.pipe(
 /* Connection strings embed credentials (`user:pass@host`), so they're redacted just like the other secrets below — a stray `logger.info(myEnv.database.appUri)` anywhere downstream now prints `<redacted>` instead of a password. */
 const redactedMongoConnectionUri = Schema.Redacted(mongoConnectionUri);
 
-const pemPrivateKey = boundedString.pipe(
+const normalizedPem = Schema.transform(boundedString, boundedString, {
+   strict: true,
+   decode: (pem: string) => `${pem.replace(/\\n/g, '\n').trim()}\n`,
+   encode: (pem: string) => pem,
+});
+
+const pemPrivateKey = normalizedPem.pipe(
    Schema.filter(
       (str: string) =>
          str.startsWith('-----BEGIN PRIVATE KEY-----') &&
@@ -64,7 +77,7 @@ const pemPrivateKey = boundedString.pipe(
 const redactedPemPrivateKey = Schema.Redacted(pemPrivateKey);
 
 /* The public key is, by definition, public. Redacting it would just be theatre. */
-const pemPublicKey = boundedString.pipe(
+const pemPublicKey = normalizedPem.pipe(
    Schema.filter(
       (str: string) =>
          str.startsWith('-----BEGIN PUBLIC KEY-----') &&
@@ -77,7 +90,7 @@ const pemPublicKey = boundedString.pipe(
 );
 
 const resendApiKey = nonEmptyReasonablyLongString.pipe(
-   Schema.pattern(/^[a-zA-Z0-9\-._]{36}$/, {
+   Schema.pattern(/^re_[A-Za-z0-9_]+$/, {
       message: () => `String doesn't conform to the Resend API key pattern.`,
    })
 );
@@ -85,12 +98,7 @@ const redactedResendApiKey = Schema.Redacted(resendApiKey);
 
 /* 32 bytes (256 bits) is a reasonable minimum for a pepper that strengthens every password hash in the system — matches the rigor already applied to totpEncryptionKey below. */
 const argon2SecretBuffer = Schema.transform(
-   Schema.String.pipe(
-      Schema.minLength(1, { message: () => `Variable is empty or missing.` }),
-      Schema.maxLength(512, {
-         message: () => `Variable exceeds the maximum allowed length (512).`,
-      })
-   ),
+   boundedString,
    Schema.instanceOf(Buffer),
    {
       strict: true,
@@ -229,13 +237,14 @@ const DatabaseConfigSchema = Schema.Struct({
    appUri: redactedMongoConnectionUri,
    authUri: redactedMongoConnectionUri,
    auditUri: redactedMongoConnectionUri,
-   maxPoolSize: positiveIntegerStringToNumber,
-   serverSelectionTimeoutMS: positiveIntegerStringToNumber,
-   socketTimeoutMS: positiveIntegerStringToNumber,
-   heartbeatFrequencyMS: positiveIntegerStringToNumber,
-   maxRetries: positiveIntegerStringToNumber,
-   baseDelay: positiveIntegerStringToNumber,
-   gracePeriodMS: positiveIntegerStringToNumber,
+   maxPoolSize: boundedIntegerString(1, 100),
+   serverSelectionTimeoutMS: boundedIntegerString(1_000, 60_000),
+   socketTimeoutMS: boundedIntegerString(1_000, 300_000),
+   heartbeatFrequencyMS: boundedIntegerString(500, 60_000), // driver minimum is 500
+   waitQueueTimeoutMS: boundedIntegerString(100, 60_000),
+   maxRetries: boundedIntegerString(1, 10),
+   baseDelay: boundedIntegerString(100, 10_000),
+   gracePeriodMS: boundedIntegerString(1_000, 600_000),
 }).pipe(
    /* This is the "two dials that must stay in proportion" check — the grace period is meaningless as a safety margin unless it's a multiple of how often we're even allowed to notice a problem (heartbeatFrequencyMS). Effect Schema's Struct-level filter is the direct equivalent of Valibot's forward(check(...), [...]) — same cross-field logic, no separate helper. */
    Schema.filter(
@@ -253,6 +262,13 @@ const DatabaseConfigSchema = Schema.Struct({
       {
          message: () =>
             `DB_APP_URI, DB_AUTH_URI and DB_AUDIT_URI must target three different host/database pairs.`,
+      }
+   ),
+   Schema.filter(
+      ({ socketTimeoutMS }) => socketTimeoutMS > LIST_QUERY_MAX_TIME_MS,
+      {
+         message: () =>
+            `SOCKET_TIMEOUT_MS must exceed LIST_QUERY_MAX_TIME_MS, or the socket dies before the server can report the timeout.`,
       }
    )
 );
@@ -308,6 +324,7 @@ const rawConfig = {
       serverSelectionTimeoutMS: env.DB_SERVER_SELECTION_TIMEOUT_MS,
       socketTimeoutMS: env.SOCKET_TIMEOUT_MS,
       heartbeatFrequencyMS: env.HEARTBEAT_FREQUENCY_MS,
+      waitQueueTimeoutMS: env.DB_WAIT_QUEUE_TIMEOUT_MS,
       maxRetries: env.MAX_RETRIES,
       baseDelay: env.BASE_DELAY_MS,
       gracePeriodMS: env.GRACE_PERIOD_MS,

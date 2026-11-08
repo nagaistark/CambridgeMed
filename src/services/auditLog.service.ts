@@ -1,3 +1,4 @@
+import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
 import logger from '../logger.ts';
 
 import {
@@ -22,15 +23,17 @@ function record(input: Omit<IAuditLogDoc, '_id' | 'occurredAt'>): void {
       requestId: input.requestId,
    };
 
-   getAuditLogCollection()
-      .insertOne(payload)
-      .catch((err: unknown) => {
-         /* requestId is already in the input, so we can log it precisely without needing any external reference. */
+   async function persist(payload: IAuditLogDoc): Promise<void> {
+      try {
+         await getAuditLogCollection().insertOne(payload);
+      } catch (err: unknown) {
          logger.error(
-            `[AuditLog] Write failed — requestId=${input.requestId} | ` +
-               `${err instanceof Error ? err.message : String(err)}`
+            `[AuditLog] Write failed — requestId=${payload.requestId} | ${err instanceof Error ? err.message : String(err)}`
          );
-      });
+      }
+   }
+
+   trackBackgroundTask(persist(payload));
 }
 
 export const auditLog = { record };

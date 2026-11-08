@@ -14,6 +14,7 @@ import {
    type SecurityEventType,
 } from '@ssot/security_event_constants.ts';
 import { ipOrNull } from '@utils/effectSchemaReusables.ts';
+import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
 
 export type RequestContext = {
    readonly requestId: string;
@@ -79,7 +80,7 @@ function record(input: SecurityEventInput): void {
       secondFactorKind: doc.secondFactorKind,
    });
 
-   void persist(doc);
+   trackBackgroundTask(persist(doc));
 }
 
 export const securityLog = { record };

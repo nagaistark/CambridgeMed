@@ -29,6 +29,7 @@ import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
 
 /* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to await AFTER the response has been sent. */
 async function notifyRecoveryCodeUsed(
@@ -160,5 +161,5 @@ export async function completeTotpLogin(
          : {}),
    });
 
-   await notifyRecoveryCodeUsed(validatedUser, remaining);
+   trackBackgroundTask(notifyRecoveryCodeUsed(validatedUser, remaining));
 }

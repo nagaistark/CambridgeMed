@@ -34,6 +34,7 @@ import logger from '../logger.ts';
 import { sanitizeError } from '@utils/sanitizeError.ts';
 import { ObjectId } from 'mongodb';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
 
 /* The one and only body this endpoint ever sends. Defined once so no code path can drift from it. */
 const GENERIC_RESPONSE_MESSAGE =
@@ -157,6 +158,20 @@ async function issuePasswordReset(
 
 // ── Controller ───────────────────────────────────────────────────────────────────
 /* Deliberately takes no `next`: once the response is out, there is nobody left to hand an error to (the global handlers would only find `headersSent` and make Express destroy the socket). Failures here are logged, never surfaced; the caller can simply ask again after the cooldown. Make sure these log lines are monitored. */
+async function runDeferred(
+   email: IUserDocument['email'],
+   requestId: string
+): Promise<void> {
+   try {
+      await issuePasswordReset(email, requestId);
+   } catch (err) {
+      const sanitized = sanitizeError(err);
+      logger.error(
+         `Password reset issuance failed. requestId=${requestId} | ${sanitized.stack ?? sanitized.message}`
+      );
+   }
+}
+
 export async function forgotPasswordController(
    _req: Request,
    res: ResponseWithValidatedBody<ForgotPasswordBody>
@@ -166,12 +181,5 @@ export async function forgotPasswordController(
 
    res.status(200).json({ success: true, message: GENERIC_RESPONSE_MESSAGE });
 
-   try {
-      await issuePasswordReset(email, requestId);
-   } catch (err) {
-      const sanitized = sanitizeError(err);
-      logger.error(
-         `Password reset issuance failed. requestId=${requestId} | ${sanitized.stack ?? sanitized.message}`
-      );
-   }
+   trackBackgroundTask(runDeferred(email, requestId));
 }
