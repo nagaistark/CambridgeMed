@@ -1,6 +1,6 @@
 import '@ssot/date_time_constants.ts';
 import app from './app.ts';
-import { Server } from 'node:http';
+import { createServer, type Server } from 'node:http';
 import { myEnv } from './validateConfig.ts';
 import { validateJwtKeys } from '@utils/jwtUtils.ts';
 import logger from './logger.ts';
@@ -59,8 +59,16 @@ const startServer = async (): Promise<void> => {
 
       // Step 4: Starting the HTTP server
       const listening = await new Promise<Server>((resolve, reject) => {
-         const s = app.listen(port, host, () => resolve(s));
+         const s = createServer(
+            {
+               keepAliveTimeout: 80_000,
+               headersTimeout: 30_000,
+               requestTimeout: 30_000,
+            },
+            app
+         );
          s.once('error', reject);
+         s.listen(port, host, () => resolve(s));
       });
       server = listening;
 
@@ -95,7 +103,7 @@ const onShutdownSignal = (signal: 'SIGINT' | 'SIGTERM') => {
       );
       DatabaseManager.getInstance()
          .cleanup()
-         .then(() => process.exit(0))
+         .then(() => process.exit(process.exitCode ?? 0))
          .catch(() => process.exit(1));
       return;
    }
@@ -106,7 +114,7 @@ const onShutdownSignal = (signal: 'SIGINT' | 'SIGTERM') => {
    });
 };
 
-process.once('SIGINT', () => onShutdownSignal('SIGINT'));
-process.once('SIGTERM', () => onShutdownSignal('SIGTERM'));
+process.on('SIGINT', () => onShutdownSignal('SIGINT'));
+process.on('SIGTERM', () => onShutdownSignal('SIGTERM'));
 
 void startServer();

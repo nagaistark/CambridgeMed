@@ -38,14 +38,14 @@ const ALL_ERROR_CODES = [
    'INTERNAL_ERROR', // Unexpected programmer error — details hidden in production
 ] as const;
 
-type ErrorCode = (typeof ALL_ERROR_CODES)[number];
+export type ErrorCode = (typeof ALL_ERROR_CODES)[number];
 
 const VALID_ERROR_CODES: ReadonlySet<string> = new Set(ALL_ERROR_CODES);
 
 // ===== CANONICAL RESPONSE SHAPE ==================================================
-interface ApiErrorResponse {
+export interface ApiErrorResponse {
    success: false; // It's always literally "false" for Errors, not just "boolean"
-   code: string;
+   code: ErrorCode;
    message: string;
    requestId: string;
    details?: unknown;
@@ -312,8 +312,7 @@ function isMongoUnavailable(err: unknown): boolean {
       err instanceof MongoNetworkError || // includes MongoNetworkTimeoutError
       err instanceof MongoServerSelectionError ||
       err instanceof MongoTopologyClosedError ||
-      err instanceof MongoNotConnectedError ||
-      (err instanceof MongoServerError && err.code === MAX_TIME_MS_EXPIRED)
+      err instanceof MongoNotConnectedError
    );
 }
 
@@ -337,6 +336,21 @@ export function handleMongoDbError(
             createErrorResponse(
                'SERVICE_UNAVAILABLE',
                `A database connectivity issue occurred. Please try again shortly.`,
+               requestId
+            )
+         );
+   }
+
+   // ── maxTimeMS expired (MongoDB code 50) ───────────────────────────────────────
+   /* Not an outage: the query was cut off by LIST_QUERY_MAX_TIME_MS. Retrying the identical request would just time out again, so the message says so. */
+   if (err instanceof MongoServerError && err.code === MAX_TIME_MS_EXPIRED) {
+      logServerFault('MongoDB query timed out', err, requestId);
+      return void res
+         .status(503)
+         .json(
+            createErrorResponse(
+               'SERVICE_UNAVAILABLE',
+               `The request took too long to process. Please narrow your request or try again shortly.`,
                requestId
             )
          );
@@ -591,6 +605,8 @@ export function handleCatchAll(
 
    const operational = isOperationalError(error);
 
+   const { message: safeMessage, stack: safeStack } = sanitizeError(error);
+
    // ── Logging ─────────────────────────────────────────────────────────────
    /* This is the ONE place in the entire pipeline responsible for logging errors that result in a 500 or 503. Every specialist above intentionally deferred this responsibility here.
    We log differently depending on error category:
@@ -601,7 +617,7 @@ export function handleCatchAll(
          `Operational error reached catch-all (a specialist may be missing). ` +
             `requestId=${requestId ?? 'unknown'} | ` +
             `name=${error.name} | ` +
-            `message=${error.message}`
+            `message=${safeMessage}`
       );
    } else {
       // For programmer errors, we log the full stack trace. The stack is the most valuable diagnostic tool available — it tells you exactly where in the code the error originated.
@@ -609,7 +625,7 @@ export function handleCatchAll(
          `Unhandled programmer error. ` +
             `requestId=${requestId ?? 'unknown'} | ` +
             `name=${error.name} | ` +
-            `message=${error.message}\n${error.stack ?? 'no stack available'}`
+            `message=${safeMessage}\n${safeStack ?? 'no stack available'}`
       );
    }
 
@@ -618,7 +634,7 @@ export function handleCatchAll(
    const status = operational ? 503 : 500;
    const code = operational ? 'SERVICE_UNAVAILABLE' : 'INTERNAL_ERROR';
    const message = exposeDetails
-      ? error.message
+      ? safeMessage
       : operational
         ? 'The service is temporarily unavailable. Please try again shortly.'
         : 'An unexpected error occurred. Please contact support if this persists.';

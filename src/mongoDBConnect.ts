@@ -1,11 +1,30 @@
 import { myEnv } from './validateConfig.ts';
 import logger from './logger.ts';
-import { MongoClient, type MongoClientOptions, Db } from 'mongodb';
+import {
+   Db,
+   MongoClient,
+   MongoParseError,
+   MongoServerError,
+   type MongoClientOptions,
+} from 'mongodb';
 import { Redacted } from 'effect';
 import { sanitizeError } from '@utils/sanitizeError.ts';
 
 const MAX_BACKOFF_MS = 30_000 as const;
 const APP_NAME = 'cambridgemed-api' as const;
+
+/* Server-side "your credentials are wrong" codes. 18 = AuthenticationFailed; 8000 = Atlas's "bad auth". Retrying cannot fix either. */
+const AUTH_FAILED_CODE = 18 as const;
+const ATLAS_BAD_AUTH_CODE = 8000 as const;
+
+/* MongoParseError = an option the driver rejects. Network and server-selection errors are deliberately NOT here: those can heal on their own. */
+function isNonRetryableConnectError(err: unknown): boolean {
+   if (err instanceof MongoParseError) return true;
+   return (
+      err instanceof MongoServerError &&
+      (err.code === AUTH_FAILED_CODE || err.code === ATLAS_BAD_AUTH_CODE)
+   );
+}
 
 export class DatabaseService {
    #client: MongoClient | null = null;
@@ -117,6 +136,16 @@ export class DatabaseService {
                );
             }
 
+            /* No amount of waiting fixes a rejected credential or an invalid option: fail now, with the real reason, instead of burning the whole backoff schedule. The half-open client is closed by DatabaseManager.initialize's catch -> cleanup() -> shutdown(). */
+            if (isNonRetryableConnectError(error)) {
+               logger.error(
+                  `[${this.#name}] Non-retryable connection error: ${sanitizeError(error).message}`
+               );
+               throw new Error(
+                  `Failed to connect to ${this.#name}: the configuration was rejected (not retrying).`
+               );
+            }
+
             attempt++;
             if (attempt >= this.#maxRetries) {
                logger.error(
@@ -137,7 +166,7 @@ export class DatabaseService {
             );
 
             logger.warn(
-               `[${this.#name}] Connection failed. Retrying in ${delayMs / 1000}s... (Attempt ${attempt}/${this.#maxRetries})`
+               `[${this.#name}] Connection failed: ${sanitizeError(error).message}. Retrying in ${delayMs / 1000}s... (Attempt ${attempt}/${this.#maxRetries})`
             );
 
             /* Interruptible delay. If #abortController.abort() is called, this wakes up instantly. */
@@ -174,26 +203,20 @@ export class DatabaseService {
 
    #attachListeners(client: MongoClient): void {
       client.on('topologyDescriptionChanged', event => {
-         if (this.#isShuttingDownIntentionally) return;
+         if (this.#isShuttingDownIntentionally || !this.#hasEverConnected)
+            return;
 
-         const allServersUnknown = [
-            ...event.newDescription.servers.values(),
-         ].every(s => s.type === 'Unknown');
+         const { type } = event.newDescription;
+         const isDegraded =
+            type === 'Unknown' || type === 'ReplicaSetNoPrimary';
 
-         const anyServerKnown = [
-            ...event.previousDescription.servers.values(),
-         ].some(s => s.type !== 'Unknown');
-
-         if (allServersUnknown && anyServerKnown && this.#hasEverConnected) {
+         if (isDegraded && this.#watchdogTimer === null) {
             this.#isConnected = false;
             logger.warn(
-               `[${this.#name}] All servers unreachable. Starting ${this.#gracePeriodMS / 1000}s watchdog...`
+               `[${this.#name}] No usable primary. Starting ${this.#gracePeriodMS / 1000}s watchdog...`
             );
             this.#startWatchdog();
-         } else if (!allServersUnknown && this.#watchdogTimer !== null) {
-            logger.info(
-               `[${this.#name}] Server(s) reachable again. Reconnected.`
-            );
+         } else if (!isDegraded && this.#watchdogTimer !== null) {
             this.#isConnected = true;
             this.#stopWatchdog();
          }

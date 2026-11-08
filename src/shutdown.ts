@@ -9,10 +9,27 @@ let isShutdownCalled = false;
 
 export const isShuttingDown = (): boolean => isShutdownCalled;
 
+const IDLE_SWEEP_INTERVAL_MS = 250 as const;
+
+async function closeServer(server: Server): Promise<void> {
+   const closed = new Promise<void>((resolve, reject) => {
+      server.close(err => (err ? reject(err) : resolve()));
+   });
+   const sweeper = setInterval(
+      () => server.closeIdleConnections(),
+      IDLE_SWEEP_INTERVAL_MS
+   );
+   try {
+      await closed;
+   } finally {
+      clearInterval(sweeper);
+   }
+}
+
 /*
    Used in server.ts via:
-   process.once('SIGINT',  () => handleGracefulShutdown(server, 'SIGINT'));
-   process.once('SIGTERM', () => handleGracefulShutdown(server, 'SIGTERM'));
+   process.on('SIGINT',  () => handleGracefulShutdown(server, 'SIGINT'));
+   process.on('SIGTERM', () => handleGracefulShutdown(server, 'SIGTERM'));
 */
 
 export const handleGracefulShutdown = async (
@@ -38,10 +55,7 @@ export const handleGracefulShutdown = async (
    try {
       /* Step 1: stop accepting traffic. */
       try {
-         await new Promise<void>((resolve, reject) => {
-            server.close(err => (err ? reject(err) : resolve()));
-            server.closeIdleConnections();
-         });
+         await closeServer(server);
          logger.info(`HTTP server closed.`);
       } catch (serverError) {
          hasErrorDuringShutdown = true;

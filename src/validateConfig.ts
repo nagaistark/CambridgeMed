@@ -57,6 +57,18 @@ const mongoConnectionUri = nonEmptyReasonablyLongString.pipe(
 /* Connection strings embed credentials (`user:pass@host`), so they're redacted just like the other secrets below — a stray `logger.info(myEnv.database.appUri)` anywhere downstream now prints `<redacted>` instead of a password. */
 const redactedMongoConnectionUri = Schema.Redacted(mongoConnectionUri);
 
+/* No `g` flag on purpose: `.test()` on a global regex is stateful. */
+const TLS_REQUESTED = /[?&](?:tls|ssl)=true(?:&|$)/i;
+const TLS_WEAKENED =
+   /[?&](?:tls=false|ssl=false|tlsInsecure=true|tlsAllowInvalidCertificates=true|tlsAllowInvalidHostnames=true)(?:&|$)/i;
+
+/* mongodb+srv:// implies TLS. Otherwise TLS must be requested explicitly, and nothing may weaken its verification. */
+const hasVerifiedTransport = (uri: Redacted.Redacted<string>): boolean => {
+   const value = Redacted.value(uri);
+   if (TLS_WEAKENED.test(value)) return false;
+   return value.startsWith('mongodb+srv://') || TLS_REQUESTED.test(value);
+};
+
 const normalizedPem = Schema.transform(boundedString, boundedString, {
    strict: true,
    decode: (pem: string) => `${pem.replace(/\\n/g, '\n').trim()}\n`,
@@ -119,21 +131,39 @@ const httpUrl = Schema.transformOrFail(
    {
       strict: true,
       decode: (str, _options, ast) => {
-         if (!URL.canParse(str)) {
-            return ParseResult.fail(
-               new ParseResult.Type(ast, str, `The URL is badly formatted.`)
+         /* '<redacted>' as the `actual`: a misconfigured URL may embed credentials. */
+         const fail = (message: string) =>
+            ParseResult.fail(new ParseResult.Type(ast, '<redacted>', message));
+
+         if (!URL.canParse(str)) return fail(`The URL is badly formatted.`);
+
+         const {
+            protocol,
+            origin,
+            pathname,
+            search,
+            hash,
+            username,
+            password,
+         } = new URL(str);
+
+         if (protocol !== 'https:' && protocol !== 'http:') {
+            return fail(`The URL must use http or https.`);
+         }
+
+         if (
+            pathname !== '/' ||
+            search !== '' ||
+            hash !== '' ||
+            username !== '' ||
+            password !== ''
+         ) {
+            return fail(
+               `The URL must be a bare origin (scheme://host[:port]) with no path, query, fragment or credentials.`
             );
          }
-         const { protocol, origin } = new URL(str);
-         return protocol === 'https:' || protocol === 'http:'
-            ? ParseResult.succeed(origin)
-            : ParseResult.fail(
-                 new ParseResult.Type(
-                    ast,
-                    str,
-                    `The URL must use http or https.`
-                 )
-              );
+
+         return ParseResult.succeed(origin);
       },
       encode: str => ParseResult.succeed(str),
    }
@@ -308,6 +338,26 @@ const ConfigSchema = Schema.Struct({
    ),
    Schema.filter(({ appBaseUrl, cors }) => cors.origins.includes(appBaseUrl), {
       message: () => `APP_BASE_URL must be one of CORS_ORIGINS.`,
+   }),
+   Schema.filter(({ environment, database }) => {
+      const issues: Array<Schema.FilterIssue> = [];
+      if (environment !== 'production') return issues;
+
+      const uris = [
+         ['appUri', database.appUri],
+         ['authUri', database.authUri],
+         ['auditUri', database.auditUri],
+      ] as const;
+
+      for (const [key, uri] of uris) {
+         if (!hasVerifiedTransport(uri)) {
+            issues.push({
+               path: ['database', key],
+               message: `In production this MongoDB URI must use mongodb+srv:// or tls=true, and must not disable certificate or hostname verification.`,
+            });
+         }
+      }
+      return issues;
    })
 );
 
