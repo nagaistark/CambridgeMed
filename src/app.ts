@@ -84,6 +84,8 @@ app.use(
       stream: {
          write: (message: string) => logger.http(message.trimEnd()),
       },
+      /* Successful health probes are noise (the platform polls constantly); failures (>= 400) are still logged. */
+      skip: (req, res) => req.path === '/health' && res.statusCode < 400,
    })
 );
 
@@ -118,7 +120,8 @@ app.use(
             fontSrc: ["'self'", 'https://fonts.gstatic.com'], // Fonts: same-origin only + Google Fonts
             objectSrc: ["'none'"], // No plugins (Flash etc.) ever
             frameAncestors: ["'none'"], // Nobody can iframe this site
-            upgradeInsecureRequests: [], // Auto-upgrade HTTP to HTTPS
+            upgradeInsecureRequests:
+               myEnv.environment === 'production' ? [] : null, // Auto-upgrade HTTP to HTTPS
          },
       },
    })
