@@ -1,36 +1,42 @@
 import winston from 'winston';
-import util from 'util';
+import util from 'node:util';
 import { myEnv } from './validateConfig.ts';
 
-/* 1. Create a barebones Winston logger. We strip out splat() and all the other metadata formatters because we don't need them anymore. */
+const isProduction = myEnv.environment === 'production';
+
+/* Production: one JSON object per line with an ISO-8601 UTC timestamp, which log aggregators parse natively. Development: colourised and human-readable. */
+const format = isProduction
+   ? winston.format.combine(winston.format.timestamp(), winston.format.json())
+   : winston.format.combine(
+        winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
+        winston.format.colorize(),
+        winston.format.printf(
+           ({ level, message, timestamp }) =>
+              `${String(timestamp)} [${level}]: ${String(message)}`
+        )
+     );
+
 const winstonLogger = winston.createLogger({
-   level: myEnv.environment === 'production' ? 'http' : 'debug',
-   format: winston.format.combine(
-      winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
-      winston.format.colorize(),
-      winston.format.printf(({ level, message, timestamp }) => {
-         // Winston now only receives a single, perfectly formatted string.
-         return `${String(timestamp)} [${level}]: ${String(message)}`;
-      })
-   ),
+   level: isProduction ? 'http' : 'debug',
+   format,
    transports: [new winston.transports.Console()],
 });
 
-/* 2. Create a factory function that intercepts your variadic arguments. */
-const createLogMethod = (level: string) => {
-   return (...args: any[]) => {
-      /* util.formatWithOptions is the exact engine behind console.log. It handles multiple args, deep nesting, arrays, and string interpolation natively. */
-      const formattedMessage = util.formatWithOptions(
-         { colors: true, depth: null },
-         ...args
+type LogLevel =
+   'error' | 'warn' | 'info' | 'http' | 'verbose' | 'debug' | 'silly';
+
+type LogMethod = (...args: readonly unknown[]) => void;
+
+/* util.formatWithOptions is the engine behind console.log. Colours are for terminals only; the depth cap keeps a stray whole-document log from dumping nested (possibly PHI) data. */
+const createLogMethod =
+   (level: LogLevel): LogMethod =>
+   (...args) => {
+      winstonLogger.log(
+         level,
+         util.formatWithOptions({ colors: !isProduction, depth: 4 }, ...args)
       );
-
-      /* Pass the perfectly formatted string to Winston */
-      winstonLogger.log(level, formattedMessage);
    };
-};
 
-/* 3. Export your clean, strongly-typed logger API */
 const logger = {
    error: createLogMethod('error'),
    warn: createLogMethod('warn'),
