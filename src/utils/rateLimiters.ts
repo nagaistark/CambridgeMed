@@ -36,6 +36,8 @@ import {
    SESSION_KILL_MAX_REQUESTS,
    INVITE_CREATE_FAILURE_WINDOW_MS,
    INVITE_CREATE_MAX_FAILED_REQUESTS,
+   GLOBAL_API_WINDOW_MS,
+   GLOBAL_API_MAX_REQUESTS,
 } from '@ssot/rate_limit_constants.ts';
 import { Schema } from 'effect';
 import { LoginSchema } from '@auth/login.schema.ts';
@@ -72,6 +74,13 @@ function keyByUserOrIp(req: Request, res: Response): string {
       res.locals.authenticatedUser?.sub ?? ipKeyGenerator(req.ip ?? 'unknown')
    );
 }
+
+/* Flood backstop for every /api request, per IP. Route-specific limiters do the real abuse prevention. `ipv6Subnet: 56` groups an IPv6 client's whole /56 into one identity (the same grouping ipKeyGenerator applies in keyByUserOrIp), stated explicitly so the intent survives a library change. */
+export const globalApiRateLimiter = makeRateLimiter(
+   GLOBAL_API_WINDOW_MS,
+   GLOBAL_API_MAX_REQUESTS,
+   { ipv6Subnet: 56 }
+);
 
 // ── Per-route limiter instances ──────────────────────────────────────────────────
 /* Each is instantiated once at module load and reused across all requests to its corresponding route. express-rate-limit stores state in memory by default (suitable for a single-process deployment on Render). If we later move to a multi-process setup, DON'T FORGET TO SWAP IN A REDIS STORE. */

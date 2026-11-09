@@ -9,7 +9,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import cors from 'cors';
 import morgan from 'morgan';
-import rateLimit, { type Options } from 'express-rate-limit';
 import helmet from 'helmet';
 import { randomUUID } from 'node:crypto';
 
@@ -39,11 +38,8 @@ import {
 
 import { FALLBACK_HEX_SECRET_PATTERN } from '@ssot/logging_constants.ts';
 import { requireTrustedOrigin } from '@middleware/requireTrustedOrigin.ts';
-import {
-   GLOBAL_API_MAX_REQUESTS,
-   GLOBAL_API_WINDOW_MS,
-} from '@ssot/rate_limit_constants.ts';
 import { isShuttingDown } from './shutdown.ts';
+import { globalApiRateLimiter } from '@utils/rateLimiters.ts';
 
 // ===== APP INITIALIZATION & CONFIG ===============================================
 const app: Express = express();
@@ -146,32 +142,8 @@ app.use('/api', (_req: Request, res: Response, next: NextFunction) => {
 // F. CSRF defence-in-depth: rejects state-changing requests from untrusted origins before any parsing or rate-limiting.
 app.use('/api', requireTrustedOrigin);
 
-// G. Rate limiting
-const limiter = rateLimit({
-   windowMs: GLOBAL_API_WINDOW_MS,
-   limit: GLOBAL_API_MAX_REQUESTS,
-   standardHeaders: 'draft-8',
-   legacyHeaders: false,
-   ipv6Subnet: 56, // treating /56 IPv6 subnets as one identity
-   handler: (
-      _req: Request,
-      res: Response,
-      _next: NextFunction,
-      options: Options
-   ) => {
-      const requestId = res.locals['requestId'];
-      res.status(options.statusCode).json(
-         createErrorResponse(
-            'RATE_LIMITED',
-            'Too many requests from this IP, please try again later',
-            requestId
-         )
-      );
-   },
-});
-
-// General API protection
-app.use('/api', limiter);
+// G. General API protection
+app.use('/api', globalApiRateLimiter);
 
 // H. Body Parsers & Static Files
 app.use(express.json({ limit: '100kb' }));
@@ -181,7 +153,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use(cookieParser());
 
 // ===== ROUTES ====================================================================
-app.get('/health', limiter, (_req: Request, res: Response) => {
+app.get('/health', globalApiRateLimiter, (_req: Request, res: Response) => {
    const databases = DatabaseManager.getInstance();
    const healthy =
       !isShuttingDown() &&
