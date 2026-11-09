@@ -375,9 +375,9 @@ const rawConfig = {
       socketTimeoutMS: env.SOCKET_TIMEOUT_MS,
       heartbeatFrequencyMS: env.HEARTBEAT_FREQUENCY_MS,
       waitQueueTimeoutMS: env.DB_WAIT_QUEUE_TIMEOUT_MS,
-      maxRetries: env.MAX_RETRIES,
-      baseDelay: env.BASE_DELAY_MS,
-      gracePeriodMS: env.GRACE_PERIOD_MS,
+      maxRetries: env.DB_MAX_RETRIES,
+      baseDelay: env.DB_BASE_DELAY_MS,
+      gracePeriodMS: env.DB_GRACE_PERIOD_MS,
    },
    server: {
       host: env.HOST,

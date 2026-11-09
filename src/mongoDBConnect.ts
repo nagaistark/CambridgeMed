@@ -60,14 +60,14 @@ export class DatabaseService {
             throw new Error(`Aborted connection to ${this.#name}.`);
          }
 
-         logger.info(
-            `[${this.#name}] Connection attempt ${attempt + 1}/${this.#maxRetries}...`
-         );
-
          /* Early return if the client already exists and is healthy. */
          if (this.#client !== null && this.#isConnected) {
             return this.#client;
          }
+
+         logger.info(
+            `[${this.#name}] Connection attempt ${attempt + 1}/${this.#maxRetries}...`
+         );
 
          try {
             /* Proactive cleanup of any stale client before creating a new one. */
