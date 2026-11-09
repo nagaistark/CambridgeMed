@@ -1,5 +1,5 @@
 import 'express';
-import { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
+import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 
 declare global {
    namespace Express {

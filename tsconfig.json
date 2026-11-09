@@ -32,10 +32,6 @@
          "@patients/*": ["./src/patients/*"],
          "@utils/*": ["./src/utils/*"]
       } /* Specify a set of entries that re-map imports to additional lookup locations. */,
-      "typeRoots": [
-         "./node_modules/@types",
-         "./src/types"
-      ] /* Specify multiple folders that act like './node_modules/@types'. */,
       "allowImportingTsExtensions": true /* Allow imports to include TypeScript file extensions. Requires '--moduleResolution bundler' and either '--noEmit' or '--emitDeclarationOnly' to be set. */,
       "resolveJsonModule": true /* Enable importing .json files. */,
 

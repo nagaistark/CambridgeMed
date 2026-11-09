@@ -200,7 +200,7 @@ type StrictInc<TSchema> = {
 type MongoArrayFields<TSchema> = {
    [P in MongoUpdatePaths<TSchema>]: NonNullable<
       MongoUpdatePathValue<TSchema, P>
-   > extends ReadonlyArray<any>
+   > extends ReadonlyArray<unknown>
       ? P
       : never;
 }[MongoUpdatePaths<TSchema>];

@@ -1,4 +1,4 @@
-import type { Response, RequestHandler } from 'express';
+import type { Request, Response, RequestHandler } from 'express';
 import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 
 export type ResponseWithValidatedBody<T> = Response & {
@@ -22,11 +22,14 @@ export type TotpChallengeResponse = Response & {
    locals: Express.Locals & { totpChallengeSub: string };
 };
 
+type DefaultParams = Request['params'];
+type DefaultQuery = Request['query'];
+
 export type AuthenticatedRequestHandler<
-   P = any,
-   ResBody = any,
-   ReqBody = any,
-   ReqQuery = any,
+   P = DefaultParams,
+   ResBody = unknown,
+   ReqBody = unknown,
+   ReqQuery = DefaultQuery,
 > = RequestHandler<
    P,
    ResBody,

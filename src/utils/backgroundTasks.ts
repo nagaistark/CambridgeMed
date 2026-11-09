@@ -18,6 +18,6 @@ export function trackBackgroundTask(task: Promise<void>): void {
 
 export async function drainBackgroundTasks(): Promise<void> {
    while (pending.size > 0) {
-      await Promise.allSettled([...pending]);
+      await Promise.allSettled(pending);
    }
 }
