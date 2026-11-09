@@ -21,7 +21,6 @@ import authRouter from '@auth/auth.routes.ts';
 import inviteRouter from '@invites/invites.routes.ts';
 import usersRouter from '@users/users.routes.ts';
 import sessionsRouter from '@sessions/sessions.routes.ts';
-import patientRouter from '@patients/patients.routes.ts';
 
 import { DatabaseManager } from './mongoDBConnect.ts';
 
@@ -175,7 +174,6 @@ app.use('/api/auth', authRouter);
 app.use('/api/invites', inviteRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/sessions', sessionsRouter);
-app.use('/api/patients', patientRouter);
 
 // ===== 404 & GLOBAL ERROR HANDLING (Must be last!) ===============================
 /* Tier 1. API routes that don't exist → proper JSON 404 */
