@@ -1,0 +1,28 @@
+{
+   "role": "superadmin",
+   "permissions": 3,
+   "firstName": "John",
+   "lastName": "Doe",
+   "email": "jascha.stark@gmail.com",
+   "passwordHash": "$argon2id$v=19$m=65536,p=4,t=3$ADt4Ku5O+2qsH6l+e//12g$OtaeRqG98LLxMbyIz5+LJUDYIg7MS2aAj2XQNdWfpl0",
+   "previousNames": [],
+   "previousEmails": [],
+   "nameChangesUsed": 0,
+   "emailChangesUsed": 0,
+   "isTotpEnabled": false,
+   "totpSecret": null,
+   "totpPendingSecret": null,
+   "totpRecoveryCodes": [],
+   "totpLastUsedStep": 0,
+   "totpAttempts": 0,
+   "totpAttemptsWindowStartedAt": null,
+   "invitedBy": null,
+   "isActive": true,
+   "passwordResetRequired": false,
+   "createdAt": {
+      "$date": "2026-10-24T10:06:01.191Z"
+   },
+   "updatedAt": {
+      "$date": "2026-10-24T10:06:09.400Z"
+   }
+}

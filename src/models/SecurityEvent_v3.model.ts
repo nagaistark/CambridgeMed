@@ -11,7 +11,6 @@ import {
    ipAddress,
    stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
-import type { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { DatabaseManager } from '../mongoDBConnect.ts';
 
 /* An event is a fact about the past: it has `occurredAt` but no `updatedAt`, because nothing ever edits it. `actorId` is null when the actor had no session (mid-login, password-reset link). Never put codes, secrets or hashes in here. */
@@ -42,10 +41,3 @@ export function getSecurityEventCollection(): Collection<ISecurityEventDocument>
       .audit.db()
       .collection<ISecurityEventDocument>('securityevents');
 }
-
-/* Deliberately NO TTL index: retention is a compliance decision, not a default. */
-export const securityEventIndexes = [
-   { key: { targetUserId: 1, occurredAt: -1 } },
-   { key: { event: 1, occurredAt: -1 } },
-   { key: { actorId: 1, occurredAt: -1 } },
-] satisfies readonly TypedIndexDescription<ISecurityEventDocument>[];

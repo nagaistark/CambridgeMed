@@ -9,6 +9,7 @@
       "node": ">=22"
    },
    "scripts": {
+      "db:indexes": "tsx --env-file=.env.migrate src/migrations/ensureAuditIndexes.ts",
       "build": "pnpm run check && esbuild src/server.ts --bundle --platform=node --format=esm --target=node22 --packages=external --sourcemap --tsconfig=tsconfig.json --outfile=dist/server.js",
       "start": "NODE_ENV=production node --enable-source-maps dist/server.js",
       "check": "tsc --noEmit",

@@ -17,15 +17,7 @@ import {
    emailChangeIndexes,
    getEmailChangeCollection,
 } from '@models/EmailChange_v3.model.ts';
-import {
-   auditLogIndexes,
-   getAuditLogCollection,
-} from '@models/AuditLog_v3.model.ts';
 import { MongoServerError, type Collection, type Document } from 'mongodb';
-import {
-   getSecurityEventCollection,
-   securityEventIndexes,
-} from '@models/SecurityEvent_v3.model.ts';
 
 /* MongoDB error codes for "an index with this name already exists, but with a different definition". */
 const INDEX_OPTIONS_CONFLICT = 85 as const;
@@ -53,13 +45,11 @@ async function ensureIndexes<T extends Document>(
 
 export async function initializeDatabaseIndexes(): Promise<void> {
    logger.info(`Ensuring database indexes...`);
-   await ensureIndexes(getAuditLogCollection(), auditLogIndexes);
    await ensureIndexes(getInviteCollection(), inviteIndexes);
    await ensureIndexes(getUserCollection(), userIndexes);
    await ensureIndexes(getSessionCollection(), sessionIndexes);
    await ensureIndexes(getPasswordResetCollection(), passwordResetIndexes);
    await ensureIndexes(getEmailChangeCollection(), emailChangeIndexes);
-   await ensureIndexes(getSecurityEventCollection(), securityEventIndexes);
    // Future collections will be added here...
    logger.info(`Database indexes ensured.`);
 }

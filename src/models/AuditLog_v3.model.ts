@@ -5,7 +5,6 @@ import {
    longString,
    objectIdInstance,
 } from '@utils/effectSchemaReusables.ts';
-import type { TypedIndexDescription } from '@utils/typedIndexDescription.ts';
 import { Schema } from 'effect';
 import { Collection } from 'mongodb';
 import { DatabaseManager } from '../mongoDBConnect.ts';
@@ -44,8 +43,3 @@ export function getAuditLogCollection(): Collection<IAuditLogDoc> {
       .audit.db()
       .collection<IAuditLogDoc>('auditlogs');
 }
-
-export const auditLogIndexes = [
-   { key: { patientIDs: 1, occurredAt: -1 } },
-   { key: { actorID: 1, occurredAt: -1 } },
-] satisfies readonly TypedIndexDescription<IAuditLogDoc>[];
