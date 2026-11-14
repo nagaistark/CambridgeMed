@@ -1,5 +1,6 @@
 import type { Request, Response, RequestHandler } from 'express';
 import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
+import type { ITotpChallengeAuth } from '@models/TotpChallenge_v3.model.ts';
 
 export type ResponseWithValidatedBody<T> = Response & {
    locals: Express.Locals & { validatedBody: T };
@@ -17,9 +18,8 @@ export type AuthenticatedResponse = Response & {
    locals: Express.Locals & { authenticatedUser: AuthenticatedUser };
 };
 
-// For controllers that sit behind authenticateTotp instead of authenticate.
 export type TotpChallengeResponse = Response & {
-   locals: Express.Locals & { totpChallengeSub: string };
+   locals: Express.Locals & { totpChallenge: ITotpChallengeAuth };
 };
 
 type DefaultParams = Request['params'];

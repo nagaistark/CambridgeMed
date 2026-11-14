@@ -28,6 +28,7 @@ import logger from '../logger.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { RawTokenBody } from '@utils/effectSchemaReusables.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
+import { revokeTotpChallenges } from '@auth/totpChallenge.ts';
 
 type CancelOutcome =
    | { status: 'invalid' }
@@ -105,6 +106,8 @@ async function runCancelTransaction(tokenHash: string): Promise<CancelOutcome> {
          } satisfies StrictMongoFilter<ISessionDocument>,
          { session }
       );
+
+      await revokeTotpChallenges(validatedChange.userId, { session });
 
       /* The email binding already kills any reset link mailed to the attacker's address. Deleting the documents too also resets the forgot-password cooldown clock, so the owner's first request after a revert can never be swallowed by a request the attacker made seconds earlier. */
       await getPasswordResetCollection().deleteMany(

@@ -57,6 +57,7 @@ import type {
 } from '@utils/pathFinder_v3.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
+import { revokeTotpChallenges } from '@auth/totpChallenge.ts';
 
 /* A failed notification must never undo a completed reset, but must not vanish silently. Cannot reject. */
 async function notifyOwner(target: IUserPasswordResetTarget): Promise<void> {
@@ -229,6 +230,8 @@ export async function resetUserTotpController(
                } satisfies StrictMongoFilter<ISessionDocument>,
                { session }
             );
+
+            await revokeTotpChallenges(validatedTarget._id, { session });
 
             /* A reset link issued while 2FA was on would otherwise be redeemable without the step-up the moment 2FA is gone. */
             await getPasswordResetCollection().deleteMany(

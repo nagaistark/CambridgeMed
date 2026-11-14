@@ -38,6 +38,7 @@ import type { IEmailChangeStatusSource } from '@models/EmailChange_v3.model.ts';
 import type { IPasswordResetRedeemCheck } from '@models/PasswordReset_v3.model.ts';
 import type { StrictIndexConfig } from '@utils/pathFinder_v3.ts';
 import type { IServerGeneratedFields } from '@ssot/serverGeneratedFields.ts';
+import type { ITotpChallengeAuth } from '@models/TotpChallenge_v3.model.ts';
 
 /* Field projections defined once at module level. Using MongoDB-level projection means `passwordHash` never travels over the wire from MongoDB to the Node process. */
 export const SAFE_USER_PROJECTION: Record<keyof ISafeUser, 1> = {
@@ -292,6 +293,15 @@ export const EMAIL_CHANGE_STATUS_PROJECTION: Record<
    confirmedAt: 1,
    confirmExpiresAt: 1,
    cancelExpiresAt: 1,
+};
+
+// ── TOTP projections ─────────────────────────────────────────────────────────────
+export const TOTP_CHALLENGE_AUTH_PROJECTION: Record<
+   keyof ITotpChallengeAuth,
+   1
+> = {
+   _id: 1,
+   userId: 1,
 };
 
 // ── Patients projections ─────────────────────────────────────────────────────────

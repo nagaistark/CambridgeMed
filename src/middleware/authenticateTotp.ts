@@ -1,63 +1,79 @@
 import type { Request, Response, NextFunction } from 'express';
-import { jwtVerify } from 'jose';
-import { getPublicKey } from '@utils/jwtUtils.ts';
-import { TOTP_CHALLENGE_AUDIENCE } from '@ssot/totp_constants.ts';
+import {
+   getTotpChallengeCollection,
+   TotpChallengeAuthValidator,
+   type ITotpChallengeAuth,
+   type ITotpChallengeDocument,
+} from '@models/TotpChallenge_v3.model.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
+import { TOTP_CHALLENGE_AUTH_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
+import type {
+   StrictFindOneOptions,
+   StrictMongoFilter,
+} from '@utils/pathFinder_v3.ts';
+import {
+   clearTotpChallengeCookie,
+   readTotpChallengeCookie,
+} from '@utils/tokenUtils.ts';
+import { decodeStored } from '@utils/decodeStored.ts';
+import { TOTP_CHALLENGE_EXPIRED_MESSAGE } from '@auth/totpChallenge.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
-import { readTotpChallengeCookie } from '@utils/tokenUtils.ts';
-import { JWT_ISSUER } from '@ssot/jwt_constants.ts';
-import { Either, Schema } from 'effect';
-import { stringToObjectId } from '@utils/effectSchemaReusables.ts';
 
-/* Guards /totp/verify and /totp/recover. The user at this point has proven their password is correct but has not yet proven their TOTP code. They hold a challenge token cookie rather than an access token cookie. */
+/* Guards /totp/verify and /totp/recover. The user at this point has proven their password but not yet their second factor. They hold a challenge cookie instead of a session cookie.
+
+   This middleware only LOOKS UP the challenge: a mistyped code must stay retryable without re-entering the password (the per-account attempt gate, not the cookie, bounds retries). The challenge is spent by completeTotpLogin once the second factor has verified. A session cookie presented here is just an unknown value: it cannot be found in the challenge collection. */
 export async function authenticateTotp(
    req: Request,
    res: Response,
    next: NextFunction
 ): Promise<void> {
    try {
+      const requestId = res.locals.requestId;
       const rawToken = readTotpChallengeCookie(req);
 
-      if (!rawToken) {
+      if (rawToken === undefined) {
          return void res
             .status(401)
             .json(
                createErrorResponse(
                   'UNAUTHORIZED',
                   `TOTP verification required.`,
-                  res.locals.requestId
+                  requestId
                )
             );
       }
 
-      const publicKey = await getPublicKey();
+      const challengeRaw =
+         await getTotpChallengeCollection().findOne<ITotpChallengeAuth>(
+            {
+               tokenHash: generateStandardHash(rawToken),
+               expiresAt: { $gt: new Date() },
+            } satisfies StrictMongoFilter<ITotpChallengeDocument>,
+            {
+               projection: TOTP_CHALLENGE_AUTH_PROJECTION,
+            } satisfies StrictFindOneOptions<ITotpChallengeAuth>
+         );
 
-      /* jwtVerify enforces signature,expiry, AND audience simultaneously. An access token or email-verification token presented here will be rejected because its audience claim won't match 'totp-challenge'. */
-      const { payload } = await jwtVerify(rawToken, publicKey, {
-         algorithms: ['RS256'],
-         audience: TOTP_CHALLENGE_AUDIENCE,
-         issuer: JWT_ISSUER,
-      });
-
-      const { sub } = payload;
-
-      const decodedSub = Schema.decodeUnknownEither(stringToObjectId)(sub);
-
-      if (Either.isLeft(decodedSub)) {
+      if (challengeRaw === null) {
+         clearTotpChallengeCookie(res);
          return void res
             .status(401)
             .json(
                createErrorResponse(
                   'UNAUTHORIZED',
-                  `Invalid challenge token.`,
-                  res.locals.requestId
+                  TOTP_CHALLENGE_EXPIRED_MESSAGE,
+                  requestId
                )
             );
       }
 
-      res.locals.totpChallengeSub = sub;
+      res.locals.totpChallenge = decodeStored(
+         TotpChallengeAuthValidator,
+         challengeRaw,
+         'authenticateTotp: challenge'
+      );
       next();
    } catch (err) {
-      // JOSEErrors (expired token, bad signature) travel to handleJwtError.
       next(err);
    }
 }

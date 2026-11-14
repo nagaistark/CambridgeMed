@@ -1,17 +1,13 @@
-import { SignJWT } from 'jose';
 import type { Request, Response } from 'express';
-import { getPrivateKey } from '@utils/jwtUtils.ts';
 import {
    generateRandomToken,
    generateStandardHash,
    HEX96_REGEX,
 } from '@ssot/node_crypto_constants.ts';
 import {
-   TOTP_CHALLENGE_AUDIENCE,
    TOTP_CHALLENGE_COOKIE_NAME,
    TOTP_CHALLENGE_EXPIRY_SECONDS,
 } from '@ssot/totp_constants.ts';
-import { JWT_ISSUER } from '@ssot/jwt_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────────
 /* Single source of truth for the session cookie name. The `__Host-` prefix is enforced by the BROWSER: it will only accept this cookie if it is `Secure`, has `Path=/` and carries no `Domain`. That stops a sibling subdomain or an insecure origin from planting a cookie of this name (a session-fixation vector). */
@@ -83,33 +79,24 @@ export function clearAuthCookies(res: Response): void {
    eraseCookie(res, SESSION_COOKIE_NAME, '/');
 }
 
-// ── TOTP challenge token (replaced in the next phase) ────────────────────────────
-export async function signTotpChallengeToken(userId: string): Promise<string> {
-   const privateKey = await getPrivateKey();
-   return new SignJWT({})
-      .setProtectedHeader({ alg: 'RS256' })
-      .setSubject(userId)
-      .setIssuer(JWT_ISSUER)
-      .setAudience(TOTP_CHALLENGE_AUDIENCE)
-      .setIssuedAt()
-      .setExpirationTime(`${TOTP_CHALLENGE_EXPIRY_SECONDS}s`)
-      .sign(privateKey);
-}
-
-export function setTotpChallengeCookie(res: Response, token: string): void {
+// ── TOTP challenge cookie ────────────────────────────────────────────────────────
+/* The challenge is an opaque server-side record, exactly like the session (see totpChallenge.ts). Same baseline: `__Host-`, Secure, HttpOnly, SameSite=Strict, Path=/. Path scoping to /api/auth/totp is given up (the `__Host-` prefix requires Path=/); the cookie lives 5 minutes, is single-use, and is useless without the second factor. */
+export function setTotpChallengeCookie(res: Response, rawToken: string): void {
    writeCookie(
       res,
       TOTP_CHALLENGE_COOKIE_NAME,
-      token,
+      rawToken,
       TOTP_CHALLENGE_EXPIRY_SECONDS * 1000,
-      '/api/auth/totp'
+      '/'
    );
 }
 
 export function clearTotpChallengeCookie(res: Response): void {
-   eraseCookie(res, TOTP_CHALLENGE_COOKIE_NAME, '/api/auth/totp');
+   eraseCookie(res, TOTP_CHALLENGE_COOKIE_NAME, '/');
 }
 
+/* Same shape check as the session cookie: junk is rejected before it costs a hash or a DB hit. */
 export function readTotpChallengeCookie(req: Request): string | undefined {
-   return readStringCookie(req, TOTP_CHALLENGE_COOKIE_NAME);
+   const value = readStringCookie(req, TOTP_CHALLENGE_COOKIE_NAME);
+   return value !== undefined && HEX96_REGEX.test(value) ? value : undefined;
 }

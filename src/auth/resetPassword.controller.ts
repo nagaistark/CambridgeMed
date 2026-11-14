@@ -51,6 +51,7 @@ import {
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { revokeTotpChallenges } from '@auth/totpChallenge.ts';
 
 const INVALID_LINK_MESSAGE = `This link is invalid or has expired.` as const;
 
@@ -138,6 +139,8 @@ async function runResetTransaction(
       } satisfies StrictMongoFilter<ISessionDocument>,
       { session }
    );
+
+   await revokeTotpChallenges(validatedClaim.userId, { session });
 
    await getEmailChangeCollection().deleteMany(
       {

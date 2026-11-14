@@ -7,10 +7,7 @@ import {
 } from '@models/User_v3.model.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
 import { hashPassword, verifyPassword } from '@utils/hashAndVerify.ts';
-import {
-   signTotpChallengeToken,
-   setTotpChallengeCookie,
-} from '@utils/tokenUtils.ts';
+import { issueTotpChallenge } from '@auth/totpChallenge.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import type { LoginBody } from '@auth/login.schema.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
@@ -101,11 +98,7 @@ export async function loginController(
 
       // ── TOTP gate (logic unchanged; TOTP is tabled) ────────────────────────────
       if (validatedUser.isTotpEnabled) {
-         const challengeToken = await signTotpChallengeToken(
-            validatedUser._id.toString()
-         );
-         setTotpChallengeCookie(res, challengeToken);
-
+         await issueTotpChallenge(validatedUser._id, res);
          return void res.status(202).json({
             success: true,
             requiresTotp: true,

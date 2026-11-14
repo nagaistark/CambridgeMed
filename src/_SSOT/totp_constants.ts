@@ -1,10 +1,7 @@
 import { escapeRegex } from '@utils/escapeRegex.ts';
 
-/* The audience claim embedded in TOTP challenge tokens. Mirrors the ACCESS_TOKEN_AUDIENCE pattern. Each token type is only accepted by the specific endpoints it was issued for. */
-export const TOTP_CHALLENGE_AUDIENCE = 'totp-challenge' as const;
-
-/* Scoped to /api/auth/totp so the browser never sends it to any other path. */
-export const TOTP_CHALLENGE_COOKIE_NAME = 'totp_challenge' as const;
+/* The `__Host-` prefix makes the browser refuse this cookie unless it is Secure, has Path=/ and carries no Domain: the same baseline as the session cookie. */
+export const TOTP_CHALLENGE_COOKIE_NAME = '__Host-totp' as const;
 
 /* User has 5 minutes to confirm the challenge. */
 export const TOTP_CHALLENGE_EXPIRY_SECONDS = 300 as const;

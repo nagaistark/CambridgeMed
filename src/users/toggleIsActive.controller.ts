@@ -43,6 +43,7 @@ import logger from '../logger.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
+import { revokeTotpChallenges } from '@auth/totpChallenge.ts';
 
 // ── Transaction outcome ──────────────────────────────────────────────────────────
 /* Every settled result the transaction can produce. 'no_match' means the conditional update matched nothing, so NOTHING was written or swept. The controller then diagnoses why, outside the transaction. */
@@ -101,6 +102,7 @@ function runToggleTransaction({
          { userId: id } satisfies StrictMongoFilter<ISessionDocument>,
          { session }
       );
+
       const invites = await getInviteCollection().deleteMany(
          {
             issuedBy: id,
@@ -108,6 +110,7 @@ function runToggleTransaction({
          } satisfies StrictMongoFilter<IInviteDocumentRead>,
          { session }
       );
+
       const passwordResets = await getPasswordResetCollection().deleteMany(
          { userId: id } satisfies StrictMongoFilter<IPasswordResetDocumentRead>,
          { session }
@@ -121,6 +124,8 @@ function runToggleTransaction({
          } satisfies StrictMongoFilter<IEmailChangeDocumentRead>,
          { session }
       );
+
+      await revokeTotpChallenges(id, { session });
 
       return {
          status: 'applied',

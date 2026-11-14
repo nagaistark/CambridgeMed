@@ -28,6 +28,7 @@ import { isDuplicateKeyOnField } from '@utils/mongoErrors.ts';
 import type { ResponseWithValidatedBody } from '@utils/customTypedResponses.ts';
 import type { RawTokenBody } from '@utils/effectSchemaReusables.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
+import { revokeTotpChallenges } from '@auth/totpChallenge.ts';
 
 type ConfirmOutcome =
    { status: 'invalid' } | { status: 'confirmed'; userId: ObjectId };
@@ -92,6 +93,8 @@ function runConfirmTransaction(tokenHash: string): Promise<ConfirmOutcome> {
          } satisfies StrictMongoFilter<ISessionDocument>,
          { session }
       );
+
+      await revokeTotpChallenges(validatedChange.userId, { session });
 
       await getPasswordResetCollection().deleteMany(
          {

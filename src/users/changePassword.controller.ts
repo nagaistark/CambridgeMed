@@ -37,6 +37,7 @@ import { USER_ID_PASSWORDHASH_PROJECTION } from '@ssot/user_mongodb_query_projec
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
+import { revokeTotpChallenges } from '@auth/totpChallenge.ts';
 
 export async function changePasswordController(
    req: Request,
@@ -129,6 +130,8 @@ export async function changePasswordController(
             } satisfies StrictMongoFilter<ISessionDocument>,
             { session }
          );
+
+         await revokeTotpChallenges(validatedUser._id, { session });
 
          await getPasswordResetCollection().deleteMany(
             {

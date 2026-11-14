@@ -1,5 +1,4 @@
 import type { Request } from 'express';
-import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
    UserTotpLoginValidator,
@@ -13,6 +12,10 @@ import {
    type SecondFactorInput,
 } from '@auth/secondFactor.ts';
 import { sendRecoveryCodeUsedEmail } from '@auth/recoveryCodeUsed.email.ts';
+import {
+   consumeTotpChallenge,
+   TOTP_CHALLENGE_EXPIRED_MESSAGE,
+} from '@auth/totpChallenge.ts';
 import { issueSession } from '@utils/issueSession.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
 import { buildAuthResponse } from '@utils/buildResponses.ts';
@@ -31,7 +34,7 @@ import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
 
-/* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to await AFTER the response has been sent. */
+/* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to run AFTER the response has been sent. */
 async function notifyRecoveryCodeUsed(
    user: IUserTotpLogin,
    remaining: number
@@ -49,6 +52,16 @@ async function notifyRecoveryCodeUsed(
    }
 }
 
+/* Ends the challenge for good: the DOCUMENT is deleted (not merely the cookie forgotten), so the credential is dead even if somebody kept a copy of it. Returns whether THIS call spent it. */
+async function endChallenge(res: TotpChallengeResponse): Promise<boolean> {
+   const consumed = await consumeTotpChallenge(
+      res.locals.totpChallenge._id,
+      new Date()
+   );
+   clearTotpChallengeCookie(res);
+   return consumed;
+}
+
 /* The single definition of "finish a login that is waiting on a second factor". Always sends a response. */
 export async function completeTotpLogin(
    req: Request,
@@ -59,7 +72,7 @@ export async function completeTotpLogin(
 
    const userRaw = await getUserCollection().findOne<IUserTotpLogin>(
       {
-         _id: new ObjectId(res.locals.totpChallengeSub),
+         _id: res.locals.totpChallenge.userId,
       } satisfies StrictMongoFilter<IUserDocument>,
       {
          projection: USER_TOTP_LOGIN_PROJECTION,
@@ -76,7 +89,7 @@ export async function completeTotpLogin(
    }
 
    if (validatedUser === null || !validatedUser.isActive) {
-      clearTotpChallengeCookie(res);
+      await endChallenge(res);
       return void res
          .status(401)
          .json(
@@ -89,7 +102,7 @@ export async function completeTotpLogin(
    }
 
    if (validatedUser.passwordResetRequired) {
-      clearTotpChallengeCookie(res);
+      await endChallenge(res);
       return void res
          .status(403)
          .json(
@@ -102,7 +115,7 @@ export async function completeTotpLogin(
    }
 
    if (!validatedUser.isTotpEnabled) {
-      clearTotpChallengeCookie(res);
+      await endChallenge(res);
       return void res
          .status(400)
          .json(
@@ -127,15 +140,27 @@ export async function completeTotpLogin(
       ...requestContext(req, res),
    };
 
-   /* On failure we deliberately do NOT clear the challenge cookie: a mistyped code should be retryable without re-entering the password. The attempt gate, not the cookie, bounds retries. Pre-session route, hence 401. */
+   /* On failure we deliberately do NOT end the challenge: a mistyped code should be retryable without re-entering the password. The attempt gate, not the cookie, bounds retries. Pre-session route, hence 401. */
    const outcome = await checkSecondFactor(validatedUser, input, context);
    if (outcome.status !== 'verified') {
       sendSecondFactorFailure(res, outcome, 401);
       return;
    }
 
+   /* Single-use: the challenge is spent BEFORE the session exists. If somebody else spent it first (two requests raced with the same cookie), this login ends here and no session is issued. The code presented was already spent by that point, so the user has to log in again; that only ever happens to a client double-submitting, and it fails closed. */
+   if (!(await endChallenge(res))) {
+      return void res
+         .status(401)
+         .json(
+            createErrorResponse(
+               'UNAUTHORIZED',
+               TOTP_CHALLENGE_EXPIRED_MESSAGE,
+               requestId
+            )
+         );
+   }
+
    await issueSession(validatedUser, req, res);
-   clearTotpChallengeCookie(res);
 
    const remaining = outcome.remainingRecoveryCodes;
    if (remaining === null) {
@@ -146,7 +171,7 @@ export async function completeTotpLogin(
          );
    }
 
-   /* The response goes out FIRST. The email provider's round trip (hundreds of ms, occasionally seconds) is none of the user's business. We still `await` the notification afterwards, so the work stays owned by this request's async chain (no floating promise) and cannot reject. */
+   /* The response goes out FIRST. The email provider's round trip (hundreds of ms, occasionally seconds) is none of the user's business. */
    res.status(200).json({
       ...buildAuthResponse(
          `Login successful via recovery code.`,
