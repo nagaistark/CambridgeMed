@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { validateBody } from '@middleware/validateBody.ts';
-import { authenticate } from '@middleware/authenticate.ts';
+import { authenticate, authenticatePassive } from '@middleware/authenticate.ts';
 import { authenticateTotp } from '@middleware/authenticateTotp.ts';
 import { LoginSchema } from '@auth/login.schema.ts';
 import { ForgotPasswordSchema } from '@auth/forgotPassword.schema.ts';
@@ -8,7 +8,6 @@ import { ResetPasswordSchema } from '@auth/resetPassword.schema.ts';
 import { loginController } from '@auth/login.controller.ts';
 import { logoutController } from '@auth/logout.controller.ts';
 import { meController } from '@auth/me.controller.ts';
-import { refreshController } from '@auth/refresh.controller.ts';
 import { forgotPasswordController } from '@auth/forgotPassword.controller.ts';
 import { resetPasswordController } from '@auth/resetPassword.controller.ts';
 import {
@@ -30,7 +29,6 @@ import {
    TotpEnrollSchema,
    RegenerateRecoveryCodesSchema,
 } from '@auth/totp.schemas.ts';
-import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 import { regenerateRecoveryCodesController } from './regenerateRecoveryCodes.controller.ts';
 import { requireValidRawTokenBody } from '@middleware/requireValidRawTokenBody.ts';
 
@@ -44,8 +42,7 @@ authRouter.post(
    loginController
 );
 authRouter.post('/logout', logoutController);
-authRouter.post('/refresh', refreshController);
-authRouter.get('/me', authenticate, requireLiveSession, meController);
+authRouter.get('/me', authenticatePassive, meController);
 
 // ── Password recovery (unauthenticated) ──────────────────────────────────────────
 /* Both routes are public. The user has no session — that's the whole point. The rate limiter on forgot-password is the primary abuse-prevention mechanism since the route is both public and triggers an outbound email. */
@@ -68,7 +65,6 @@ authRouter.post(
 authRouter.post(
    '/totp/enroll',
    authenticate,
-   requireLiveSession,
    totpManagementRateLimiter,
    validateBody(TotpEnrollSchema),
    enrollTotpController
@@ -77,7 +73,6 @@ authRouter.post(
 authRouter.post(
    '/totp/enroll/confirm',
    authenticate,
-   requireLiveSession,
    totpManagementRateLimiter,
    validateBody(TotpCodeSchema),
    confirmTotpEnrollmentController
@@ -86,7 +81,6 @@ authRouter.post(
 authRouter.post(
    '/totp/disable',
    authenticate,
-   requireLiveSession,
    totpManagementRateLimiter,
    validateBody(DisableTotpSchema),
    disableTotpController
@@ -95,7 +89,6 @@ authRouter.post(
 authRouter.post(
    '/totp/recovery-codes/regenerate',
    authenticate,
-   requireLiveSession,
    totpManagementRateLimiter,
    validateBody(RegenerateRecoveryCodesSchema),
    regenerateRecoveryCodesController

@@ -120,7 +120,7 @@ export async function listSessionsController(
             userAgent: s.userAgent,
             createdAt: s.createdAt,
             expiresAt: s.expiresAt,
-            lastActiveAt: s.rotatedAt,
+            lastActiveAt: s.lastActiveAt,
             isCurrent: s._id.equals(currentSessionId),
             user: ownersById.get(s.userId.toHexString()) ?? null,
          }));
@@ -154,7 +154,7 @@ export async function listSessionsController(
          createdAt: s.createdAt,
          expiresAt: s.expiresAt,
          isCurrent: s._id.equals(currentSessionId),
-         lastActiveAt: s.rotatedAt,
+         lastActiveAt: s.lastActiveAt,
       }));
 
       return void res

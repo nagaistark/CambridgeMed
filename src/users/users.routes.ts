@@ -32,7 +32,6 @@ import { listUsersController } from './listUsers.controller.ts';
 import { getUserController } from './getUser.controller.ts';
 import { toggleCanIssueInvitesController } from './toggleCanIssueInvites.controller.ts';
 import { toggleIsActiveController } from './toggleIsActive.controller.ts';
-import { requireLiveSession } from '@middleware/requireLiveSession.ts';
 import { resetUserTotpController } from '@auth/resetUserTotp.controller.ts';
 import { AdminResetTotpSchema } from '@auth/totp.schemas.ts';
 import { requireValidRawTokenBody } from '@middleware/requireValidRawTokenBody.ts';
@@ -45,7 +44,6 @@ meRouter.use(authenticate);
 
 meRouter.patch(
    '/password',
-   requireLiveSession,
    passwordChangeRateLimiter,
    validateBody(ChangePasswordSchema),
    changePasswordController
@@ -53,7 +51,6 @@ meRouter.patch(
 
 meRouter.patch(
    '/name',
-   requireLiveSession,
    nameChangeRateLimiter,
    validateBody(ChangeNameSchema),
    changeNameController
@@ -61,7 +58,6 @@ meRouter.patch(
 
 meRouter.post(
    '/email',
-   requireLiveSession,
    passwordChangeRateLimiter, // <-- typos count against a larger (no matter which) counter.
    emailChangeInitiateRateLimiter, // <-- `skipFailedRequests: true` ignores typos.
    validateBody(InitiateEmailChangeSchema),
@@ -108,7 +104,6 @@ userAdminRouter.get(
 userAdminRouter.patch(
    '/:id/can-issue-invites',
    requirePermissions('ISSUE_INVITES'),
-   requireLiveSession,
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),
    validateBody(SetCanIssueInvitesSchema),
@@ -117,7 +112,6 @@ userAdminRouter.patch(
 userAdminRouter.patch(
    '/:id/is-active',
    requirePermissions('MANAGE_USERS'),
-   requireLiveSession,
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),
    validateBody(SetIsActiveSchema),
@@ -127,7 +121,6 @@ userAdminRouter.patch(
 userAdminRouter.post(
    '/:id/totp/reset',
    requirePermissions('MANAGE_USERS'),
-   requireLiveSession,
    totpManagementRateLimiter, // counts FAILED re-auth attempts per admin
    userAdminToggleRateLimiter,
    validateParams(MongoIdParamsSchema),

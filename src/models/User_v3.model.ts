@@ -363,18 +363,15 @@ const UserLoginSchema = UserDocumentStruct.pick(
 ).pipe(validatePermissionsForRole);
 export type IUserLogin = Schema.Schema.Type<typeof UserLoginSchema>;
 
-/* Minimal shape for refreshController: identity for the response and token, plus the two account-state flags. No passwordHash! */
-const UserRefreshSchema = UserDocumentStruct.pick(
+/* Minimal shape for the `authenticate` middleware: what a request needs to be authorised (identity, role, permissions) plus the two account-state flags. No names, no email, no passwordHash. The role/permissions filter makes inconsistent stored data fail CLOSED (StoredDataError -> 500) instead of granting access. */
+const UserAuthSchema = UserDocumentStruct.pick(
    '_id',
-   'firstName',
-   'lastName',
-   'email',
    'role',
    'permissions',
    'isActive',
    'passwordResetRequired'
 ).pipe(validatePermissionsForRole);
-export type IUserRefresh = Schema.Schema.Type<typeof UserRefreshSchema>;
+export type IUserAuth = Schema.Schema.Type<typeof UserAuthSchema>;
 
 /* TOTP-related projection schemas */
 /* The minimal second-factor state; the parameter type of checkSecondFactor(). */
@@ -484,7 +481,7 @@ export const UserIdRolePermissionsValidator = Schema.typeSchema(
 
 export const UserLoginValidator = Schema.typeSchema(UserLoginSchema);
 
-export const UserRefreshValidator = Schema.typeSchema(UserRefreshSchema);
+export const UserAuthValidator = Schema.typeSchema(UserAuthSchema);
 
 export const UserSecondFactorValidator = Schema.typeSchema(
    UserSecondFactorSchema

@@ -327,13 +327,13 @@ const ConfigSchema = Schema.Struct({
 }).pipe(
    Schema.filter(
       ({ environment, appBaseUrl, cors }) =>
-         environment !== 'production' ||
+         environment === 'test' ||
          [appBaseUrl, ...cors.origins].every(origin =>
             origin.startsWith('https://')
          ),
       {
          message: () =>
-            `In production, APP_BASE_URL and every CORS origin must use https.`,
+            `APP_BASE_URL and every CORS origin must use https (Secure cookies are never sent over http).`,
       }
    ),
    Schema.filter(({ appBaseUrl, cors }) => cors.origins.includes(appBaseUrl), {

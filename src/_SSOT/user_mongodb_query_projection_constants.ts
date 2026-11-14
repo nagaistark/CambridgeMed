@@ -16,12 +16,12 @@ import type {
    IUserPasswordResetTarget,
    IUserIdRolePermissions,
    IUserLogin,
-   IUserRefresh,
    IUserSecondFactor,
    IUserTotpLogin,
    IUserTotpManagement,
    IUserRecoveryCodes,
    IUserIdNameEmail,
+   IUserAuth,
 } from '@models/User_v3.model.ts';
 import type {
    PatientSummary,
@@ -30,8 +30,8 @@ import type {
 } from '@models/Patient_v3.model.ts';
 import type {
    ISessionAdminView,
+   ISessionAuth,
    ISessionOwner,
-   ISessionRefresh,
    ISessionSelfView,
 } from '@models/Session_v3.model.ts';
 import type { IEmailChangeStatusSource } from '@models/EmailChange_v3.model.ts';
@@ -214,23 +214,6 @@ export const USER_LOGIN_PROJECTION: Record<keyof IUserLogin, 1> = {
    isTotpEnabled: 1,
 };
 
-export const USER_REFRESH_PROJECTION: Record<keyof IUserRefresh, 1> = {
-   _id: 1,
-   firstName: 1,
-   lastName: 1,
-   email: 1,
-   role: 1,
-   permissions: 1,
-   isActive: 1,
-   passwordResetRequired: 1,
-};
-
-export const SESSION_REFRESH_PROJECTION: Record<keyof ISessionRefresh, 1> = {
-   _id: 1,
-   userId: 1,
-   rotatedAt: 1,
-};
-
 export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {
    _id: 1,
    email: 1,
@@ -264,7 +247,7 @@ export const SESSION_SELF_VIEW_PROJECTION: Record<keyof ISessionSelfView, 1> = {
    userAgent: 1,
    createdAt: 1,
    expiresAt: 1,
-   rotatedAt: 1,
+   lastActiveAt: 1, // was rotatedAt
 };
 
 export const SESSION_ADMIN_VIEW_PROJECTION: Record<keyof ISessionAdminView, 1> =
@@ -275,8 +258,24 @@ export const SESSION_ADMIN_VIEW_PROJECTION: Record<keyof ISessionAdminView, 1> =
       userAgent: 1,
       createdAt: 1,
       expiresAt: 1,
-      rotatedAt: 1,
+      lastActiveAt: 1, // was rotatedAt
    };
+
+export const SESSION_AUTH_PROJECTION: Record<keyof ISessionAuth, 1> = {
+   _id: 1,
+   userId: 1,
+   lastActiveAt: 1,
+   expiresAt: 1,
+   absoluteExpiresAt: 1,
+};
+
+export const USER_AUTH_PROJECTION: Record<keyof IUserAuth, 1> = {
+   _id: 1,
+   role: 1,
+   permissions: 1,
+   isActive: 1,
+   passwordResetRequired: 1,
+};
 
 export const SESSION_OWNER_PROJECTION: Record<keyof ISessionOwner, 1> = {
    _id: 1,

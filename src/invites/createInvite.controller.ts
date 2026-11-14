@@ -14,7 +14,7 @@ import {
    type ISafeInviteCreate,
    SafeInviteCreateValidator,
 } from '@models/Invite_v3.model.ts';
-import { getMaxAgeTokens } from '@utils/getMaxAgeTokens.ts';
+import { getNextWeeklyReset } from '@utils/getNextWeeklyReset.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -126,8 +126,7 @@ export async function createInviteController(
 
       // ── Calculate expiry (next Monday 00:00 Toronto time) ──────────────────────
       /* We reuse the same Monday-reset logic as refresh tokens. `nextWeeklyResetTimestampMS` is the Unix timestamp (ms) of the next reset boundary. */
-      const { nextWeeklyResetTimestampMS } = getMaxAgeTokens(now);
-      const expiresAt = new Date(nextWeeklyResetTimestampMS);
+      const expiresAt = getNextWeeklyReset(now);
 
       // ── Persist the invite ─────────────────────────────────────────────────────
       const safeInvitePayload: ISafeInviteCreate = {

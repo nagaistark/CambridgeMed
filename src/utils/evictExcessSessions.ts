@@ -6,7 +6,7 @@ import {
    type ISessionOwner,
 } from '@models/Session_v3.model.ts';
 import { SESSION_OWNER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import { MAX_SESSIONS_PER_USER } from '@ssot/access_refresh_tokens_constants.ts';
+import { MAX_SESSIONS_PER_USER } from '@ssot/session_constants.ts';
 import { LIST_QUERY_MAX_TIME_MS } from '@ssot/pagination_constants.ts';
 import type {
    StrictFindOptions,

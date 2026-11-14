@@ -1,6 +1,5 @@
 import { SignJWT } from 'jose';
 import type { Request, Response } from 'express';
-import { myEnv } from '../validateConfig.ts';
 import { getPrivateKey } from '@utils/jwtUtils.ts';
 import {
    generateRandomToken,
@@ -12,50 +11,19 @@ import {
    TOTP_CHALLENGE_COOKIE_NAME,
    TOTP_CHALLENGE_EXPIRY_SECONDS,
 } from '@ssot/totp_constants.ts';
-import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
 import { JWT_ISSUER } from '@ssot/jwt_constants.ts';
 
 // ── Constants ────────────────────────────────────────────────────────────────────
-/* Single source of truth for cookie names. Imported by the authenticate middleware and the refresh controller. */
-export const ACCESS_TOKEN_COOKIE_NAME = 'access_token' as const;
-export const REFRESH_TOKEN_COOKIE_NAME = 'refresh_token' as const;
+/* Single source of truth for the session cookie name. The `__Host-` prefix is enforced by the BROWSER: it will only accept this cookie if it is `Secure`, has `Path=/` and carries no `Domain`. That stops a sibling subdomain or an insecure origin from planting a cookie of this name (a session-fixation vector). */
+export const SESSION_COOKIE_NAME = '__Host-sid' as const;
 
-/* The audience claim embedded in every access token. jwtVerify in the authenticate middleware must specify this value, which prevents email verification tokens from ever being used as access tokens. */
-export const ACCESS_TOKEN_AUDIENCE = 'access' as const;
-
-// ── Access token ─────────────────────────────────────────────────────────────────
-export type AccessTokenPayload = AuthenticatedUser & {
-   expirationTime: number;
-};
-
-export async function signAccessToken(
-   payload: AccessTokenPayload
-): Promise<string> {
-   const privateKey = await getPrivateKey(); // Here, we use the module-level cache in jwtUtils
-   return new SignJWT({
-      role: payload.role,
-      permissions: payload.permissions,
-      sessionId: payload.sessionId,
-   })
-      .setProtectedHeader({ alg: 'RS256' })
-      .setSubject(payload.sub)
-      .setIssuer(JWT_ISSUER)
-      .setAudience(ACCESS_TOKEN_AUDIENCE)
-      .setIssuedAt()
-      .setExpirationTime(Math.floor(payload.expirationTime / 1000)) // Unix Timestamps. Should be SECONDS (not milliseconds) since THE EPOCH!!!
-      .sign(privateKey);
-}
-
-// ── Refresh token ────────────────────────────────────────────────────────────────
-/* Generating a cryptographically random opaque token plus its SHA-256 hash. The `raw` value goes to the client as an httpOnly cookie. The `hash` value is what we store in MongoDB. */
-export function generateRefreshToken(): { raw: string; hash: string } {
+// ── Session token ────────────────────────────────────────────────────────────────
+/* A cryptographically random opaque token plus its SHA-256 hash. The `raw` value goes to the browser as an httpOnly cookie. Only the `hash` is stored. The token is always minted by the SERVER: a client can never choose its own session identifier. */
+export function generateSessionToken(): { raw: string; hash: string } {
    const raw = generateRandomToken();
    const hash = generateStandardHash(raw);
    return { raw, hash };
 }
-
-// ── Cookie management ────────────────────────────────────────────────────────────
-const isProduction = myEnv.environment === 'production';
 
 /* req.cookies is `any` (and cookie-parser turns `j:{...}` cookies into OBJECTS). Reading through `unknown` forces a real runtime check instead of an implicit cast. */
 function readStringCookie(req: Request, name: string): string | undefined {
@@ -63,18 +31,14 @@ function readStringCookie(req: Request, name: string): string | undefined {
    return typeof value === 'string' && value.length > 0 ? value : undefined;
 }
 
-export function readAccessTokenCookie(req: Request): string | undefined {
-   return readStringCookie(req, ACCESS_TOKEN_COOKIE_NAME);
-}
-
-/* Refresh tokens have a known shape, so junk is rejected before it costs a hash or a DB hit. */
-export function readRefreshTokenCookie(req: Request): string | undefined {
-   const value = readStringCookie(req, REFRESH_TOKEN_COOKIE_NAME);
+/* The token has a known shape, so junk is rejected before it costs a hash or a DB hit. */
+export function readSessionTokenCookie(req: Request): string | undefined {
+   const value = readStringCookie(req, SESSION_COOKIE_NAME);
    return value !== undefined && HEX96_REGEX.test(value) ? value : undefined;
 }
 
 // ── Private cookie primitives ────────────────────────────────────────────────────
-/* These are not exported. They encode the security baseline that every cookie in this application must meet. All public cookie functions delegate to these so the security flags are defined in exactly one place. */
+/* Not exported. They encode the security baseline that every cookie in this application must meet, so the flags are defined in exactly one place. `secure: true` in EVERY environment (dev runs behind HTTPS too), which is also what the `__Host-` prefix requires. */
 function writeCookie(
    res: Response,
    name: string,
@@ -84,53 +48,42 @@ function writeCookie(
 ): void {
    res.cookie(name, value, {
       httpOnly: true,
-      secure: isProduction,
+      secure: true,
       sameSite: 'strict',
       maxAge,
       path,
    });
 }
 
+/* A cookie is erased by re-sending it with the SAME attributes and an expiry in the past. For a `__Host-` cookie the browser rejects the erasure unless `Secure` and `Path=/` match. */
 function eraseCookie(res: Response, name: string, path: string): void {
    res.clearCookie(name, {
       httpOnly: true,
-      secure: isProduction,
+      secure: true,
       sameSite: 'strict',
       path,
    });
 }
 
 // ── Public cookie functions ──────────────────────────────────────────────────────
-export function setAuthCookies(
+/* `maxAgeMs` is the time left until the session's ABSOLUTE expiry, never longer: the cookie can outlive an idle logoff (the server decides that), but never the weekly reset. Not re-sent when the idle timer slides. */
+export function setSessionCookie(
    res: Response,
-   accessToken: string,
-   accessTokenMaxAge: number,
-   rawRefreshToken: string,
-   refreshTokenMaxAge: number
+   rawToken: string,
+   maxAgeMs: number
 ): void {
-   writeCookie(
-      res,
-      ACCESS_TOKEN_COOKIE_NAME,
-      accessToken,
-      accessTokenMaxAge,
-      '/api'
-   );
-   writeCookie(
-      res,
-      REFRESH_TOKEN_COOKIE_NAME,
-      rawRefreshToken,
-      refreshTokenMaxAge,
-      '/api/auth'
-   );
+   if (!Number.isFinite(maxAgeMs) || maxAgeMs <= 0) {
+      throw new RangeError(`Session cookie maxAge must be a positive number.`);
+   }
+   writeCookie(res, SESSION_COOKIE_NAME, rawToken, maxAgeMs, '/');
 }
 
+/* Kept under its old name to avoid touching five call sites (logout, password change/reset, email confirm/cancel). It now clears the single session cookie. */
 export function clearAuthCookies(res: Response): void {
-   eraseCookie(res, ACCESS_TOKEN_COOKIE_NAME, '/api');
-   eraseCookie(res, REFRESH_TOKEN_COOKIE_NAME, '/api/auth');
+   eraseCookie(res, SESSION_COOKIE_NAME, '/');
 }
 
-// ── TOTP challenge token ─────────────────────────────────────────────────────────
-/* A narrow-scope, short-lived JWT issued after a successful password check when the user has TOTP enabled. It is the "you're halfway there" ticket. The audience claim ensures it is rejected by every route except /totp/verify and /totp/recover. It carries only `sub` — there's nothing else we need to know at the TOTP verification stage. */
+// ── TOTP challenge token (replaced in the next phase) ────────────────────────────
 export async function signTotpChallengeToken(userId: string): Promise<string> {
    const privateKey = await getPrivateKey();
    return new SignJWT({})
