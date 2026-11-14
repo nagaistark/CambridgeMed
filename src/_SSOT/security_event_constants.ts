@@ -12,7 +12,6 @@ export const securityEventTypes = [
    // ── Sessions ──
    'SESSION_TERMINATED',
    'SESSION_TERMINATED_BY_ADMIN',
-   'SESSION_REUSE_DETECTED',
    // ── Password ──
    'PASSWORD_CHANGED',
    'PASSWORD_RESET_COMPLETED',
@@ -49,7 +48,6 @@ export const SECURITY_EVENT_SEVERITY: Record<
    RECOVERY_CODE_USED: 'warn',
    SESSION_TERMINATED: 'info',
    SESSION_TERMINATED_BY_ADMIN: 'warn',
-   SESSION_REUSE_DETECTED: 'warn',
    PASSWORD_CHANGED: 'info',
    PASSWORD_RESET_COMPLETED: 'warn',
    EMAIL_CHANGE_REQUESTED: 'info',

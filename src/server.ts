@@ -2,7 +2,6 @@ import '@ssot/date_time_constants.ts';
 import app from './app.ts';
 import { createServer, type Server } from 'node:http';
 import { myEnv } from './validateConfig.ts';
-import { validateJwtKeys } from '@utils/jwtUtils.ts';
 import logger from './logger.ts';
 
 import { DatabaseManager } from './mongoDBConnect.ts';
@@ -35,29 +34,23 @@ const host: string = myEnv.server.host;
 
 // ===== SERVER BOOTSTRAP ==========================================================
 /* The order of operations:
-   Step 1 — JWT keys: pure memory, instant, cheap to check
-   Step 2 — Database: network I/O, slow, pointless if Step 1 failed
-   Step 3 — Database: ensuring indexes
-   Step 4 — HTTP server: no point listening for requests until Steps 1 & 2 pass */
+   Step 1 — Database: network I/O, slow, pointless if Step 1 failed
+   Step 2 — Database: ensuring indexes
+   Step 3 — HTTP server: no point listening for requests until Steps 1 & 2 pass */
 let server: Server | undefined;
 
 const startServer = async (): Promise<void> => {
    try {
       logger.info(`Starting server bootstrap...`);
 
-      // Step 1: Validating JWT key pair
-      logger.info(`Validating JWT key pair...`);
-      await validateJwtKeys();
-      logger.info(`JWT key pair validated successfully`);
-
-      // Step 2: Connecting to the database
+      // Step 1: Connecting to the database
       const dbManager = DatabaseManager.getInstance();
       await dbManager.initialize();
 
-      // Step 3: Ensuring indexes
+      // Step 2: Ensuring indexes
       await initializeDatabaseIndexes();
 
-      // Step 4: Starting the HTTP server
+      // Step 3: Starting the HTTP server
       const listening = await new Promise<Server>((resolve, reject) => {
          const s = createServer(
             {

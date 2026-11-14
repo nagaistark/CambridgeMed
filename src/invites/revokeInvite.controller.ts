@@ -24,7 +24,7 @@ export async function revokeInviteController(
 
       const inviteCollection = getInviteCollection();
 
-      /* The caller's visibility scope. Superadmin sees every invite; everyone else only their own. No DB-side privilege check here (unlike Guard #0 in createInviteController): revoking only DESTROYS a credential the caller already owns, so a stale token cannot escalate anything. Reading `role` from the JWT is safe because roles are immutable at runtime. Revisit if a role-change feature is ever added. */
+      /* The caller's visibility scope. Superadmin sees every invite; everyone else only their own. No DB-side privilege check here (unlike Guard #0 in createInviteController): revoking only DESTROYS a credential the caller already owns, so a stale token cannot escalate anything. `role` comes from `authenticate`, which reads it from the database on this very request, so it is never stale. */
       const ownershipClause =
          role === 'superadmin' ? {} : { issuedBy: new ObjectId(sub) };
 

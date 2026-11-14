@@ -88,7 +88,7 @@ export async function createInviteController(
          'invite issuer'
       );
 
-      /* DB values, not the JWT: the token can be up to 60s stale. */
+      /* Fresh from the database: nothing the client holds is trusted here. */
       if (!canIssueInviteForRole(validatedIssuer, role)) {
          logger.warn(
             `Blocked invite creation: insufficient privileges or inactive issuer.`,

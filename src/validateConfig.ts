@@ -69,38 +69,6 @@ const hasVerifiedTransport = (uri: Redacted.Redacted<string>): boolean => {
    return value.startsWith('mongodb+srv://') || TLS_REQUESTED.test(value);
 };
 
-const normalizedPem = Schema.transform(boundedString, boundedString, {
-   strict: true,
-   decode: (pem: string) => `${pem.replace(/\\n/g, '\n').trim()}\n`,
-   encode: (pem: string) => pem,
-});
-
-const pemPrivateKey = normalizedPem.pipe(
-   Schema.filter(
-      (str: string) =>
-         str.startsWith('-----BEGIN PRIVATE KEY-----') &&
-         str.endsWith('-----END PRIVATE KEY-----\n'),
-      {
-         message: () =>
-            `JWT_PRIVATE_KEY does not look like a valid PKCS#8 PEM private key.`,
-      }
-   )
-);
-const redactedPemPrivateKey = Schema.Redacted(pemPrivateKey);
-
-/* The public key is, by definition, public. Redacting it would just be theatre. */
-const pemPublicKey = normalizedPem.pipe(
-   Schema.filter(
-      (str: string) =>
-         str.startsWith('-----BEGIN PUBLIC KEY-----') &&
-         str.endsWith('-----END PUBLIC KEY-----\n'),
-      {
-         message: () =>
-            `JWT_PUBLIC_KEY does not look like a valid SPKI PEM public key.`,
-      }
-   )
-);
-
 const resendApiKey = nonEmptyReasonablyLongString.pipe(
    Schema.pattern(/^re_[A-Za-z0-9_]+$/, {
       message: () => `String doesn't conform to the Resend API key pattern.`,
@@ -313,10 +281,6 @@ const ConfigSchema = Schema.Struct({
    cors: Schema.Struct({
       origins: commaSeparatedOrigins,
    }),
-   jwt: Schema.Struct({
-      privateKey: redactedPemPrivateKey,
-      publicKey: pemPublicKey,
-   }),
    resend: Schema.Struct({
       apiKey: redactedResendApiKey,
       from: clinicStaffEmail,
@@ -385,10 +349,6 @@ const rawConfig = {
    },
    cors: {
       origins: env.CORS_ORIGINS,
-   },
-   jwt: {
-      privateKey: env.JWT_PRIVATE_KEY,
-      publicKey: env.JWT_PUBLIC_KEY,
    },
    resend: {
       apiKey: env.RESEND_API_KEY,

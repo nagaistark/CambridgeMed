@@ -95,7 +95,7 @@ function runToggleTransaction({
 
       // ── Kill every live credential the account controls ──────────────────────
       /*      
-         1. Sessions: removes the refresh-token lifeline. An already-issued access token stays valid for at most JWT_ACCESS_TOKEN_EXPIRY_MS (`authenticate` does not check `isActive`).
+         Sessions: the credential itself. With them gone the user is locked out on the very next request (authenticate also re-checks isActive every time, which covers a session inserted by a login that raced this sweep).
          2. Pending invites: an unaccepted invite is a bearer credential that outlives its issuer. Accepted invites are deliberately left alone: those people are real users now.
       */
       const sessions = await getSessionCollection().deleteMany(

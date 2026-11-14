@@ -28,7 +28,6 @@ import {
    handleParseError,
    handleEffectFailure,
    handleMongoDbError,
-   handleJwtError,
    handleHttpError,
    handleEnoentError,
    handleCatchAll,
@@ -208,9 +207,8 @@ app.use((_req: Request, res: Response) => {
 app.use(handleEffectFailure); // 1. Unwrap FiberFailure first — everything below assumes bare errors
 app.use(handleParseError); // 2. Effect Schema validation failures
 app.use(handleMongoDbError); // 3. MongoDB errors
-app.use(handleJwtError); // 4. jose JWT errors
-app.use(handleHttpError); // 5. Known HTTP errors (status/statusCode)
-app.use(handleEnoentError); // 6. Filesystem errors from sendFile
-app.use(handleCatchAll); // 7. Catch-All (must always come last)
+app.use(handleHttpError); // 4. Known HTTP errors (status/statusCode)
+app.use(handleEnoentError); // 5. Filesystem errors from sendFile
+app.use(handleCatchAll); // 6. Catch-All (must always come last)
 
 export default app;

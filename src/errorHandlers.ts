@@ -9,7 +9,6 @@ import {
    MongoTopologyClosedError,
 } from 'mongodb';
 import { sanitizeError } from '@utils/sanitizeError.ts';
-import { errors as joseErrors } from 'jose';
 import logger from './logger.ts';
 import { myEnv } from './validateConfig.ts';
 
@@ -387,39 +386,6 @@ export function handleMongoDbError(
    // ── Not our responsibility ────────────────────────────────────────────────────
    /* This error isn't MongoDB related. Pass it to the next specialist in the pipeline without touching it. */
    return next(err);
-}
-
-// ===== The JWT specialist/handler ================================================
-export function handleJwtError(
-   err: unknown,
-   _req: Request,
-   res: Response,
-   next: NextFunction
-): void {
-   // If the error isn't from JOSE, pass it along.
-   if (!(err instanceof joseErrors.JOSEError)) return next(err);
-
-   const requestId = res.locals.requestId;
-
-   /* JWTExpired is a NORMAL, EXPECTED lifecycle event — the access token ran out and the client needs to hit /api/auth/refresh. */
-   if (err instanceof joseErrors.JWTExpired) {
-      return void res
-         .status(401)
-         .json(
-            createErrorResponse('UNAUTHORIZED', 'Token has expired.', requestId)
-         );
-   }
-
-   /* Everything else — forged signatures, malformed tokens, invalid claims, wrong algorithm — gets a DELIBERATELY VAGUE message because a specific message would only benefit an attacker probing our system. */
-   return void res
-      .status(401)
-      .json(
-         createErrorResponse(
-            'UNAUTHORIZED',
-            'Invalid or malformed token.',
-            requestId
-         )
-      );
 }
 
 // ===== The HTTP specialist/handler ===============================================

@@ -27,7 +27,7 @@ export async function meController(
       const { sub } = res.locals.authenticatedUser;
       const userId = new ObjectId(sub);
 
-      /* Independent reads, run in parallel (same idea as requireLiveSession). */
+      /* Independent reads, run in parallel. */
       const [userRaw, emailChange] = await Promise.all([
          getUserCollection().findOne<ISafeUser>(
             { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
