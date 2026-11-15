@@ -18,7 +18,6 @@ import type {
    AuthenticatedResponse,
    ResponseWithValidatedQuery,
 } from '@utils/customTypedResponses.ts';
-import { ObjectId } from 'mongodb';
 import type {
    StrictFindOptions,
    StrictMongoFilter,
@@ -42,7 +41,7 @@ export async function listInvitesController(
    next: NextFunction
 ): Promise<void> {
    try {
-      const { sub, role } = res.locals.authenticatedUser;
+      const { userId, role } = res.locals.authenticatedUser;
       const isSuperAdmin: boolean = role === 'superadmin';
 
       const { cursor, limit } = res.locals.validatedQuery;
@@ -65,7 +64,7 @@ export async function listInvitesController(
                   { usedAt: null, expiresAt: { $gt: now } },
                ],
             },
-            isSuperAdmin ? {} : { issuedBy: new ObjectId(sub) },
+            isSuperAdmin ? {} : { issuedBy: userId },
             cursor === undefined ? {} : { _id: { $lt: cursor } },
          ],
       } satisfies StrictMongoFilter<IInviteDocumentRead>;

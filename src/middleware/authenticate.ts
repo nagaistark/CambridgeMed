@@ -160,10 +160,10 @@ function buildAuthenticate(options: AuthenticateOptions): AuthMiddleware {
          }
 
          const authenticatedUser: AuthenticatedUser = {
-            sub: validatedUser._id.toHexString(),
+            userId: validatedUser._id,
+            sessionId: validatedSession._id,
             role: validatedUser.role,
             permissions: validatedUser.permissions,
-            sessionId: validatedSession._id.toHexString(),
          };
          res.locals.authenticatedUser = authenticatedUser;
          next();

@@ -298,7 +298,7 @@ export const PatientInputSchema = Schema.Struct({
                ) {
                   issues.push({
                      path: ['site'],
-                     message: `Site selection must be empty for  routes other than intramuscular or subcutaneous.`,
+                     message: `Site selection must be empty for routes other than intramuscular or subcutaneous.`,
                   });
                }
 

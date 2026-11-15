@@ -9,7 +9,6 @@ import type { AuthenticatedResponse } from '@utils/customTypedResponses.ts';
 import { buildMeResponse } from '@utils/buildResponses.ts';
 import { createErrorResponse } from '../errorHandlers.ts';
 import { SAFE_USER_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import { ObjectId } from 'mongodb';
 import type {
    StrictFindOneOptions,
    StrictMongoFilter,
@@ -24,8 +23,7 @@ export async function meController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
-      const userId = new ObjectId(sub);
+      const { userId } = res.locals.authenticatedUser;
 
       /* Independent reads, run in parallel. */
       const [userRaw, emailChange] = await Promise.all([

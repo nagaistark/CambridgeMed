@@ -150,7 +150,7 @@ app.use('/api', globalApiRateLimiter);
 app.use(express.json({ limit: '100kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
-// I. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated (logout reads the refresh token cookie).
+// I. Cookie parser (AFTER Body Parsers, BEFORE Routes!) Required for req.cookies to be populated.
 app.use(cookieParser());
 
 // ===== ROUTES ====================================================================

@@ -70,9 +70,10 @@ function makeRateLimiter(
 
 /* Per person, not per IP. The IP fallback goes through ipKeyGenerator so an IPv6 user can't dodge the limit by cycling addresses inside their /64. Single definition of the per-person key. Every authenticated limiter must use this. */
 function keyByUserOrIp(req: Request, res: Response): string {
-   return (
-      res.locals.authenticatedUser?.sub ?? ipKeyGenerator(req.ip ?? 'unknown')
-   );
+   const user = res.locals.authenticatedUser;
+   return user === undefined
+      ? ipKeyGenerator(req.ip ?? 'unknown')
+      : user.userId.toHexString();
 }
 
 /* Flood backstop for every /api request, per IP. Route-specific limiters do the real abuse prevention. `ipv6Subnet: 56` groups an IPv6 client's whole /56 into one identity (the same grouping ipKeyGenerator applies in keyByUserOrIp), stated explicitly so the intent survives a library change. */

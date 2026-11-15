@@ -18,7 +18,6 @@ import {
    arePermissionsValidForRole,
    Permissions,
 } from '@ssot/permissions_constants.ts';
-import { ObjectId } from 'mongodb';
 import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import type {
    StrictFindOneOptions,
@@ -46,7 +45,7 @@ export async function toggleCanIssueInvitesController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, role } = res.locals.authenticatedUser;
+      const { userId: actorId, role } = res.locals.authenticatedUser;
       const { id } = res.locals.validatedParams;
       const { canIssueInvites } = res.locals.validatedBody;
 
@@ -54,8 +53,7 @@ export async function toggleCanIssueInvitesController(
 
       /* The caller's visibility scope. Superadmin may manage anyone. Everyone else only the users they personally invited. */
 
-      const scopeClause =
-         role === 'superadmin' ? {} : { invitedBy: new ObjectId(sub) };
+      const scopeClause = role === 'superadmin' ? {} : { invitedBy: actorId };
 
       // ── Scoped fetch ───────────────────────────────────────────────────────────
       const targetUserRaw =
@@ -122,16 +120,14 @@ export async function toggleCanIssueInvitesController(
       /* You cannot hand out a privilege you do not currently hold. Revocations are exempt. */
       if (canIssueInvites) {
          const callerRaw = await userCollection.findOne<IUserInviteIssuer>(
-            {
-               _id: new ObjectId(sub),
-            } satisfies StrictMongoFilter<IUserDocument>,
+            { _id: actorId } satisfies StrictMongoFilter<IUserDocument>,
             {
                projection: USER_INVITE_ISSUER_PROJECTION,
             } satisfies StrictFindOneOptions<IUserInviteIssuer>
          );
          if (!callerRaw) {
             throw new Error(
-               `Authenticated user not found in database during invite-privilege grant. userId=${sub}`
+               `Authenticated user not found in database during invite-privilege grant. userId=${actorId.toHexString()}`
             );
          }
 
@@ -202,7 +198,7 @@ export async function toggleCanIssueInvitesController(
          event: canIssueInvites
             ? 'INVITE_PRIVILEGE_GRANTED'
             : 'INVITE_PRIVILEGE_REVOKED',
-         actorId: new ObjectId(sub),
+         actorId,
          targetUserId: validatedTargetUser._id,
          ...requestContext(req, res),
       });

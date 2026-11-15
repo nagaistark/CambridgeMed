@@ -59,7 +59,7 @@ export async function createInviteController(
       const now = new Date(); // the single starting gun for this request
 
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId: issuerId } = res.locals.authenticatedUser;
       const { email, role, canIssueInvites } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
@@ -68,16 +68,14 @@ export async function createInviteController(
       // ── Guard #0: Check privilege first ────────────────────────────────────────
       /* Before we proceed, we need to know if the user has the right to issue an invite in the first place. This should never return null since the user just passed authenticate. */
       const issuerRaw = await userCollection.findOne<IUserInviteIssuer>(
-         {
-            _id: new ObjectId(sub),
-         } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: issuerId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_INVITE_ISSUER_PROJECTION,
          } satisfies StrictFindOneOptions<IUserInviteIssuer>
       );
       if (!issuerRaw) {
          throw new Error(
-            `Authenticated user not found in database during invite creation. userId=${sub}`
+            `Authenticated user not found in database during invite creation. userId=${issuerId.toHexString()}`
          );
       }
 
@@ -92,7 +90,7 @@ export async function createInviteController(
       if (!canIssueInviteForRole(validatedIssuer, role)) {
          logger.warn(
             `Blocked invite creation: insufficient privileges or inactive issuer.`,
-            { requestId, issuerId: sub, requestedRole: role }
+            { requestId, issuerId: issuerId.toHexString(), requestedRole: role }
          );
          return void res
             .status(403)
@@ -136,7 +134,7 @@ export async function createInviteController(
          canIssueInvites,
          expiresAt,
          usedAt: null,
-         issuedBy: new ObjectId(sub),
+         issuedBy: issuerId,
       };
 
       const validatedSafeInvitePayload = decodeStored(

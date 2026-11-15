@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
    UserTotpManagementValidator,
@@ -43,13 +42,13 @@ export async function regenerateRecoveryCodesController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId } = res.locals.authenticatedUser;
       const { currentPassword, totpCode, recoveryCode } =
          res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const userRaw = await userCollection.findOne<IUserTotpManagement>(
-         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_TOTP_MANAGEMENT_PROJECTION,
          } satisfies StrictFindOneOptions<IUserTotpManagement>

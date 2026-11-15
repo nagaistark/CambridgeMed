@@ -57,16 +57,14 @@ export async function initiateEmailChangeController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId } = res.locals.authenticatedUser;
       const { newEmail, currentPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const emailChangeCollection = getEmailChangeCollection();
 
       const userRaw = await userCollection.findOne<IUserEmailChangeInitiator>(
-         {
-            _id: new ObjectId(sub),
-         } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_EMAIL_CHANGE_INITIATOR_PROJECTION,
          } satisfies StrictFindOneOptions<IUserEmailChangeInitiator>
@@ -147,7 +145,7 @@ export async function initiateEmailChangeController(
 
       // ── Guard 3: no concurrent active change for this user ─────────────────────
       await emailChangeCollection.deleteMany({
-         userId: new ObjectId(sub),
+         userId,
          $or: [
             { cancelExpiresAt: { $lte: now } },
             { confirmedAt: null, confirmExpiresAt: { $lte: now } },
@@ -222,7 +220,7 @@ export async function initiateEmailChangeController(
          _id: new ObjectId(),
          confirmTokenHash,
          cancelTokenHash,
-         userId: new ObjectId(sub),
+         userId,
          oldEmail: validatedUser.email,
          newEmail,
          confirmExpiresAt,

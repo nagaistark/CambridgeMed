@@ -10,7 +10,6 @@ import type {
 } from '@utils/customTypedResponses.ts';
 import type { IMongoIdParam } from '@utils/effectSchemaReusables.ts';
 import type { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
-import { ObjectId } from 'mongodb';
 
 export async function revokeInviteController(
    _req: Request,
@@ -19,14 +18,13 @@ export async function revokeInviteController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, role } = res.locals.authenticatedUser;
+      const { userId, role } = res.locals.authenticatedUser;
       const { id } = res.locals.validatedParams;
 
       const inviteCollection = getInviteCollection();
 
       /* The caller's visibility scope. Superadmin sees every invite; everyone else only their own. No DB-side privilege check here (unlike Guard #0 in createInviteController): revoking only DESTROYS a credential the caller already owns, so a stale token cannot escalate anything. `role` comes from `authenticate`, which reads it from the database on this very request, so it is never stale. */
-      const ownershipClause =
-         role === 'superadmin' ? {} : { issuedBy: new ObjectId(sub) };
+      const ownershipClause = role === 'superadmin' ? {} : { issuedBy: userId };
 
       const deleteFilter = {
          $and: [{ _id: id, usedAt: null }, ownershipClause],

@@ -148,7 +148,7 @@ export async function toggleIsActiveController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId: actorId } = res.locals.authenticatedUser;
       const { id } = res.locals.validatedParams;
       const { isActive } = res.locals.validatedBody;
 
@@ -166,7 +166,7 @@ export async function toggleIsActiveController(
          const log = isActive ? logger.info : logger.warn;
          log(`Account ${isActive ? 'activated' : 'deactivated'}.`, {
             requestId,
-            actorId: sub,
+            actorId: actorId.toHexString(),
             targetId: id.toHexString(),
             sessionsRevoked: outcome.sessionsRevoked,
             invitesRevoked: outcome.invitesRevoked,
@@ -174,7 +174,7 @@ export async function toggleIsActiveController(
 
          securityLog.record({
             event: isActive ? 'ACCOUNT_ACTIVATED' : 'ACCOUNT_DEACTIVATED',
-            actorId: new ObjectId(sub),
+            actorId,
             targetUserId: id,
             ...requestContext(req, res),
          });

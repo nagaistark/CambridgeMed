@@ -25,7 +25,7 @@ import { encodeCursor } from '@utils/cursorPagination.ts';
 import type { EmailChangeStatus } from '@ssot/email_change_status_constants.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
-/* Session-establishing responses (login, TOTP, refresh) must carry the email-change status; the overload makes forgetting it a compile error. Logout has no session afterwards, so it keeps the minimal shape. */
+/* Session-establishing responses must carry the email-change status; the overload makes forgetting it a compile error. Logout has no session afterwards, so it keeps the minimal shape. */
 export function buildAuthResponse(
    message: string,
    user: IPublicUser,

@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
    UserTotpManagementValidator,
@@ -33,12 +32,12 @@ export async function confirmTotpEnrollmentController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, sessionId } = res.locals.authenticatedUser;
+      const { userId, sessionId } = res.locals.authenticatedUser;
       const { code } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const userRaw = await userCollection.findOne<IUserTotpManagement>(
-         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_TOTP_MANAGEMENT_PROJECTION,
          } satisfies StrictFindOneOptions<IUserTotpManagement>
@@ -142,11 +141,11 @@ export async function confirmTotpEnrollmentController(
 
       /* Sessions created before 2FA existed are pre-2FA keys. Best effort on purpose: enabling is an UPGRADE, so a failure here must not hide the recovery codes (shown only once), but it must not pass silently either. */
       try {
-         await revokeOtherSessions(validatedUser._id, new ObjectId(sessionId));
+         await revokeOtherSessions(validatedUser._id, sessionId);
       } catch (revokeErr) {
          logger.error(
             `Failed to revoke other sessions after TOTP enrollment: ${sanitizeError(revokeErr).message}`,
-            { requestId, userId: sub }
+            { requestId, userId: userId.toHexString() }
          );
       }
 

@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { ObjectId } from 'mongodb';
 import {
    getSessionCollection,
    SessionAdminViewArrayValidator,
@@ -42,10 +41,13 @@ export async function listSessionsController(
    next: NextFunction
 ): Promise<void> {
    try {
-      const { sub, role, sessionId } = res.locals.authenticatedUser;
+      const {
+         userId,
+         role,
+         sessionId: currentSessionId,
+      } = res.locals.authenticatedUser;
       const { cursor, limit } = res.locals.validatedQuery;
       const isSuperAdmin = role === 'superadmin';
-      const currentSessionId = new ObjectId(sessionId);
 
       /* Every clause must hold; `{}` is the neutral element.
          1. Liveness: the TTL janitor lags by up to a minute, so expired documents are filtered explicitly.
@@ -54,7 +56,7 @@ export async function listSessionsController(
       const filter = {
          $and: [
             { expiresAt: { $gt: new Date() } },
-            isSuperAdmin ? {} : { userId: new ObjectId(sub) },
+            isSuperAdmin ? {} : { userId },
             cursor === undefined ? {} : { _id: { $lt: cursor } },
          ],
       } satisfies StrictMongoFilter<ISessionDocument>;

@@ -96,7 +96,7 @@ export async function loginController(
       /* The password is proven correct here, for BOTH the password-only path and the TOTP path (the 202 branch below never sees the plaintext again). Only a valid password can trigger the extra Argon2 run, so this adds no amplification for attackers. */
       await upgradePasswordHashIfStale(validatedUser, password, requestId);
 
-      // ── TOTP gate (logic unchanged; TOTP is tabled) ────────────────────────────
+      // ── TOTP gate ──────────────────────────────────────────────────────────────
       if (validatedUser.isTotpEnabled) {
          await issueTotpChallenge(validatedUser._id, res);
          return void res.status(202).json({

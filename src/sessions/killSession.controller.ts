@@ -1,6 +1,5 @@
 import type { Request, NextFunction } from 'express';
 import { Either, Schema } from 'effect';
-import { ObjectId } from 'mongodb';
 import {
    getSessionCollection,
    SessionOwnerValidator,
@@ -28,13 +27,11 @@ export async function killSessionController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, role, sessionId } = res.locals.authenticatedUser;
+      const { userId: actorId, role, sessionId } = res.locals.authenticatedUser;
       const { id } = res.locals.validatedParams;
 
-      const actorId = new ObjectId(sub);
-
       /* ObjectId comparison, never string comparison: hex input is case-insensitive. */
-      if (id.equals(new ObjectId(sessionId))) {
+      if (id.equals(sessionId)) {
          return void res
             .status(400)
             .json(

@@ -26,7 +26,6 @@ import type {
    ResponseWithValidatedBody,
 } from '@utils/customTypedResponses.ts';
 import type { ChangePasswordBody } from '@users/User_v3.schemas.ts';
-import { ObjectId } from 'mongodb';
 import type {
    StrictFindOneOptions,
    StrictMongoFilter,
@@ -46,14 +45,12 @@ export async function changePasswordController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId } = res.locals.authenticatedUser;
       const { currentPassword, newPassword } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const userRaw = await userCollection.findOne<IUserIdPasswordHash>(
-         {
-            _id: new ObjectId(sub),
-         } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_ID_PASSWORDHASH_PROJECTION,
          } satisfies StrictFindOneOptions<IUserIdPasswordHash>
@@ -154,7 +151,7 @@ export async function changePasswordController(
 
       logger.info(
          `Password changed and ${sessionsRevoked} session(s) invalidated.`,
-         { userId: sub, requestId }
+         { userId: userId.toHexString(), requestId }
       );
 
       securityLog.record({

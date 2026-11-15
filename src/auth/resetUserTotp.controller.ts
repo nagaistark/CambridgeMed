@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
    UserPasswordResetTargetValidator,
@@ -90,7 +89,7 @@ export async function resetUserTotpController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId: adminId } = res.locals.authenticatedUser;
       const { id } = res.locals.validatedParams;
       const { currentPassword, totpCode, recoveryCode } =
          res.locals.validatedBody;
@@ -99,14 +98,14 @@ export async function resetUserTotpController(
 
       // ── The admin proves who they are, right now ───────────────────────────────
       const adminRaw = await userCollection.findOne<IUserTotpManagement>(
-         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: adminId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_TOTP_MANAGEMENT_PROJECTION,
          } satisfies StrictFindOneOptions<IUserTotpManagement>
       );
       if (adminRaw === null) {
          throw new Error(
-            `Authenticated user not found in database during admin TOTP reset. userId=${sub}`
+            `Authenticated user not found in database during admin TOTP reset. userId=${adminId.toHexString()}`
          );
       }
 
@@ -271,7 +270,7 @@ export async function resetUserTotpController(
       });
       logger.warn(`Two-factor authentication reset by administrator.`, {
          requestId,
-         actorId: sub,
+         actorId: adminId.toHexString(),
          targetId: target._id.toHexString(),
          sessionsRevoked,
       });

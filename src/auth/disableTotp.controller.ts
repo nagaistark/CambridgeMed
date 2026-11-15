@@ -1,5 +1,4 @@
 import type { Request, NextFunction } from 'express';
-import { ObjectId } from 'mongodb';
 import {
    getUserCollection,
    UserTotpManagementValidator,
@@ -39,13 +38,13 @@ export async function disableTotpController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub, sessionId } = res.locals.authenticatedUser;
+      const { userId, sessionId } = res.locals.authenticatedUser;
       const { currentPassword, totpCode, recoveryCode } =
          res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const userRaw = await userCollection.findOne<IUserTotpManagement>(
-         { _id: new ObjectId(sub) } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_TOTP_MANAGEMENT_PROJECTION,
          } satisfies StrictFindOneOptions<IUserTotpManagement>
@@ -170,9 +169,7 @@ export async function disableTotpController(
             );
          }
 
-         await revokeOtherSessions(validatedUser._id, new ObjectId(sessionId), {
-            session,
-         });
+         await revokeOtherSessions(validatedUser._id, sessionId, { session });
       });
 
       // ── Only now, after the commit, do we write the history ────────────────────

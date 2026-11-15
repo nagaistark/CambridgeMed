@@ -1,4 +1,3 @@
-import { AUTHENTICATED_USER } from '@ssot/authenticated_user_constants.ts';
 import {
    ServerGeneratedFields,
    validateChronology,
@@ -10,6 +9,7 @@ import {
    NAME_CHANGE_CAP,
 } from '@ssot/user_change_constants.ts';
 import type { EmailChangeStatus } from '@ssot/email_change_status_constants.ts';
+import { RolePermissionsStruct } from '@ssot/authenticated_user_constants.ts';
 import {
    argon2HashString,
    clinicStaffEmail,
@@ -76,11 +76,11 @@ export const UserDocumentStruct = Schema.Struct({
       message: () => `Must be a boolean.`,
    }),
 
-   /* Set when a confirmed email change was reverted: the password may be known to whoever started the change. Login and session issuance are refused until the owner completes a password reset. Cleared ONLY by resetPasswordController (proof of control of the restored mailbox), never by changePasswordController: an attacker holding a still-valid access token and the old password could otherwise launder the flag away. */
+   /* Set when a confirmed email change was reverted: the password may be known to whoever started the change. Login and session issuance are refused until the owner completes a password reset. Cleared ONLY by resetPasswordController (proof of control of the restored mailbox), never by changePasswordController. */
    passwordResetRequired: Schema.Boolean,
 
    ...UserInputSchema.omit('password').fields,
-   ...AUTHENTICATED_USER.pick('role', 'permissions').fields,
+   ...RolePermissionsStruct.fields,
    ...ServerGeneratedFields.fields,
 });
 

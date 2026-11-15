@@ -13,7 +13,6 @@ import {
 import type { ChangeNameBody } from '@users/User_v3.schemas.ts';
 import { NAME_CHANGE_CAP } from '@ssot/user_change_constants.ts';
 import { USER_NAME_EMAIL_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
-import { ObjectId } from 'mongodb';
 import type {
    StrictFindOneOptions,
    StrictMongoFilter,
@@ -28,14 +27,12 @@ export async function changeNameController(
 ): Promise<void> {
    try {
       const requestId = res.locals.requestId;
-      const { sub } = res.locals.authenticatedUser;
+      const { userId } = res.locals.authenticatedUser;
       const { firstName, lastName } = res.locals.validatedBody;
 
       const userCollection = getUserCollection();
       const userRaw = await userCollection.findOne<IUserNames>(
-         {
-            _id: new ObjectId(sub),
-         } satisfies StrictMongoFilter<IUserDocument>,
+         { _id: userId } satisfies StrictMongoFilter<IUserDocument>,
          {
             projection: USER_NAME_EMAIL_PROJECTION,
          } satisfies StrictFindOneOptions<IUserNames>
