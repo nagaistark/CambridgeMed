@@ -102,7 +102,7 @@ export async function initiateEmailChangeController(
             );
       }
 
-      /* Deliberately AFTER the credential check, mirroring loginController: revealing "deactivated" is acceptable only to someone who has just proven they know the password, and it keeps this guard from becoming a probing oracle ahead of the password check. Placed before Guard 1 so that no later guard, DB count or email can run on behalf of an inactive account. The decoded value comes from the database, not the JWT, which can be up to 60s stale. */
+      /* Deliberately AFTER the credential check, mirroring loginController: revealing "deactivated" is acceptable only to someone who has just proven they know the password, and it keeps this guard from becoming a probing oracle ahead of the password check. */
       if (!validatedUser.isActive) {
          return void res
             .status(403)

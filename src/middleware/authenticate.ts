@@ -36,6 +36,48 @@ const ACCOUNT_DEACTIVATED_MESSAGE =
 const PASSWORD_RESET_REQUIRED_MESSAGE =
    `For your security, you must reset your password before logging in. Use "Forgot password" to receive a reset link.` as const;
 
+type Principal =
+   | { readonly status: 'no_session' }
+   | { readonly status: 'no_user'; readonly session: ISessionAuth }
+   | {
+        readonly status: 'found';
+        readonly session: ISessionAuth;
+        readonly user: IUserAuth;
+     };
+
+/* Two reads, session first, then its owner. They are NOT one snapshot: a transaction can commit between them (see the retry in buildAuthenticate). */
+async function loadPrincipal(tokenHash: string, now: Date): Promise<Principal> {
+   const sessionRaw = await getSessionCollection().findOne<ISessionAuth>(
+      {
+         tokenHash,
+         expiresAt: { $gt: now },
+         absoluteExpiresAt: { $gt: now },
+      } satisfies StrictMongoFilter<ISessionDocument>,
+      {
+         projection: SESSION_AUTH_PROJECTION,
+      } satisfies StrictFindOneOptions<ISessionAuth>
+   );
+   if (sessionRaw === null) return { status: 'no_session' };
+
+   const session = decodeStored(
+      SessionAuthValidator,
+      sessionRaw,
+      'authenticate: session'
+   );
+
+   const userRaw = await getUserCollection().findOne<IUserAuth>(
+      { _id: session.userId } satisfies StrictMongoFilter<IUserDocument>,
+      {
+         projection: USER_AUTH_PROJECTION,
+      } satisfies StrictFindOneOptions<IUserAuth>
+   );
+   if (userRaw === null) return { status: 'no_user', session };
+
+   /* Fails CLOSED: contradictory role/permissions throw StoredDataError (500). */
+   const user = decodeStored(UserAuthValidator, userRaw, 'authenticate: user');
+   return { status: 'found', session, user };
+}
+
 type AuthenticateOptions = {
    /* true: this request counts as deliberate activity and slides the idle deadline. false: a PASSIVE route (e.g. /me, which reports the remaining time) that must never extend it. */
    readonly slidesSession: boolean;
@@ -72,21 +114,21 @@ function buildAuthenticate(options: AuthenticateOptions): AuthMiddleware {
          }
 
          const now = new Date();
+         const tokenHash = generateStandardHash(rawToken);
          const sessionCollection = getSessionCollection();
 
-         /* Both clocks are checked, so a document whose sliding deadline were ever corrupted still cannot outlive the weekly reset. The unique index on `tokenHash` makes this a single point read; the token is 384 random bits hashed with SHA-256, so lookup timing reveals nothing an attacker can use. */
-         const sessionRaw = await sessionCollection.findOne<ISessionAuth>(
-            {
-               tokenHash: generateStandardHash(rawToken),
-               expiresAt: { $gt: now },
-               absoluteExpiresAt: { $gt: now },
-            } satisfies StrictMongoFilter<ISessionDocument>,
-            {
-               projection: SESSION_AUTH_PROJECTION,
-            } satisfies StrictFindOneOptions<ISessionAuth>
-         );
+         let principal = await loadPrincipal(tokenHash, now);
 
-         if (sessionRaw === null) {
+         /* A stamp mismatch can be a mirage: keepOnlyCurrentSession re-stamps the actor's session in the same transaction that bumps the user, and our two reads may straddle that commit. One re-read settles it, because after the commit point both documents agree. */
+         if (
+            principal.status === 'found' &&
+            principal.session.credentialsVersion !==
+               principal.user.credentialsVersion
+         ) {
+            principal = await loadPrincipal(tokenHash, now);
+         }
+
+         if (principal.status === 'no_session') {
             clearAuthCookies(res);
             return void res
                .status(401)
@@ -99,49 +141,30 @@ function buildAuthenticate(options: AuthenticateOptions): AuthMiddleware {
                );
          }
 
-         const validatedSession = decodeStored(
-            SessionAuthValidator,
-            sessionRaw,
-            'authenticate: session'
-         );
+         if (principal.status === 'no_user') {
+            await sessionCollection.deleteOne({
+               _id: principal.session._id,
+            } satisfies StrictMongoFilter<ISessionDocument>);
+            clearAuthCookies(res);
+            return void res
+               .status(401)
+               .json(
+                  createErrorResponse(
+                     'UNAUTHORIZED',
+                     SESSION_INVALID_MESSAGE,
+                     requestId
+                  )
+               );
+         }
 
-         const userRaw = await getUserCollection().findOne<IUserAuth>(
-            {
-               _id: validatedSession.userId,
-            } satisfies StrictMongoFilter<IUserDocument>,
-            {
-               projection: USER_AUTH_PROJECTION,
-            } satisfies StrictFindOneOptions<IUserAuth>
-         );
+         const { session: validatedSession, user: validatedUser } = principal;
 
-         /* Fails CLOSED: role/permissions that contradict each other throw StoredDataError (500) rather than grant anything. */
-         const validatedUser =
-            userRaw === null
-               ? null
-               : decodeStored(UserAuthValidator, userRaw, 'authenticate: user');
-
-         if (
-            validatedUser === null ||
-            !validatedUser.isActive ||
-            validatedUser.passwordResetRequired
-         ) {
+         /* Unconditional delete is correct here: these states kill ANY session of this account. */
+         if (!validatedUser.isActive || validatedUser.passwordResetRequired) {
             await sessionCollection.deleteOne({
                _id: validatedSession._id,
             } satisfies StrictMongoFilter<ISessionDocument>);
             clearAuthCookies(res);
-
-            if (validatedUser === null) {
-               return void res
-                  .status(401)
-                  .json(
-                     createErrorResponse(
-                        'UNAUTHORIZED',
-                        SESSION_INVALID_MESSAGE,
-                        requestId
-                     )
-                  );
-            }
-
             return void res
                .status(403)
                .json(
@@ -155,15 +178,20 @@ function buildAuthenticate(options: AuthenticateOptions): AuthMiddleware {
                );
          }
 
-         /* The session was minted against an older credential state: a password change or reset, an email change, a 2FA change or an activation flip happened since. Strict inequality on purpose: any difference fails closed. Same response as every other dead session. */
+         /* Still different after the re-read: a genuine stale stamp. The delete is conditional on the stamp we read, so a session that was legitimately re-stamped in the meantime can never be shredded. */
          if (
             validatedSession.credentialsVersion !==
             validatedUser.credentialsVersion
          ) {
-            await sessionCollection.deleteOne({
+            const killed = await sessionCollection.deleteOne({
                _id: validatedSession._id,
+               credentialsVersion: validatedSession.credentialsVersion,
             } satisfies StrictMongoFilter<ISessionDocument>);
-            clearAuthCookies(res);
+
+            if (killed.deletedCount === 1) {
+               clearAuthCookies(res);
+            }
+
             return void res
                .status(401)
                .json(

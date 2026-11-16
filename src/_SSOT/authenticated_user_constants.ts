@@ -1,9 +1,6 @@
 import { allRoles } from '@ssot/user_roles_constants.ts';
 import type { ExpandType } from '@utils/helperTypes.ts';
-import {
-   objectIdInput,
-   positiveInteger,
-} from '@utils/effectSchemaReusables.ts';
+import { positiveInteger } from '@utils/effectSchemaReusables.ts';
 import { Schema } from 'effect';
 import type { ObjectId } from 'mongodb';
 
@@ -11,14 +8,6 @@ import type { ObjectId } from 'mongodb';
 export const RolePermissionsStruct = Schema.Struct({
    role: Schema.Literal(...allRoles),
    permissions: positiveInteger,
-});
-
-/* The principal of the current request. Built by `authenticate` from the database, never from anything the client holds, and already parsed: ids are ObjectId instances, so no controller re-parses a string. */
-export const AUTHENTICATED_USER = Schema.Struct({
-   sub: objectIdInput,
-   role: Schema.Literal(...allRoles),
-   permissions: positiveInteger,
-   sessionId: objectIdInput,
 });
 
 /* The principal of the current request. Built by `authenticate` from the database, never from anything the client holds, and already parsed: ids are ObjectId instances, so no controller re-parses a string. */
