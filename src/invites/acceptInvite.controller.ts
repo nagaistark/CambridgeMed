@@ -194,6 +194,7 @@ async function runRegistrationTransaction(
                invitedBy: validatedClaimedInvite.issuedBy,
                isActive: true,
                passwordResetRequired: false,
+               credentialsVersion: 0,
                createdAt: now,
                updatedAt: now,
             };

@@ -4,6 +4,7 @@ import {
 } from '@ssot/serverGeneratedFields.ts';
 import {
    fullDateInTheFuture,
+   nonNegativeInteger,
    sha256HexString,
    stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
@@ -17,6 +18,10 @@ const TotpChallengeDocumentBase = Schema.Struct({
    /* SHA-256 digest of the opaque token in the browser's cookie. The raw token is never stored. */
    tokenHash: sha256HexString,
    userId: stringToObjectId,
+
+   /* The credential state the PASSWORD was proven against. Compared with the user's current version before the second factor is spent. */
+   credentialsVersion: nonNegativeInteger,
+
    ...ServerGeneratedFields.fields,
 });
 
@@ -64,7 +69,11 @@ const TotpChallengeCreateSchema = TotpChallengeCreateStruct.pipe(
 );
 
 /* Minimal shape for `authenticateTotp` and `completeTotpLogin`: which challenge this is, and whose. */
-const TotpChallengeAuthSchema = TotpChallengeReadStruct.pick('_id', 'userId');
+const TotpChallengeAuthSchema = TotpChallengeReadStruct.pick(
+   '_id',
+   'userId',
+   'credentialsVersion'
+);
 export type ITotpChallengeAuth = Schema.Schema.Type<
    typeof TotpChallengeAuthSchema
 >;

@@ -14,7 +14,6 @@ import {
    verifySecondFactor,
    type SecondFactorContext,
 } from '@auth/secondFactor.ts';
-import { revokeOtherSessions } from '@auth/revokeOtherSessions.ts';
 import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
@@ -30,6 +29,7 @@ import type {
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import { keepOnlyCurrentSession } from '@auth/keepOnlyCurrentSession.ts';
 
 export async function disableTotpController(
    req: Request,
@@ -145,6 +145,7 @@ export async function disableTotpController(
                _id: validatedUser._id,
                isTotpEnabled: true,
                isActive: true,
+               credentialsVersion: validatedUser.credentialsVersion,
             } satisfies StrictMongoFilter<IUserDocument>,
             {
                $set: {
@@ -156,6 +157,7 @@ export async function disableTotpController(
                   totpAttemptsWindowStartedAt: null,
                   updatedAt: new Date(),
                },
+               $inc: { credentialsVersion: 1 },
             } satisfies StrictUpdate<IUserDocument>,
             { session }
          );
@@ -169,7 +171,14 @@ export async function disableTotpController(
             );
          }
 
-         await revokeOtherSessions(validatedUser._id, sessionId, { session });
+         await keepOnlyCurrentSession(
+            {
+               userId: validatedUser._id,
+               sessionId,
+               credentialsVersion: validatedUser.credentialsVersion + 1,
+            },
+            { session }
+         );
       });
 
       // ── Only now, after the commit, do we write the history ────────────────────

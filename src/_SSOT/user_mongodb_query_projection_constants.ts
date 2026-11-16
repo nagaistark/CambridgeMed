@@ -170,6 +170,7 @@ export const USER_TOTP_LOGIN_PROJECTION: Record<keyof IUserTotpLogin, 1> = {
    totpSecret: 1,
    totpLastUsedStep: 1,
    totpRecoveryCodes: 1,
+   credentialsVersion: 1,
 };
 
 export const USER_TOTP_MANAGEMENT_PROJECTION: Record<
@@ -184,6 +185,7 @@ export const USER_TOTP_MANAGEMENT_PROJECTION: Record<
    totpPendingSecret: 1,
    totpLastUsedStep: 1,
    totpRecoveryCodes: 1,
+   credentialsVersion: 1,
 };
 
 export const USER_RECOVERY_CODES_PROJECTION: Record<
@@ -213,6 +215,7 @@ export const USER_LOGIN_PROJECTION: Record<keyof IUserLogin, 1> = {
    isActive: 1,
    passwordResetRequired: 1,
    isTotpEnabled: 1,
+   credentialsVersion: 1,
 };
 
 export const SAFE_INVITE_PROJECTION: Record<keyof ISafeInviteRead, 1> = {
@@ -268,6 +271,7 @@ export const SESSION_AUTH_PROJECTION: Record<keyof ISessionAuth, 1> = {
    lastActiveAt: 1,
    expiresAt: 1,
    absoluteExpiresAt: 1,
+   credentialsVersion: 1,
 };
 
 export const USER_AUTH_PROJECTION: Record<keyof IUserAuth, 1> = {
@@ -276,6 +280,7 @@ export const USER_AUTH_PROJECTION: Record<keyof IUserAuth, 1> = {
    permissions: 1,
    isActive: 1,
    passwordResetRequired: 1,
+   credentialsVersion: 1,
 };
 
 export const SESSION_OWNER_PROJECTION: Record<keyof ISessionOwner, 1> = {
@@ -302,6 +307,7 @@ export const TOTP_CHALLENGE_AUTH_PROJECTION: Record<
 > = {
    _id: 1,
    userId: 1,
+   credentialsVersion: 1,
 };
 
 // ── Patients projections ─────────────────────────────────────────────────────────

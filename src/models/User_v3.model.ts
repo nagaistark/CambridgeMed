@@ -79,6 +79,9 @@ export const UserDocumentStruct = Schema.Struct({
    /* Set when a confirmed email change was reverted: the password may be known to whoever started the change. Login and session issuance are refused until the owner completes a password reset. Cleared ONLY by resetPasswordController (proof of control of the restored mailbox), never by changePasswordController. */
    passwordResetRequired: Schema.Boolean,
 
+   /* Monotonic "lock generation". Bumped in the SAME write as every event that invalidates all existing sessions. A session is valid only while its stamped version equals this one, so this comparison, not the sweep, is the authority. Internal: never part of a client-facing shape. */
+   credentialsVersion: nonNegativeInteger,
+
    ...UserInputSchema.omit('password').fields,
    ...RolePermissionsStruct.fields,
    ...ServerGeneratedFields.fields,
@@ -244,6 +247,7 @@ const UserDocumentSchema = UserDocumentStruct.pipe(
 /* The SAFE, full (except `passwordHash` and sensitive TOTP-related data) projection. Used for self-view (GET /api/auth/me) and superadmin views (getUserController, listUsersController). */
 const SafeUserSchema = UserDocumentStruct.omit(
    'passwordHash',
+   'credentialsVersion',
    'totpSecret',
    'totpRecoveryCodes',
    'totpLastUsedStep',
@@ -359,7 +363,8 @@ const UserLoginSchema = UserDocumentStruct.pick(
    'passwordHash',
    'isActive',
    'passwordResetRequired',
-   'isTotpEnabled'
+   'isTotpEnabled',
+   'credentialsVersion'
 ).pipe(validatePermissionsForRole);
 export type IUserLogin = Schema.Schema.Type<typeof UserLoginSchema>;
 
@@ -369,7 +374,8 @@ const UserAuthSchema = UserDocumentStruct.pick(
    'role',
    'permissions',
    'isActive',
-   'passwordResetRequired'
+   'passwordResetRequired',
+   'credentialsVersion'
 ).pipe(validatePermissionsForRole);
 export type IUserAuth = Schema.Schema.Type<typeof UserAuthSchema>;
 
@@ -399,7 +405,8 @@ const UserTotpLoginSchema = UserDocumentStruct.pick(
    'isTotpEnabled',
    'totpSecret',
    'totpLastUsedStep',
-   'totpRecoveryCodes'
+   'totpRecoveryCodes',
+   'credentialsVersion'
 ).pipe(validatePermissionsForRole);
 export type IUserTotpLogin = Schema.Schema.Type<typeof UserTotpLoginSchema>;
 
@@ -412,7 +419,8 @@ const UserTotpManagementSchema = UserDocumentStruct.pick(
    'totpSecret',
    'totpPendingSecret',
    'totpLastUsedStep',
-   'totpRecoveryCodes'
+   'totpRecoveryCodes',
+   'credentialsVersion'
 );
 export type IUserTotpManagement = Schema.Schema.Type<
    typeof UserTotpManagementSchema

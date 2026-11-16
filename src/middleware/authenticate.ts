@@ -155,6 +155,26 @@ function buildAuthenticate(options: AuthenticateOptions): AuthMiddleware {
                );
          }
 
+         /* The session was minted against an older credential state: a password change or reset, an email change, a 2FA change or an activation flip happened since. Strict inequality on purpose: any difference fails closed. Same response as every other dead session. */
+         if (
+            validatedSession.credentialsVersion !==
+            validatedUser.credentialsVersion
+         ) {
+            await sessionCollection.deleteOne({
+               _id: validatedSession._id,
+            } satisfies StrictMongoFilter<ISessionDocument>);
+            clearAuthCookies(res);
+            return void res
+               .status(401)
+               .json(
+                  createErrorResponse(
+                     'UNAUTHORIZED',
+                     SESSION_INVALID_MESSAGE,
+                     requestId
+                  )
+               );
+         }
+
          if (options.slidesSession) {
             await slideSession(validatedSession, now);
          }

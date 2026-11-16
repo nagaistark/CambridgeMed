@@ -72,7 +72,7 @@ function runConfirmTransaction(tokenHash: string): Promise<ConfirmOutcome> {
                   archivedAt: now,
                },
             },
-            $inc: { emailChangesUsed: 1 },
+            $inc: { emailChangesUsed: 1, credentialsVersion: 1 },
          } satisfies StrictUpdate<IUserDocument>,
          { session }
       );

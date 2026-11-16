@@ -5,6 +5,7 @@ import {
    TotpChallengeCreateValidator,
    type ITotpChallengeDocument,
 } from '@models/TotpChallenge_v3.model.ts';
+import type { IUserDocument } from '@models/User_v3.model.ts';
 import {
    generateRandomToken,
    generateStandardHash,
@@ -23,7 +24,7 @@ export const TOTP_CHALLENGE_EXPIRED_MESSAGE =
 
    Atomic by one upsert on `userId`. When two logins race to create the very first document, the unique index rejects the loser's insert (duplicate key on `userId`); the loser simply repeats the same update, which now MATCHES the winner's document and replaces it. The last writer wins, and exactly one challenge exists. */
 export async function issueTotpChallenge(
-   userId: ObjectId,
+   user: Pick<IUserDocument, '_id' | 'credentialsVersion'>,
    res: Response
 ): Promise<void> {
    const rawToken = generateRandomToken();
@@ -31,7 +32,8 @@ export async function issueTotpChallenge(
 
    const candidate: ITotpChallengeDocument = {
       _id: new ObjectId(),
-      userId,
+      userId: user._id,
+      credentialsVersion: user.credentialsVersion,
       tokenHash: generateStandardHash(rawToken),
       expiresAt: new Date(
          now.getTime() + TOTP_CHALLENGE_EXPIRY_SECONDS * 1_000
@@ -54,6 +56,7 @@ export async function issueTotpChallenge(
    const update = {
       $set: {
          tokenHash: validated.tokenHash,
+         credentialsVersion: validated.credentialsVersion,
          expiresAt: validated.expiresAt,
          createdAt: validated.createdAt,
          updatedAt: validated.updatedAt,

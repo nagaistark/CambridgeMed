@@ -13,11 +13,11 @@ import { evictExcessSessions } from '@utils/evictExcessSessions.ts';
 import { ipOrNull } from '@utils/effectSchemaReusables.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 
-/* Creates a Session document and sets the session cookie. Shared by the password-only login path, the TOTP verification path and the recovery-code path. Needs nothing but the user's id: role and permissions are read fresh from the database on every request, so they are deliberately NOT captured here.
+/* Creates a Session document and sets the session cookie. Shared by the password-only login path, the TOTP verification path and the recovery-code path. Needs the user's id and the credentialsVersion read BEFORE the proof of identity (password / second factor) was checked. Never re-read it here: re-reading would let an old proof pair with a new version.
 
    Always mints a brand-new token and never looks at any cookie the client already sent, so a client cannot choose (fixate) its own session identifier. */
 export async function issueSession(
-   user: Pick<IUserDocument, '_id'>,
+   user: Pick<IUserDocument, '_id' | 'credentialsVersion'>,
    req: Request,
    res: Response
 ): Promise<void> {
@@ -37,6 +37,7 @@ export async function issueSession(
    const candidate: ISessionDocument = {
       _id: new ObjectId(),
       userId: user._id,
+      credentialsVersion: user.credentialsVersion,
       tokenHash,
       lastActiveAt: now,
       absoluteExpiresAt,

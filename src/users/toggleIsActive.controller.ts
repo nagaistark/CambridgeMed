@@ -76,6 +76,9 @@ function runToggleTransaction({
          } satisfies StrictMongoFilter<IUserDocument>,
          {
             $set: { isActive, updatedAt: new Date() },
+
+            /* Bumped in BOTH directions on purpose (no branch to get wrong). Deactivation matters most: a login that raced the sweep leaves an orphan session that `isActive` alone would resurrect on reactivation. */
+            $inc: { credentialsVersion: 1 },
          } satisfies StrictUpdate<IUserDocument>,
          { session }
       );

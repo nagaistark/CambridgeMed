@@ -98,7 +98,7 @@ export async function loginController(
 
       // ── TOTP gate ──────────────────────────────────────────────────────────────
       if (validatedUser.isTotpEnabled) {
-         await issueTotpChallenge(validatedUser._id, res);
+         await issueTotpChallenge(validatedUser, res);
          return void res.status(202).json({
             success: true,
             requiresTotp: true,

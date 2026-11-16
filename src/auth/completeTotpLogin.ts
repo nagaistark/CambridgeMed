@@ -127,6 +127,23 @@ export async function completeTotpLogin(
          );
    }
 
+   /* The password was proven against a credential state that no longer exists (password, email, 2FA or activation changed while the challenge was open). Checked BEFORE the second factor is spent, with the same wording as every other dead challenge: no oracle. */
+   if (
+      validatedUser.credentialsVersion !==
+      res.locals.totpChallenge.credentialsVersion
+   ) {
+      await endChallenge(res);
+      return void res
+         .status(401)
+         .json(
+            createErrorResponse(
+               'UNAUTHORIZED',
+               TOTP_CHALLENGE_EXPIRED_MESSAGE,
+               requestId
+            )
+         );
+   }
+
    /* BEFORE checkSecondFactor: that call SPENDS the code. A read that failed after it would burn a recovery code and still fail the login. The status is only ever sent once the factor has verified. */
    const emailChange = await loadEmailChangeStatus(
       validatedUser._id,

@@ -200,6 +200,7 @@ export async function resetUserTotpController(
                      passwordResetRequired: true,
                      updatedAt: new Date(),
                   },
+                  $inc: { credentialsVersion: 1 },
                } satisfies StrictUpdate<IUserDocument>,
                {
                   projection: USER_PASSWORD_RESET_TARGET_PROJECTION,

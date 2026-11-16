@@ -7,8 +7,11 @@ import {
 } from '@models/User_v3.model.ts';
 import { generateRecoveryCodes, hashRecoveryCode } from '@utils/totpCrypto.ts';
 import { verifyTotpCode } from '@auth/secondFactor.ts';
-import { revokeOtherSessions } from '@auth/revokeOtherSessions.ts';
-import { createErrorResponse } from '../errorHandlers.ts';
+
+import { keepOnlyCurrentSession } from '@auth/keepOnlyCurrentSession.ts';
+import { withAuthTransaction } from '@utils/withAuthTransaction.ts';
+
+import { createErrorResponse, makeAppError } from '../errorHandlers.ts';
 import type {
    AuthenticatedResponse,
    ResponseWithValidatedBody,
@@ -20,8 +23,7 @@ import type {
    StrictMongoFilter,
    StrictUpdate,
 } from '@utils/pathFinder_v3.ts';
-import { sanitizeError } from '@utils/sanitizeError.ts';
-import logger from '../logger.ts';
+
 import { requestContext, securityLog } from '@services/securityLog.service.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 
@@ -106,48 +108,53 @@ export async function confirmTotpEnrollmentController(
       const hashedCodes = plainTextCodes.map(hashRecoveryCode);
 
       // ── Promote pending → live, atomically ─────────────────────────────────────
-      /* The filter pins every fact the decision rested on: still disabled, the SAME pending secret we verified against, and a step strictly newer than the last used (replay protection). If any of them moved, nothing is written. */
-      const enabled = await userCollection.updateOne(
-         {
-            _id: validatedUser._id,
-            isTotpEnabled: false,
-            isActive: true,
-            totpPendingSecret: validatedUser.totpPendingSecret,
-            totpLastUsedStep: { $lt: check.timeStep },
-         } satisfies StrictMongoFilter<IUserDocument>,
-         {
-            $set: {
-               isTotpEnabled: true,
-               totpSecret: validatedUser.totpPendingSecret,
-               totpPendingSecret: null,
-               totpRecoveryCodes: hashedCodes,
-               totpLastUsedStep: check.timeStep,
-               updatedAt: new Date(),
-            },
-         } satisfies StrictUpdate<IUserDocument>
-      );
+      /* ONE transaction: the promotion, the version bump, the re-stamp of THIS session and the sweep of every other session commit together or not at all. The filter pins every fact the decision rested on: still disabled, the SAME pending secret we verified against, the SAME credentialsVersion we read, and a step strictly newer than the last used (replay protection). If any of them moved, nothing is written. */
+      const { timeStep } = check;
+      const pendingSecret = validatedUser.totpPendingSecret;
+      const nextCredentialsVersion = validatedUser.credentialsVersion + 1;
 
-      if (enabled.matchedCount === 0) {
-         return void res
-            .status(409)
-            .json(
-               createErrorResponse(
-                  'CONFLICT',
-                  `Enrollment state changed. Please restart the enrollment process.`,
-                  requestId
-               )
-            );
-      }
-
-      /* Sessions created before 2FA existed are pre-2FA keys. Best effort on purpose: enabling is an UPGRADE, so a failure here must not hide the recovery codes (shown only once), but it must not pass silently either. */
-      try {
-         await revokeOtherSessions(validatedUser._id, sessionId);
-      } catch (revokeErr) {
-         logger.error(
-            `Failed to revoke other sessions after TOTP enrollment: ${sanitizeError(revokeErr).message}`,
-            { requestId, userId: userId.toHexString() }
+      await withAuthTransaction(async session => {
+         const enabled = await userCollection.updateOne(
+            {
+               _id: validatedUser._id,
+               isTotpEnabled: false,
+               isActive: true,
+               credentialsVersion: validatedUser.credentialsVersion,
+               totpPendingSecret: pendingSecret,
+               totpLastUsedStep: { $lt: timeStep },
+            } satisfies StrictMongoFilter<IUserDocument>,
+            {
+               $set: {
+                  isTotpEnabled: true,
+                  totpSecret: pendingSecret,
+                  totpPendingSecret: null,
+                  totpRecoveryCodes: hashedCodes,
+                  totpLastUsedStep: timeStep,
+                  updatedAt: new Date(),
+               },
+               $inc: { credentialsVersion: 1 },
+            } satisfies StrictUpdate<IUserDocument>,
+            { session }
          );
-      }
+
+         if (enabled.matchedCount === 0) {
+            throw makeAppError(
+               'CONCURRENCY_ERROR',
+               409,
+               'CONFLICT',
+               `Enrollment state changed. Please restart the enrollment process.`
+            );
+         }
+
+         await keepOnlyCurrentSession(
+            {
+               userId: validatedUser._id,
+               sessionId,
+               credentialsVersion: nextCredentialsVersion,
+            },
+            { session }
+         );
+      });
 
       securityLog.record({
          event: 'TOTP_ENABLED',

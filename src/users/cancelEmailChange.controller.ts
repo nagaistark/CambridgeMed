@@ -86,7 +86,7 @@ async function runCancelTransaction(tokenHash: string): Promise<CancelOutcome> {
                updatedAt: now,
             },
             $pull: { previousEmails: archived },
-            $inc: { emailChangesUsed: -1 },
+            $inc: { emailChangesUsed: -1, credentialsVersion: 1 },
          } satisfies StrictUpdate<IUserDocument>,
          { session }
       );

@@ -113,6 +113,7 @@ async function runResetTransaction(
       } satisfies StrictMongoFilter<IUserDocument>,
       {
          $set: { passwordHash, passwordResetRequired: false, updatedAt: now },
+         $inc: { credentialsVersion: 1 },
       } satisfies StrictUpdate<IUserDocument>,
       { session }
    );

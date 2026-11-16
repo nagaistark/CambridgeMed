@@ -6,6 +6,7 @@ import {
    fullDateInTheFuture,
    ipAddress,
    longString,
+   nonNegativeInteger,
    sha256HexString,
    stringToObjectId,
 } from '@utils/effectSchemaReusables.ts';
@@ -18,6 +19,9 @@ import type { IUserIdNameEmail } from '@models/User_v3.model.ts';
 
 export const SessionDocumentBase = Schema.Struct({
    userId: stringToObjectId,
+
+   /* The user's credentialsVersion at the moment the proof of identity was read. authenticate refuses the session once the user's version differs. */
+   credentialsVersion: nonNegativeInteger,
 
    /* SHA-256 digest of the opaque token held in the browser's cookie. The raw token is never stored. Primary lookup key on every authenticated request. */
    tokenHash: sha256HexString,
@@ -159,7 +163,8 @@ const SessionAuthSchema = SessionDocumentReadStruct.pick(
    'userId',
    'lastActiveAt',
    'expiresAt',
-   'absoluteExpiresAt'
+   'absoluteExpiresAt',
+   'credentialsVersion'
 ).pipe(validateExpiryOrder);
 export type ISessionAuth = Schema.Schema.Type<typeof SessionAuthSchema>;
 

@@ -108,6 +108,7 @@ export async function changePasswordController(
                   passwordHash: newPasswordHash,
                   updatedAt: new Date(),
                },
+               $inc: { credentialsVersion: 1 },
             } satisfies StrictUpdate<IUserDocument>,
             { session }
          );
