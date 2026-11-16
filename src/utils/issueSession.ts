@@ -5,17 +5,39 @@ import {
    SessionDocumentCreateValidator,
    type ISessionDocument,
 } from '@models/Session_v3.model.ts';
-import { generateSessionToken, setSessionCookie } from '@utils/tokenUtils.ts';
+import {
+   generateSessionToken,
+   readSessionTokenCookie,
+   setSessionCookie,
+} from '@utils/tokenUtils.ts';
 import { getNextWeeklyReset } from '@utils/getNextWeeklyReset.ts';
 import { SESSION_IDLE_TIMEOUT_MS } from '@ssot/session_constants.ts';
+import { generateStandardHash } from '@ssot/node_crypto_constants.ts';
 import { ObjectId } from 'mongodb';
 import { evictExcessSessions } from '@utils/evictExcessSessions.ts';
 import { ipOrNull } from '@utils/effectSchemaReusables.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
+import type { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
+import { sanitizeError } from '@utils/sanitizeError.ts';
+import logger from '../logger.ts';
 
-/* Creates a Session document and sets the session cookie. Shared by the password-only login path, the TOTP verification path and the recovery-code path. Needs the user's id and the credentialsVersion read BEFORE the proof of identity (password / second factor) was checked. Never re-read it here: re-reading would let an old proof pair with a new version.
+/* Rotation: the session this browser presented dies as soon as its replacement exists, whoever owned it (the browser is being re-authenticated). Best-effort, like eviction: by now the new session exists, so a failure here must not fail a login whose credentials were correct. */
+async function retirePresentedSession(req: Request): Promise<void> {
+   const presented = readSessionTokenCookie(req);
+   if (presented === undefined) return;
 
-   Always mints a brand-new token and never looks at any cookie the client already sent, so a client cannot choose (fixate) its own session identifier. */
+   try {
+      await getSessionCollection().deleteOne({
+         tokenHash: generateStandardHash(presented),
+      } satisfies StrictMongoFilter<ISessionDocument>);
+   } catch (err) {
+      logger.error(
+         `Presented session retirement failed: ${sanitizeError(err).message}`
+      );
+   }
+}
+
+/* Creates a Session document and sets the session cookie. Shared by the password-only login path, the TOTP verification path and the recovery-code path. Needs the user's id and the credentialsVersion read BEFORE the proof of identity (password / second factor) was checked. Never re-read it here: re-reading would let an old proof pair with a new version. Always mints a brand-new token and never looks at any cookie the client already sent, so a client cannot choose (fixate) its own session identifier. */
 export async function issueSession(
    user: Pick<IUserDocument, '_id' | 'credentialsVersion'>,
    req: Request,
@@ -57,7 +79,7 @@ export async function issueSession(
 
    /* Everything fallible happens BEFORE the write that commits. */
    await getSessionCollection().insertOne(validatedSession);
-
+   await retirePresentedSession(req);
    await evictExcessSessions(validatedSession.userId, validatedSession._id);
 
    setSessionCookie(res, rawToken, absoluteExpiresAt.getTime() - now.getTime());
