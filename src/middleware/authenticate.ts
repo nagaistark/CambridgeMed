@@ -212,8 +212,12 @@ function buildAuthenticate(options: AuthenticateOptions): AuthMiddleware {
             sessionId: validatedSession._id,
             role: validatedUser.role,
             permissions: validatedUser.permissions,
+            idleExpiresAt: validatedSession.expiresAt,
+            absoluteExpiresAt: validatedSession.absoluteExpiresAt,
          };
+
          res.locals.authenticatedUser = authenticatedUser;
+
          next();
       } catch (err) {
          next(err);

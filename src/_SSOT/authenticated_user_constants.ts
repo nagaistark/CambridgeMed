@@ -10,10 +10,15 @@ export const RolePermissionsStruct = Schema.Struct({
    permissions: positiveInteger,
 });
 
+export type SessionClock = {
+   readonly idleExpiresAt: Date;
+   readonly absoluteExpiresAt: Date;
+};
+
 /* The principal of the current request. Built by `authenticate` from the database, never from anything the client holds, and already parsed: ids are ObjectId instances, so no controller re-parses a string. */
 export type AuthenticatedUser = ExpandType<
    Schema.Schema.Type<typeof RolePermissionsStruct> & {
       readonly userId: ObjectId;
       readonly sessionId: ObjectId;
-   }
+   } & SessionClock
 >;

@@ -23,6 +23,7 @@ import type {
 } from '@models/User_v3.model.ts';
 import { encodeCursor } from '@utils/cursorPagination.ts';
 import type { EmailChangeStatus } from '@ssot/email_change_status_constants.ts';
+import type { SessionClock } from '@ssot/authenticated_user_constants.ts';
 
 // ── Auth operation responses (login / refresh / logout) ──────────────────────────
 /* Session-establishing responses must carry the email-change status; the overload makes forgetting it a compile error. Logout has no session afterwards, so it keeps the minimal shape. */
@@ -62,14 +63,27 @@ export type MeResponse = {
    message: string;
    user: ISafeUser;
    emailChange: EmailChangeStatus;
+   session: SessionClock;
+   /* null when 2FA is off: "no codes" and "not applicable" must stay distinguishable. */
+   remainingRecoveryCodes: number | null;
 };
+
+type MeContext = Pick<MeResponse, 'session' | 'remainingRecoveryCodes'>;
 
 export function buildMeResponse(
    message: string,
    user: ISafeUser,
-   emailChange: EmailChangeStatus
+   emailChange: EmailChangeStatus,
+   { session, remainingRecoveryCodes }: MeContext
 ): MeResponse {
-   return { success: true, message, user, emailChange };
+   return {
+      success: true,
+      message,
+      user,
+      emailChange,
+      session,
+      remainingRecoveryCodes,
+   };
 }
 
 // ── Invite responses ─────────────────────────────────────────────────────────────
