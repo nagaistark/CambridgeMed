@@ -160,10 +160,7 @@ export const USER_SECOND_FACTOR_PROJECTION: Record<keyof IUserSecondFactor, 1> =
 export const USER_TOTP_LOGIN_PROJECTION: Record<keyof IUserTotpLogin, 1> = {
    _id: 1,
    firstName: 1,
-   lastName: 1,
    email: 1,
-   role: 1,
-   permissions: 1,
    isActive: 1,
    passwordResetRequired: 1,
    isTotpEnabled: 1,
@@ -206,11 +203,6 @@ export const PASSWORD_RESET_REDEEM_CHECK_PROJECTION: Record<
 
 export const USER_LOGIN_PROJECTION: Record<keyof IUserLogin, 1> = {
    _id: 1,
-   firstName: 1,
-   lastName: 1,
-   email: 1,
-   role: 1,
-   permissions: 1,
    passwordHash: 1,
    isActive: 1,
    passwordResetRequired: 1,

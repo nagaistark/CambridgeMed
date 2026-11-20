@@ -352,20 +352,15 @@ export type IUserIdRolePermissions = Schema.Schema.Type<
    typeof UserIdRolePermissionsSchema
 >;
 
-/* Minimal shape for loginController. */
+/* Minimal shape for loginController: only what the credential check and the gates need. The response's user comes from loadSafeUser. */
 const UserLoginSchema = UserDocumentStruct.pick(
    '_id',
-   'firstName',
-   'lastName',
-   'email',
-   'role',
-   'permissions',
    'passwordHash',
    'isActive',
    'passwordResetRequired',
    'isTotpEnabled',
    'credentialsVersion'
-).pipe(validatePermissionsForRole);
+);
 export type IUserLogin = Schema.Schema.Type<typeof UserLoginSchema>;
 
 /* Minimal shape for the `authenticate` middleware: what a request needs to be authorised (identity, role, permissions) plus the two account-state flags. No names, no email, no passwordHash. The role/permissions filter makes inconsistent stored data fail CLOSED (StoredDataError -> 500) instead of granting access. */
@@ -392,14 +387,11 @@ export type IUserSecondFactor = Schema.Schema.Type<
    typeof UserSecondFactorSchema
 >;
 
-/* Mid-login TOTP (verify and recover): identity, account-state flags, second-factor state. */
+/* Mid-login TOTP (verify and recover): second-factor state, account-state flags, and the two fields the recovery-code notification email needs. */
 const UserTotpLoginSchema = UserDocumentStruct.pick(
    '_id',
    'firstName',
-   'lastName',
    'email',
-   'role',
-   'permissions',
    'isActive',
    'passwordResetRequired',
    'isTotpEnabled',
@@ -407,7 +399,7 @@ const UserTotpLoginSchema = UserDocumentStruct.pick(
    'totpLastUsedStep',
    'totpRecoveryCodes',
    'credentialsVersion'
-).pipe(validatePermissionsForRole);
+);
 export type IUserTotpLogin = Schema.Schema.Type<typeof UserTotpLoginSchema>;
 
 /* TOTP self-management (enroll, confirm, disable). */
@@ -528,7 +520,7 @@ export type IUserInput = Schema.Schema.Type<typeof UserInputSchema>;
 export type AuthUserResponse = {
    success: true;
    message: string;
-   user: IPublicUser;
+   user: ISafeUser;
    emailChange: EmailChangeStatus;
 };
 

@@ -18,10 +18,12 @@ import {
 } from '@auth/totpChallenge.ts';
 import { issueSession } from '@utils/issueSession.ts';
 import { clearTotpChallengeCookie } from '@utils/tokenUtils.ts';
-import { buildAuthResponse } from '@utils/buildResponses.ts';
+import {
+   buildAuthResponse,
+   buildRecoveryLoginResponse,
+} from '@utils/buildResponses.ts';
 import type { TotpChallengeResponse } from '@utils/customTypedResponses.ts';
 import { requestContext } from '@services/securityLog.service.ts';
-import { TOTP_RECOVERY_CODE_LOW_THRESHOLD } from '@ssot/totp_constants.ts';
 import { USER_TOTP_LOGIN_PROJECTION } from '@ssot/user_mongodb_query_projection_constants.ts';
 import type {
    StrictFindOneOptions,
@@ -33,6 +35,7 @@ import logger from '../logger.ts';
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { trackBackgroundTask } from '@utils/backgroundTasks.ts';
+import { loadSafeUser } from '@users/loadSafeUser.ts';
 
 /* A failed notification must never undo a successful login, but it must not vanish silently either. This function cannot reject, which is what makes it safe to run AFTER the response has been sent. */
 async function notifyRecoveryCodeUsed(
@@ -144,11 +147,17 @@ export async function completeTotpLogin(
          );
    }
 
-   /* BEFORE checkSecondFactor: that call SPENDS the code. A read that failed after it would burn a recovery code and still fail the login. The status is only ever sent once the factor has verified. */
-   const emailChange = await loadEmailChangeStatus(
-      validatedUser._id,
-      new Date()
-   );
+   /* BEFORE checkSecondFactor: that call SPENDS the code. A read that failed after it would burn a recovery code and still fail the login. Everything the response needs is loaded here, in parallel. The status is only ever sent once the factor has verified. */
+   const [safeUser, emailChange] = await Promise.all([
+      loadSafeUser(validatedUser._id, 'TOTP login user (safe view)'),
+      loadEmailChangeStatus(validatedUser._id, new Date()),
+   ]);
+
+   if (safeUser === null) {
+      throw new Error(
+         `User vanished while completing a TOTP login. userId=${validatedUser._id.toHexString()}`
+      );
+   }
 
    /* `actorId: null`: the caller has proven a password but holds no session yet. */
    const context: SecondFactorContext = {
@@ -183,25 +192,13 @@ export async function completeTotpLogin(
    if (remaining === null) {
       return void res
          .status(200)
-         .json(
-            buildAuthResponse(`Login successful.`, validatedUser, emailChange)
-         );
+         .json(buildAuthResponse(`Login successful.`, safeUser, emailChange));
    }
 
    /* The response goes out FIRST. The email provider's round trip (hundreds of ms, occasionally seconds) is none of the user's business. */
-   res.status(200).json({
-      ...buildAuthResponse(
-         `Login successful via recovery code.`,
-         validatedUser,
-         emailChange
-      ),
-      remainingRecoveryCodes: remaining,
-      ...(remaining <= TOTP_RECOVERY_CODE_LOW_THRESHOLD
-         ? {
-              warning: `You have ${remaining} recovery code${remaining === 1 ? '' : 's'} remaining. Generate a fresh set from your security settings.`,
-           }
-         : {}),
-   });
+   res.status(200).json(
+      buildRecoveryLoginResponse(safeUser, emailChange, remaining)
+   );
 
    trackBackgroundTask(notifyRecoveryCodeUsed(validatedUser, remaining));
 }

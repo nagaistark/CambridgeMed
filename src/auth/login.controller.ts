@@ -21,6 +21,7 @@ import type {
 import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { upgradePasswordHashIfStale } from '@auth/upgradePasswordHash.ts';
+import { loadSafeUser } from '@users/loadSafeUser.ts';
 
 /* A real hash, made once at startup with the CURRENT ARGON2_CONFIG, of a password nobody knows. When no user matches, we still run a full verification against it so "no such user" costs the same as "wrong password". Because it is generated rather than pasted, it cannot drift from the config. */
 const TIMING_DUMMY_HASH: string = await hashPassword(generateRandomToken());
@@ -106,19 +107,24 @@ export async function loginController(
          });
       }
 
-      /* Read-only and fallible, so it goes BEFORE issueSession commits a session and sets cookies. Placed after every credential check: unknown emails and the 202 challenge path never reach it. */
-      const emailChange = await loadEmailChangeStatus(
-         validatedUser._id,
-         new Date()
-      );
+      /* Read-only and fallible, so both go BEFORE issueSession commits a session and sets cookies. Placed after every credential check: unknown emails and the 202 challenge path never reach them. */
+      const [safeUser, emailChange] = await Promise.all([
+         loadSafeUser(validatedUser._id, 'login user (safe view)'),
+         loadEmailChangeStatus(validatedUser._id, new Date()),
+      ]);
+
+      /* Accounts are deactivated, never deleted, so a user we just authenticated cannot vanish. Reaching this is an invariant violation: loud 500, nothing issued. */
+      if (safeUser === null) {
+         throw new Error(
+            `User vanished between the credential check and the safe-view load. userId=${validatedUser._id.toHexString()}`
+         );
+      }
 
       await issueSession(validatedUser, req, res);
 
       return void res
          .status(200)
-         .json(
-            buildAuthResponse('Login successful', validatedUser, emailChange)
-         );
+         .json(buildAuthResponse('Login successful', safeUser, emailChange));
    } catch (err) {
       next(err);
    }

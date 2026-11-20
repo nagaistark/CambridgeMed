@@ -23,13 +23,15 @@ import type {
 } from '@models/User_v3.model.ts';
 import { encodeCursor } from '@utils/cursorPagination.ts';
 import type { EmailChangeStatus } from '@ssot/email_change_status_constants.ts';
-import type { SessionClock } from '@ssot/authenticated_user_constants.ts';
+import type { ExpandType } from '@utils/helperTypes.ts';
+import type { AuthenticatedUser } from '@ssot/authenticated_user_constants.ts';
+import { TOTP_RECOVERY_CODE_LOW_THRESHOLD } from '@ssot/totp_constants.ts';
 
-// ── Auth operation responses (login / refresh / logout) ──────────────────────────
-/* Session-establishing responses must carry the email-change status; the overload makes forgetting it a compile error. Logout has no session afterwards, so it keeps the minimal shape. */
+// ── Auth operation responses (login / logout) ────────────────────────────────────
+/* Session-establishing responses must carry the email-change status; the overload makes forgetting it a compile error. Logout has no session afterwards, so it keeps the minimal shape. The `user` is always the ISafeUser produced by loadSafeUser (projection + validator), so there is nothing to strip here. */
 export function buildAuthResponse(
    message: string,
-   user: IPublicUser,
+   user: ISafeUser,
    emailChange: EmailChangeStatus
 ): AuthUserResponse;
 
@@ -37,53 +39,67 @@ export function buildAuthResponse(message: string): AuthUserResponseLogout;
 
 export function buildAuthResponse(
    message: string,
-   user?: IPublicUser,
+   user?: ISafeUser,
    emailChange?: EmailChangeStatus
 ): AuthUserResponse | AuthUserResponseLogout {
    if (user !== undefined && emailChange !== undefined) {
-      return {
-         success: true,
-         message,
-         user: {
-            _id: user._id,
-            firstName: user.firstName,
-            lastName: user.lastName,
-            email: user.email,
-            role: user.role,
-            permissions: user.permissions,
-         },
-         emailChange,
-      };
+      return { success: true, message, user, emailChange };
    }
    return { success: true, message };
 }
 
-export type MeResponse = {
-   success: true;
-   message: string;
-   user: ISafeUser;
-   emailChange: EmailChangeStatus;
-   session: SessionClock;
+// ── Login via recovery code ──────────────────────────────────────────────────────
+export type RecoveryLoginResponse = ExpandType<
+   AuthUserResponse & {
+      readonly remainingRecoveryCodes: number;
+      /* Present only when the supply is low. */
+      readonly warning?: string;
+   }
+>;
+
+export function buildRecoveryLoginResponse(
+   user: ISafeUser,
+   emailChange: EmailChangeStatus,
+   remainingRecoveryCodes: number
+): RecoveryLoginResponse {
+   const base = buildAuthResponse(
+      `Login successful via recovery code.`,
+      user,
+      emailChange
+   );
+
+   if (remainingRecoveryCodes > TOTP_RECOVERY_CODE_LOW_THRESHOLD) {
+      return { ...base, remainingRecoveryCodes };
+   }
+
+   return {
+      ...base,
+      remainingRecoveryCodes,
+      warning: `You have ${remainingRecoveryCodes} recovery code${remainingRecoveryCodes === 1 ? '' : 's'} remaining. Generate a fresh set from your security settings.`,
+   };
+}
+
+// ── /me ──────────────────────────────────────────────────────────────────────────
+type Expires = ExpandType<
+   Pick<AuthenticatedUser, 'idleExpiresAt' | 'absoluteExpiresAt'>
+>;
+
+type MeContext = {
+   readonly session: Expires;
    /* null when 2FA is off: "no codes" and "not applicable" must stay distinguishable. */
-   remainingRecoveryCodes: number | null;
+   readonly remainingRecoveryCodes: number | null;
 };
 
-type MeContext = Pick<MeResponse, 'session' | 'remainingRecoveryCodes'>;
+/* Login's response plus the /me extras: the shared part cannot drift. */
+export type MeResponse = ExpandType<AuthUserResponse & MeContext>;
 
 export function buildMeResponse(
    message: string,
    user: ISafeUser,
    emailChange: EmailChangeStatus,
-   { session, remainingRecoveryCodes }: MeContext
+   context: MeContext
 ): MeResponse {
-   return {
-      success: true,
-      message,
-      user,
-      emailChange,
-      session,
-      remainingRecoveryCodes,
-   };
+   return { ...buildAuthResponse(message, user, emailChange), ...context };
 }
 
 // ── Invite responses ─────────────────────────────────────────────────────────────
