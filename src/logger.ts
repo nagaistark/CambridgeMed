@@ -3,16 +3,19 @@ import util from 'node:util';
 import { myEnv } from './validateConfig.ts';
 
 const isProduction = myEnv.environment === 'production';
+const isInteractiveTerminal =
+   process.stdout.isTTY && process.env.NO_COLOR === undefined;
 
-/* Production: one JSON object per line with an ISO-8601 UTC timestamp, which log aggregators parse natively. Development: colourised and human-readable. */
-const format = isProduction
+/* Keep newline-delimited JSON when stdout is redirected, so `pnpm dev > app.log`
+   remains machine-readable.  A terminal gets the compact presentation instead. */
+const format = !isInteractiveTerminal
    ? winston.format.combine(winston.format.timestamp(), winston.format.json())
    : winston.format.combine(
         winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss' }),
         winston.format.colorize(),
         winston.format.printf(
            ({ level, message, timestamp }) =>
-              `${String(timestamp)} [${level}]: ${String(message)}`
+              `${String(timestamp)} ${String(level).padEnd(7)} ${String(message)}`
         )
      );
 
@@ -33,7 +36,10 @@ const createLogMethod =
    (...args) => {
       winstonLogger.log(
          level,
-         util.formatWithOptions({ colors: !isProduction, depth: 4 }, ...args)
+         util.formatWithOptions(
+            { colors: isInteractiveTerminal, depth: 4 },
+            ...args
+         )
       );
    };
 
