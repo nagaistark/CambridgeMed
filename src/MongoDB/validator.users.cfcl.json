@@ -15,6 +15,7 @@
                "isActive",
                "passwordHash",
                "passwordResetRequired",
+               "credentialsVersion",
                "previousNames",
                "previousEmails",
                "nameChangesUsed",
@@ -61,6 +62,7 @@
                   "pattern": "^\\$argon2id\\$v=19\\$m=65536,p=4,t=3\\$[A-Za-z0-9+/]{22}\\$[A-Za-z0-9+/]{43}\\z"
                },
                "passwordResetRequired": { "bsonType": "bool" },
+               "credentialsVersion": { "bsonType": "int", "minimum": 0 },
                "previousNames": {
                   "bsonType": "array",
                   "maxItems": 10,

@@ -7,11 +7,12 @@
             "required": [
                "_id",
                "userId",
-               "currentTokenHash",
-               "previousTokenHash",
-               "rotatedAt",
+               "credentialsVersion",
+               "tokenHash",
+               "lastActiveAt",
                "ipAddress",
                "userAgent",
+               "absoluteExpiresAt",
                "expiresAt",
                "createdAt",
                "updatedAt"
@@ -19,17 +20,15 @@
             "properties": {
                "_id": { "bsonType": "objectId" },
                "userId": { "bsonType": "objectId" },
-               "currentTokenHash": {
+               "credentialsVersion": { "bsonType": "int", "minimum": 0 },
+               "tokenHash": {
                   "bsonType": "string",
                   "pattern": "^[a-f0-9]{64}\\z"
                },
-               "previousTokenHash": {
-                  "bsonType": ["string", "null"],
-                  "pattern": "^[a-f0-9]{64}\\z"
-               },
-               "rotatedAt": { "bsonType": "date" },
+               "lastActiveAt": { "bsonType": "date" },
                "ipAddress": {
                   "bsonType": ["string", "null"],
+                  "minLength": 1,
                   "maxLength": 128,
                   "pattern": "^[0-9a-fA-F:.]+(%[0-9A-Za-z._-]+)?\\z"
                },
@@ -39,6 +38,7 @@
                   "maxLength": 2056,
                   "pattern": "^\\S(?:[\\s\\S]*\\S)?\\z"
                },
+               "absoluteExpiresAt": { "bsonType": "date" },
                "expiresAt": { "bsonType": "date" },
                "createdAt": { "bsonType": "date" },
                "updatedAt": { "bsonType": "date" }
@@ -47,7 +47,13 @@
       },
       {
          "$expr": {
-            "$lte": ["$createdAt", "$updatedAt"]
+            "$and": [
+               { "$lte": ["$createdAt", "$updatedAt"] },
+               { "$gte": ["$lastActiveAt", "$createdAt"] },
+               { "$gt": ["$expiresAt", "$createdAt"] },
+               { "$gt": ["$absoluteExpiresAt", "$createdAt"] },
+               { "$lte": ["$expiresAt", "$absoluteExpiresAt"] }
+            ]
          }
       }
    ]

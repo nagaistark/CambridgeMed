@@ -11,8 +11,8 @@
          "targetUserId",
          "requestId",
          "ipAddress",
-         "purpose",
-         "factorKind"
+         "secondFactorPurpose",
+         "secondFactorKind"
       ],
       "properties": {
          "_id": { "bsonType": "objectId" },
@@ -25,9 +25,22 @@
                "TOTP_DISABLED",
                "TOTP_RECOVERY_CODES_REGENERATED",
                "TOTP_RESET_BY_ADMIN",
+               "TOTP_RESET_BY_EMAIL_REVERT",
                "SECOND_FACTOR_FAILED",
                "SECOND_FACTOR_LOCKED",
-               "RECOVERY_CODE_USED"
+               "RECOVERY_CODE_USED",
+               "SESSION_TERMINATED",
+               "SESSION_TERMINATED_BY_ADMIN",
+               "PASSWORD_CHANGED",
+               "PASSWORD_RESET_COMPLETED",
+               "EMAIL_CHANGE_REQUESTED",
+               "EMAIL_CHANGE_CONFIRMED",
+               "EMAIL_CHANGE_CANCELLED",
+               "EMAIL_CHANGE_REVERTED",
+               "ACCOUNT_ACTIVATED",
+               "ACCOUNT_DEACTIVATED",
+               "INVITE_PRIVILEGE_GRANTED",
+               "INVITE_PRIVILEGE_REVOKED"
             ]
          },
          "severity": { "bsonType": "string", "enum": ["info", "warn"] },
@@ -41,10 +54,12 @@
          },
          "ipAddress": {
             "bsonType": ["string", "null"],
+            "minLength": 1,
             "maxLength": 128,
             "pattern": "^[0-9a-fA-F:.]+(%[0-9A-Za-z._-]+)?\\z"
          },
-         "purpose": {
+         "secondFactorPurpose": {
+            "bsonType": ["string", "null"],
             "enum": [
                "login",
                "password-reset",
@@ -54,34 +69,99 @@
                null
             ]
          },
-         "factorKind": { "enum": ["totp", "recovery", null] }
+         "secondFactorKind": {
+            "bsonType": ["string", "null"],
+            "enum": ["totp", "recovery", null]
+         }
       },
-      "oneOf": [
+      "allOf": [
          {
-            "properties": {
-               "event": {
-                  "enum": [
-                     "TOTP_ENROLLMENT_STARTED",
-                     "TOTP_ENABLED",
-                     "TOTP_RECOVERY_CODES_REGENERATED"
-                  ]
+            "oneOf": [
+               {
+                  "properties": {
+                     "event": {
+                        "enum": [
+                           "TOTP_ENROLLMENT_STARTED",
+                           "TOTP_ENABLED",
+                           "TOTP_RECOVERY_CODES_REGENERATED",
+                           "SESSION_TERMINATED",
+                           "PASSWORD_CHANGED",
+                           "EMAIL_CHANGE_REQUESTED",
+                           "EMAIL_CHANGE_CANCELLED",
+                           "INVITE_PRIVILEGE_REVOKED"
+                        ]
+                     },
+                     "severity": { "enum": ["info"] }
+                  }
                },
-               "severity": { "enum": ["info"] }
-            }
+               {
+                  "properties": {
+                     "event": {
+                        "enum": [
+                           "TOTP_DISABLED",
+                           "TOTP_RESET_BY_ADMIN",
+                           "TOTP_RESET_BY_EMAIL_REVERT",
+                           "SECOND_FACTOR_FAILED",
+                           "SECOND_FACTOR_LOCKED",
+                           "RECOVERY_CODE_USED",
+                           "SESSION_TERMINATED_BY_ADMIN",
+                           "PASSWORD_RESET_COMPLETED",
+                           "EMAIL_CHANGE_CONFIRMED",
+                           "EMAIL_CHANGE_REVERTED",
+                           "ACCOUNT_ACTIVATED",
+                           "ACCOUNT_DEACTIVATED",
+                           "INVITE_PRIVILEGE_GRANTED"
+                        ]
+                     },
+                     "severity": { "enum": ["warn"] }
+                  }
+               }
+            ]
          },
          {
-            "properties": {
-               "event": {
-                  "enum": [
-                     "TOTP_DISABLED",
-                     "TOTP_RESET_BY_ADMIN",
-                     "SECOND_FACTOR_FAILED",
-                     "SECOND_FACTOR_LOCKED",
-                     "RECOVERY_CODE_USED"
-                  ]
+            "oneOf": [
+               {
+                  "properties": {
+                     "event": {
+                        "enum": [
+                           "SECOND_FACTOR_FAILED",
+                           "SECOND_FACTOR_LOCKED",
+                           "RECOVERY_CODE_USED"
+                        ]
+                     },
+                     "secondFactorPurpose": { "bsonType": "string" },
+                     "secondFactorKind": { "bsonType": "string" }
+                  }
                },
-               "severity": { "enum": ["warn"] }
-            }
+               {
+                  "properties": {
+                     "event": {
+                        "enum": [
+                           "TOTP_ENROLLMENT_STARTED",
+                           "TOTP_ENABLED",
+                           "TOTP_DISABLED",
+                           "TOTP_RECOVERY_CODES_REGENERATED",
+                           "TOTP_RESET_BY_ADMIN",
+                           "TOTP_RESET_BY_EMAIL_REVERT",
+                           "SESSION_TERMINATED",
+                           "SESSION_TERMINATED_BY_ADMIN",
+                           "PASSWORD_CHANGED",
+                           "PASSWORD_RESET_COMPLETED",
+                           "EMAIL_CHANGE_REQUESTED",
+                           "EMAIL_CHANGE_CONFIRMED",
+                           "EMAIL_CHANGE_CANCELLED",
+                           "EMAIL_CHANGE_REVERTED",
+                           "ACCOUNT_ACTIVATED",
+                           "ACCOUNT_DEACTIVATED",
+                           "INVITE_PRIVILEGE_GRANTED",
+                           "INVITE_PRIVILEGE_REVOKED"
+                        ]
+                     },
+                     "secondFactorPurpose": { "bsonType": "null" },
+                     "secondFactorKind": { "bsonType": "null" }
+                  }
+               }
+            ]
          }
       ]
    }

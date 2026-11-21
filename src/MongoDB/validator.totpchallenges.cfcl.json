@@ -1,0 +1,39 @@
+{
+   "$and": [
+      {
+         "$jsonSchema": {
+            "bsonType": "object",
+            "additionalProperties": false,
+            "required": [
+               "_id",
+               "tokenHash",
+               "userId",
+               "credentialsVersion",
+               "expiresAt",
+               "createdAt",
+               "updatedAt"
+            ],
+            "properties": {
+               "_id": { "bsonType": "objectId" },
+               "tokenHash": {
+                  "bsonType": "string",
+                  "pattern": "^[a-f0-9]{64}\\z"
+               },
+               "userId": { "bsonType": "objectId" },
+               "credentialsVersion": { "bsonType": "int", "minimum": 0 },
+               "expiresAt": { "bsonType": "date" },
+               "createdAt": { "bsonType": "date" },
+               "updatedAt": { "bsonType": "date" }
+            }
+         }
+      },
+      {
+         "$expr": {
+            "$and": [
+               { "$lte": ["$createdAt", "$updatedAt"] },
+               { "$gt": ["$expiresAt", "$createdAt"] }
+            ]
+         }
+      }
+   ]
+}
