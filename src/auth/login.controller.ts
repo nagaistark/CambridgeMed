@@ -124,7 +124,7 @@ export async function loginController(
 
       return void res
          .status(200)
-         .json(buildAuthResponse('Login successful', safeUser, emailChange));
+         .json(buildAuthResponse('Login successful.', safeUser, emailChange));
    } catch (err) {
       next(err);
    }
