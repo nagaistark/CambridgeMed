@@ -30,6 +30,7 @@ const securityEventIndexes = [
    },
    { name: 'event_1_occurredAt_-1', key: { event: 1, occurredAt: -1 } },
    { name: 'actorId_1_occurredAt_-1', key: { actorId: 1, occurredAt: -1 } },
+   { name: 'ipAddress_1_occurredAt_-1', key: { ipAddress: 1, occurredAt: -1 } },
 ] satisfies readonly TypedIndexDescription<ISecurityEventDocument>[];
 
 function readAdminUri(): string {

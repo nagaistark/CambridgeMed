@@ -22,6 +22,7 @@ import { loadEmailChangeStatus } from '@users/loadEmailChangeStatus.ts';
 import { decodeStored } from '@utils/decodeStored.ts';
 import { upgradePasswordHashIfStale } from '@auth/upgradePasswordHash.ts';
 import { loadSafeUser } from '@users/loadSafeUser.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 /* A real hash, made once at startup with the CURRENT ARGON2_CONFIG, of a password nobody knows. When no user matches, we still run a full verification against it so "no such user" costs the same as "wrong password". Because it is generated rather than pasted, it cannot drift from the config. */
 const TIMING_DUMMY_HASH: string = await hashPassword(generateRandomToken());
@@ -58,6 +59,13 @@ export async function loginController(
 
       // Deliberately vague: same message for "no such user" and "wrong password".
       if (validatedUser === null || !isPasswordValid) {
+         securityLog.recordLoginFailure({
+            targetUserId: validatedUser?._id ?? null,
+            reason:
+               validatedUser === null ? 'unknown_account' : 'wrong_password',
+            ...requestContext(req, res),
+         });
+
          return void res
             .status(401)
             .json(
@@ -71,6 +79,12 @@ export async function loginController(
 
       /* AFTER the credential check on purpose: revealing "deactivated" is acceptable only to someone who has just proven the password. */
       if (!validatedUser.isActive) {
+         securityLog.recordLoginFailure({
+            targetUserId: validatedUser._id,
+            reason: 'account_deactivated',
+            ...requestContext(req, res),
+         });
+
          return void res
             .status(403)
             .json(
@@ -83,6 +97,12 @@ export async function loginController(
       }
 
       if (validatedUser.passwordResetRequired) {
+         securityLog.recordLoginFailure({
+            targetUserId: validatedUser._id,
+            reason: 'password_reset_required',
+            ...requestContext(req, res),
+         });
+
          return void res
             .status(403)
             .json(

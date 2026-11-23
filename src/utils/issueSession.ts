@@ -20,6 +20,7 @@ import { decodeStored } from '@utils/decodeStored.ts';
 import type { StrictMongoFilter } from '@utils/pathFinder_v3.ts';
 import { sanitizeError } from '@utils/sanitizeError.ts';
 import logger from '../logger.ts';
+import { requestContext, securityLog } from '@services/securityLog.service.ts';
 
 /* Rotation: the session this browser presented dies as soon as its replacement exists, whoever owned it (the browser is being re-authenticated). Best-effort, like eviction: by now the new session exists, so a failure here must not fail a login whose credentials were correct. */
 async function retirePresentedSession(req: Request): Promise<void> {
@@ -83,4 +84,11 @@ export async function issueSession(
    await evictExcessSessions(validatedSession.userId, validatedSession._id);
 
    setSessionCookie(res, rawToken, absoluteExpiresAt.getTime() - now.getTime());
+
+   securityLog.record({
+      event: 'LOGIN_SUCCEEDED',
+      actorId: user._id,
+      targetUserId: user._id,
+      ...requestContext(req, res),
+   });
 }

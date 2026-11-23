@@ -9,6 +9,7 @@ import {
 } from '@models/SecurityEvent_v3.model.ts';
 import {
    SECURITY_EVENT_SEVERITY,
+   type LoginFailureReason,
    type SecondFactorKind,
    type SecondFactorPurpose,
    type SecurityEventType,
@@ -30,12 +31,51 @@ export function requestContext(
 }
 
 export type SecurityEventInput = RequestContext & {
-   readonly event: SecurityEventType;
+   readonly event: Exclude<SecurityEventType, 'LOGIN_FAILED'>; // LOGIN_FAILED has its own entry point: it is the only event that may lack a target.
    readonly actorId: ObjectId | null;
    readonly targetUserId: ObjectId;
    readonly secondFactorPurpose?: SecondFactorPurpose;
    readonly secondFactorKind?: SecondFactorKind;
 };
+
+type EmitInput = RequestContext & {
+   readonly event: SecurityEventType;
+   readonly actorId: ObjectId | null;
+   readonly targetUserId: ObjectId | null;
+   readonly loginFailureReason: LoginFailureReason | null;
+   readonly secondFactorPurpose?: SecondFactorPurpose;
+   readonly secondFactorKind?: SecondFactorKind;
+};
+
+function emit(input: EmitInput): void {
+   const severity = SECURITY_EVENT_SEVERITY[input.event];
+
+   const doc: ISecurityEventDocument = {
+      _id: new ObjectId(),
+      occurredAt: new Date(),
+      event: input.event,
+      severity,
+      actorId: input.actorId,
+      targetUserId: input.targetUserId,
+      requestId: input.requestId,
+      ipAddress: input.ipAddress,
+      loginFailureReason: input.loginFailureReason,
+      secondFactorPurpose: input.secondFactorPurpose ?? null,
+      secondFactorKind: input.secondFactorKind ?? null,
+   };
+
+   const log = severity === 'warn' ? logger.warn : logger.info;
+   log(`[SecurityEvent] ${doc.event}`, {
+      requestId: doc.requestId,
+      actorId: doc.actorId?.toHexString() ?? null,
+      targetUserId: doc.targetUserId?.toHexString() ?? null,
+      loginFailureReason: doc.loginFailureReason,
+      secondFactorPurpose: doc.secondFactorPurpose,
+      secondFactorKind: doc.secondFactorKind,
+   });
+
+   trackBackgroundTask(persist(doc));
+}
 
 /* Never rejects: an audit-store outage must not turn a successful action into a failed one. The process-log line written by `record` is the guaranteed trace; this is the durable one. */
 async function persist(doc: ISecurityEventDocument): Promise<void> {
@@ -54,33 +94,25 @@ async function persist(doc: ISecurityEventDocument): Promise<void> {
    }
 }
 
-/* Synchronous from the caller's view, like auditLog.record. Safe to call after a commit or after the response is sent. */
 function record(input: SecurityEventInput): void {
-   const severity = SECURITY_EVENT_SEVERITY[input.event];
-
-   const doc: ISecurityEventDocument = {
-      _id: new ObjectId(),
-      occurredAt: new Date(),
-      event: input.event,
-      severity,
-      actorId: input.actorId,
-      targetUserId: input.targetUserId,
-      requestId: input.requestId,
-      ipAddress: input.ipAddress,
-      secondFactorPurpose: input.secondFactorPurpose ?? null,
-      secondFactorKind: input.secondFactorKind ?? null,
-   };
-
-   const log = severity === 'warn' ? logger.warn : logger.info;
-   log(`[SecurityEvent] ${doc.event}`, {
-      requestId: doc.requestId,
-      actorId: doc.actorId?.toHexString() ?? null,
-      targetUserId: doc.targetUserId.toHexString(),
-      secondFactorPurpose: doc.secondFactorPurpose,
-      secondFactorKind: doc.secondFactorKind,
-   });
-
-   trackBackgroundTask(persist(doc));
+   emit({ ...input, loginFailureReason: null });
 }
 
-export const securityLog = { record };
+/* `targetUserId` is null exactly when no account matched. The submitted email is deliberately NOT accepted here: it can contain a pasted password. */
+function recordLoginFailure(
+   input: RequestContext & {
+      readonly targetUserId: ObjectId | null;
+      readonly reason: LoginFailureReason;
+   }
+): void {
+   emit({
+      event: 'LOGIN_FAILED',
+      actorId: null,
+      targetUserId: input.targetUserId,
+      loginFailureReason: input.reason,
+      requestId: input.requestId,
+      ipAddress: input.ipAddress,
+   });
+}
+
+export const securityLog = { record, recordLoginFailure };

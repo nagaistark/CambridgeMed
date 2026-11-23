@@ -9,6 +9,9 @@ export const securityEventTypes = [
    'SECOND_FACTOR_FAILED',
    'SECOND_FACTOR_LOCKED',
    'RECOVERY_CODE_USED',
+   // ── Authentication ──
+   'LOGIN_SUCCEEDED',
+   'LOGIN_FAILED',
    // ── Sessions ──
    'SESSION_TERMINATED',
    'SESSION_TERMINATED_BY_ADMIN',
@@ -46,6 +49,8 @@ export const SECURITY_EVENT_SEVERITY: Record<
    SECOND_FACTOR_FAILED: 'warn',
    SECOND_FACTOR_LOCKED: 'warn',
    RECOVERY_CODE_USED: 'warn',
+   LOGIN_SUCCEEDED: 'info',
+   LOGIN_FAILED: 'warn',
    SESSION_TERMINATED: 'info',
    SESSION_TERMINATED_BY_ADMIN: 'warn',
    PASSWORD_CHANGED: 'info',
@@ -59,6 +64,14 @@ export const SECURITY_EVENT_SEVERITY: Record<
    INVITE_PRIVILEGE_GRANTED: 'warn',
    INVITE_PRIVILEGE_REVOKED: 'info',
 };
+
+export const loginFailureReasons = [
+   'unknown_account',
+   'wrong_password',
+   'account_deactivated',
+   'password_reset_required',
+] as const;
+export type LoginFailureReason = (typeof loginFailureReasons)[number];
 
 /* WHY a second factor was being checked. Recorded on every failure and lockout so an investigator can tell a login guess from a reset-link abuse. */
 export const secondFactorPurposes = [
