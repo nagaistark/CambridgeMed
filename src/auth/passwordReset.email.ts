@@ -26,9 +26,10 @@ export async function sendPasswordResetEmail(
       hour: '2-digit',
       minute: '2-digit',
       timeZone: TIME_ZONE,
+      timeZoneName: 'short',
    });
 
-   const text = `Hi ${firstName}.\n\nWe received a request to reset the password for your CambridgeMed account. Click the link below to choose a new password:\n\n ${resetUrl}\n\nThis link expires at ${expiryFormatted}. If you did not request a password reset, you can safely ignore this email. Your password will not change.`;
+   const text = `Hi ${firstName}.\n\nWe received a request to reset the password for your CambridgeMed account. Click the link below to choose a new password:\n\n${resetUrl}\n\nThis link expires at ${expiryFormatted}. If you did not request a password reset, you can safely ignore this email. Your password will not change.`;
 
    const html = `<!DOCTYPE html>
          <html lang="en">

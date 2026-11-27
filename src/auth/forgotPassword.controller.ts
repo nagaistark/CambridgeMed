@@ -104,12 +104,12 @@ async function issuePasswordReset(
                tokenHash: validatedCandidate.tokenHash,
                email: validatedCandidate.email,
                expiresAt: validatedCandidate.expiresAt,
+               createdAt: validatedCandidate.createdAt,
                updatedAt: validatedCandidate.updatedAt,
             },
             /* `userId` is NOT repeated here: on insert it is seeded from the equality clause of the filter. */
             $setOnInsert: {
                _id: validatedCandidate._id,
-               createdAt: validatedCandidate.createdAt,
             },
          } satisfies StrictUpdate<IPasswordResetDocumentRead>,
          { upsert: true }
@@ -156,8 +156,6 @@ async function issuePasswordReset(
    }
 }
 
-// ── Controller ───────────────────────────────────────────────────────────────────
-/* Deliberately takes no `next`: once the response is out, there is nobody left to hand an error to (the global handlers would only find `headersSent` and make Express destroy the socket). Failures here are logged, never surfaced; the caller can simply ask again after the cooldown. Make sure these log lines are monitored. */
 async function runDeferred(
    email: IUserDocument['email'],
    requestId: string
@@ -172,6 +170,8 @@ async function runDeferred(
    }
 }
 
+// ── Controller ───────────────────────────────────────────────────────────────────
+/* Deliberately takes no `next`: once the response is out, there is nobody left to hand an error to (the global handlers would only find `headersSent` and make Express destroy the socket). Failures here are logged, never surfaced; the caller can simply ask again after the cooldown. Make sure these log lines are monitored. */
 export async function forgotPasswordController(
    _req: Request,
    res: ResponseWithValidatedBody<ForgotPasswordBody>
